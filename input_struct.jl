@@ -1,0 +1,182 @@
+export ROSolverOptions
+
+mutable struct ROSolverOptions{R}
+  ϵa::R  # termination criteria
+  ϵr::R  # relative stopping tolerance
+  neg_tol::R # tolerance when ξ < 0
+  Δk::R  # trust region radius
+  verbose::Int  # print every so often
+  maxIter::Int  # maximum amount of inner iterations
+  maxTime::Float64 #maximum time allotted to the algorithm in s
+  σmin::R # minimum σk allowed for LM/R2 method
+  μmin::R # minimum μk allowed for Sampled Methods - NEW -
+  η1::R  # step acceptance threshold
+  η2::R  # trust-region increase threshold
+  η3::R #Stochastic metric threshold - NEW -
+  α::R  # νk Δ^{-1} parameter
+  ν::R  # initial guess for step length
+  νcp::R #Initial guess for step length of Cauchy Point computation - NEW -
+  γ::R  # trust region buffer
+  θ::R  # step length factor in relation to Hessian norm
+  β::R  # TR size as factor of first PG step
+  λ::R # parameter of the random stepwalk - NEW -
+  M::R # big value to select the Cauchy Step in last resort - NEW -
+  spectral::Bool # for TRDH: use spectral gradient update if true, otherwise DiagonalQN
+  psb::Bool # for TRDH with DiagonalQN (spectral = false): use PSB update if true, otherwise Andrei update
+  reduce_TR::Bool
+
+  function ROSolverOptions{R}(;
+    ϵa::R = √eps(R),
+    ϵr::R = √eps(R),
+    neg_tol::R = eps(R)^(1 / 4),
+    Δk::R = one(R),
+    verbose::Int = 0,
+    maxIter::Int = 100,
+    maxTime::Float64 = 3600.0,
+    σmin::R = eps(R),
+    μmin::R = eps(R),
+    η1::R = √√eps(R),
+    η2::R = R(0.9),
+    η3::R = R(0.4),
+    α::R = 1 / eps(R),
+    ν::R = 1.0e-3,
+    νcp::R = 1.0e-2,
+    γ::R = R(3),
+    θ::R = R(1e-3),
+    β::R = 1 / eps(R),
+    λ::R = R(3),
+    M::R = R(10e6),
+    spectral::Bool = false,
+    psb::Bool = false,
+    reduce_TR::Bool = true,
+  ) where {R <: Real}
+    @assert ϵa ≥ 0
+    @assert ϵr ≥ 0
+    @assert neg_tol ≥ 0
+    @assert Δk > 0
+    @assert verbose ≥ 0
+    @assert maxIter ≥ 0
+    @assert maxTime ≥ 0
+    @assert σmin ≥ 0
+    @assert μmin ≥ 0
+    @assert 0 < η1 < η2 < 1
+    @assert η3 > 0
+    @assert α > 0
+    @assert ν > 0
+    #relation between vcp and v
+    @assert νcp > 0
+    @assert γ > 1
+    @assert θ > 0
+    @assert β ≥ 1
+    @assert λ > 1
+    return new{R}(
+      ϵa,
+      ϵr,
+      neg_tol,
+      Δk,
+      verbose,
+      maxIter,
+      maxTime,
+      σmin,
+      μmin,
+      η1,
+      η2,
+      η3,
+      α,
+      ν,
+      νcp,
+      γ,
+      θ,
+      β,
+      λ,
+      M,
+      spectral,
+      psb,
+      reduce_TR,
+    )
+  end
+end
+
+ROSolverOptions(args...; kwargs...) = ROSolverOptions{Float64}(args...; kwargs...)
+
+mutable struct SampledNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
+  meta::NLPModelMeta{T, S}
+  nls_meta::NLSMeta{T, S}
+  counters::NLSCounters
+
+  resid!::R
+  jprod_resid!::J
+  jtprod_resid!::Jt
+
+  function SampledNLSModel{T, S, R, J, Jt}(
+    r::R,
+    jv::J,
+    jtv::Jt,
+    nequ::Int,
+    x::S;
+    sampler::AbstractVector,
+    kwargs...,
+  ) where {T, S, R <: Function, J <: Function, Jt <: Function}
+    nvar = length(x)
+    meta = NLPModelMeta(nvar, x0 = x; kwargs...)
+    nls_meta = NLSMeta{T, S}(nequ, nvar, x0 = x)
+    return new{T, S, R, J, Jt}(meta, nls_meta, NLSCounters(), r, jv, jtv)
+  end
+end
+
+SampledNLSModel(r, jv, jtv, nequ::Int, x::S; sampler::AbstractVector = 1:nequ, kwargs...) where {S} =
+SampledNLSModel{eltype(S), S, typeof(r), typeof(jv), typeof(jtv)}(
+    r,
+    jv,
+    jtv,
+    nequ,
+    x;
+    sampler,
+    kwargs...,
+  )
+
+function NLPModels.residual!(
+    nls::SampledNLSModel, 
+    x::AbstractVector, 
+    Fx::AbstractVector;
+    sampler::AbstractVector{<:Integer} = 1:(nls.nls_meta.nequ)
+    )
+  NLPModels.@lencheck nls.meta.nvar x
+  NLPModels.@lencheck length(sampler) Fx
+  #sampler = sort(randperm(nls.nls_meta.nequ)[1:Int(sample_rate * nls.nls_meta.nequ)])
+  increment!(nls, :neval_residual)
+  #the next function should return the sampled function Fx whose indexes are stored in sampler without computing the other lines
+  #TODO : faire en sorte que les indices de calcul de nls.resid! soient parcouru avec "for i in sampler" au lieu de parcourir tous les indices.
+  nls.resid!(Fx, x; sampler)
+  Fx
+end
+
+function NLPModels.jprod_residual!(
+  nls::SampledNLSModel,
+  x::AbstractVector,
+  v::AbstractVector,
+  Jv::AbstractVector;
+  sampler::AbstractVector{<:Integer} = 1:(nls.nls_meta.nequ)
+)
+  NLPModels.@lencheck nls.meta.nvar x v
+  NLPModels.@lencheck length(sampler) Jv
+  increment!(nls, :neval_jprod_residual)
+  nls.jprod_resid!(Jv, x, v; sampler = sampler)
+  #@assert Jv == Jv[sort(randperm(nls.nls_meta.nequ)[1:Int(1.0 * nls.nls_meta.nequ)])]
+  Jv
+end
+
+function NLPModels.jtprod_residual!(
+  nls::SampledNLSModel,
+  x::AbstractVector,
+  v::AbstractVector,
+  Jtv::AbstractVector;
+  sampler::AbstractVector{<:Integer} = 1:(nls.nls_meta.nequ)
+)
+  NLPModels.@lencheck nls.meta.nvar x Jtv
+  NLPModels.@lencheck length(sampler) v
+  increment!(nls, :neval_jtprod_residual)
+  nls.jtprod_resid!(Jtv, x, v; sampler = sampler)
+  #@assert Jtv == Jtv[sort(randperm(nls.nls_meta.nequ)[1:Int(1.0 * nls.nls_meta.nequ)])]
+  Jtv
+end
