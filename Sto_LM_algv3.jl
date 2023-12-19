@@ -271,7 +271,7 @@ function Sto_LM_v3(
       μk = max(μk / λ, μmin)
     end
 
-    if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
+    if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
       #μk = max(μk / λ, μmin)
 

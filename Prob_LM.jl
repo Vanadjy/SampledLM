@@ -41,7 +41,7 @@ the quantities are sampled ones from the original data of the Problem.
 * `Hobj_hist`: an array with the history of values of the nonsmooth objective
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
-function Sto_LM_v4(
+function Prob_LM(
   nls::SampledNLSModel2,
   h::H,
   options::ROSolverOptions;

@@ -12,12 +12,11 @@ using Random, Test
 using RegularizedProblems, RegularizedOptimization
 using NLSProblems
 
-include("input_struct.jl")
-include("input_struct2.jl")
-include("bpdn_model_sampled.jl")
-include("bpdn_model_sampled2.jl")
-include("Sto_LM_alg.jl")
-include("Sto_LM_algv2.jl")
+include("input_struct_sto.jl")
+include("input_struct_prob.jl")
+include("bpdn_model_sampled_sto.jl")
+include("bpdn_model_sampled_prob.jl")
+include("OldCodes/Sto_LM_alg.jl")
 include("Sto_LM_algv3.jl")
 include("Sto_LM_algv4.jl")
 include("tests.jl")
