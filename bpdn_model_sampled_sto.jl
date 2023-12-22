@@ -1,6 +1,6 @@
 #export bpdn_model, bpdn_nls_model
 
-function bpdn_data_sto(m::Int, n::Int, k::Int, noise::Float64 = 0.01; bounds::Bool = false, sample_rate::AbstractFloat = 1.0)
+function bpdn_data_sto(m::Int, n::Int, k::Int, noise::Float64 = 0.01; bounds::Bool = false)
   m ≤ n || error("number of rows ($m) should be ≤ number of columns ($n)")
   x0 = zeros(n)
   p = randperm(n)[1:k]
@@ -18,8 +18,8 @@ function bpdn_data_sto(m::Int, n::Int, k::Int, noise::Float64 = 0.01; bounds::Bo
   A, b, b0, x0
 end
 
-bpdn_data_sto(compound::Int = 1, args...; bounds::Bool = false, sample_rate::AbstractFloat = 1.0) =
-bpdn_data_sto(200 * compound, 512 * compound, 10 * compound, args...; bounds = bounds, sample_rate)
+bpdn_data_sto(compound::Int = 1, args...; bounds::Bool = false) =
+bpdn_data_sto(200 * compound, 512 * compound, 10 * compound, args...; bounds = bounds)
 
 """
     model, nls_model, sol = bpdn_model(args...)
@@ -59,17 +59,23 @@ basis-pursuit denoise problem, and the exact solution x̄.
 If `bounds == true`, the positive part of x̄ is returned.
 """
 function bpdn_model_sto(compound::Int = 1, args... ; bounds::Bool = false, sample_rate::AbstractFloat = 1.0)
-  A, b, b0, x0 = bpdn_data_sto(args...; bounds = bounds, sample_rate = sample_rate)
-  r = similar(b[1:Int(sample_rate * size(A,1))])
+  A, b, b0, x0 = bpdn_data_sto(args...; bounds = bounds)
 
-  function resid!(r, x; sampler = 1:size(A,1))
+  #initializes sampling parameters
+  sampler = sort(randperm(size(A,1))[1:Int(sample_rate * size(A,1))])
+  sampler_mem = copy(sampler)
+  len_mem = length(sampler)
+  #update_sampler!(size(A,1), sampler, sampling_mem, len_mem)
+  r = similar(b[1:length(sampler)])
+
+  function resid!(r, x; sampler = sampler)
     mul!(r, A[sampler, :], x)
     r .-= b[sampler]
     r
   end
 
-  jprod_resid!(Jv, x, v; sampler = 1:size(A,1)) = mul!(Jv, A[sampler, :], v) #v must be of length n
-  jtprod_resid!(Jtv, x, v; sampler = 1:size(A,1)) = mul!(Jtv, A[sampler, :]', v) #v must be of length mₛ
+  jprod_resid!(Jv, x, v; sampler = sampler) = mul!(Jv, A[sampler, :], v) #Jv must be of length mₛ ad v of length n
+  jtprod_resid!(Jtv, x, v; sampler = sampler) = mul!(Jtv, A[sampler, :]', v) #v must be of length mₛ and Jtv of length n
 
   
   function obj(x)
@@ -79,7 +85,7 @@ function bpdn_model_sto(compound::Int = 1, args... ; bounds::Bool = false, sampl
 
   function grad!(g, x)
     resid!(r, x)
-    mul!(g, A', r)
+    #mul!(g, A', r)
     g
   end
 
@@ -94,6 +100,6 @@ function bpdn_model_sto(compound::Int = 1, args... ; bounds::Bool = false, sampl
   end
 
   FirstOrderModel(obj, grad!, zero(x0); nlpmodel_kwargs...),
-  SampledNLSModel(resid!, jprod_resid!, jtprod_resid!, size(A, 1), zero(x0); nlsmodel_kwargs...),
+  SampledNLSModel(resid!, jprod_resid!, jtprod_resid!, size(A, 1), zero(x0), sampler, sampler_mem, len_mem; nlsmodel_kwargs...),
   x0
 end

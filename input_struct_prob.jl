@@ -1,4 +1,4 @@
-mutable struct SampledNLSModel2{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
+mutable struct ProbNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
   meta::NLPModelMeta{T, S}
   nls_meta::NLSMeta{T, S}
   counters::NLSCounters
@@ -7,7 +7,7 @@ mutable struct SampledNLSModel2{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
   jprod_resid!::J
   jtprod_resid!::Jt
 
-  function SampledNLSModel2{T, S, R, J, Jt}(
+  function ProbNLSModel{T, S, R, J, Jt}(
     r::R,
     jv::J,
     jtv::Jt,
@@ -23,8 +23,8 @@ mutable struct SampledNLSModel2{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
   end
 end
 
-SampledNLSModel2(r, jv, jtv, nequ::Int, x::S; sampler::AbstractVector = 1:nequ, kwargs...) where {S} =
-SampledNLSModel2{eltype(S), S, typeof(r), typeof(jv), typeof(jtv)}(
+ProbNLSModel(r, jv, jtv, nequ::Int, x::S; sampler::AbstractVector = 1:nequ, kwargs...) where {S} =
+ProbNLSModel{eltype(S), S, typeof(r), typeof(jv), typeof(jtv)}(
     r,
     jv,
     jtv,
@@ -35,7 +35,7 @@ SampledNLSModel2{eltype(S), S, typeof(r), typeof(jv), typeof(jtv)}(
   )
 
 function NLPModels.residual!(
-    nls::SampledNLSModel2, 
+    nls::ProbNLSModel, 
     x::AbstractVector, 
     Fx::AbstractVector;
     sampler::AbstractVector{<:Integer} = 1:(nls.nls_meta.nequ)
@@ -50,7 +50,7 @@ function NLPModels.residual!(
 end
 
 function NLPModels.jprod_residual!(
-  nls::SampledNLSModel2,
+  nls::ProbNLSModel,
   x::AbstractVector,
   v::AbstractVector,
   Jv::AbstractVector;
@@ -65,7 +65,7 @@ function NLPModels.jprod_residual!(
 end
 
 function NLPModels.jtprod_residual!(
-  nls::SampledNLSModel2,
+  nls::ProbNLSModel,
   x::AbstractVector,
   v::AbstractVector,
   Jtv::AbstractVector;

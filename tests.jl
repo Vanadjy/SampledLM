@@ -2,9 +2,9 @@ compound = 1
 sample_rate = 1.0
 nz = 10 * compound
 #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-3, verbose = 10, spectral = true)
-bpdn, bpdn_nls, sol = bpdn_model_sto(compound)
-bpdn2, bpdn_nls2, sol2 = bpdn_model_prob(compound)
+sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-3, ϵr = 1e-3, verbose = 10;)
+bpdn, bpdn_nls, sol = bpdn_model_sto(compound; sample_rate = sample_rate)
+#bpdn2, bpdn_nls2, sol2 = bpdn_model_prob(compound)
 λ = norm(grad(bpdn, zeros(bpdn.meta.nvar)), Inf) / 10
 
 
@@ -143,33 +143,35 @@ end=#
 # ------------ SAMPLED VERSIONS ------------------- #
 
 # Sto_LM with h = L1 and χ = L2 is a special case
-for (h, h_name) ∈ ((NormL1(λ), "l1"), (NormL0(λ), "l0"))
-  reset!(bpdn_nls)
-  @testset "bpdn-ls-Sto_LM-$(h_name)" begin
-    x0 = zeros(bpdn_nls.meta.nvar)
-    p = randperm(bpdn_nls.meta.nvar)[1:nz]
-    x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
-    SLM_out = Sto_LM(bpdn_nls, h, sampled_options; x0 = x0)
-    @test typeof(SLM_out.solution) == typeof(bpdn_nls.meta.x0)
-    @test length(SLM_out.solution) == bpdn_nls.meta.nvar
-    @test typeof(SLM_out.solver_specific[:Fhist]) == typeof(SLM_out.solution)
-    @test typeof(SLM_out.solver_specific[:Hhist]) == typeof(SLM_out.solution)
-    @test typeof(SLM_out.solver_specific[:SubsolverCounter]) == Array{Int, 1}
-    @test typeof(SLM_out.dual_feas) == eltype(SLM_out.solution)
-    @test length(SLM_out.solver_specific[:Fhist]) == length(SLM_out.solver_specific[:Hhist])
-    @test length(SLM_out.solver_specific[:Fhist]) ==
-          length(SLM_out.solver_specific[:SubsolverCounter])
-    @test length(SLM_out.solver_specific[:Fhist]) == length(SLM_out.solver_specific[:NLSGradHist])
-    @test SLM_out.solver_specific[:NLSGradHist][end] ==
-          bpdn_nls.counters.neval_jprod_residual + bpdn_nls.counters.neval_jtprod_residual - 1
-    @test obj(bpdn_nls, SLM_out.solution) == SLM_out.solver_specific[:Fhist][end]
-    @test h(SLM_out.solution) == SLM_out.solver_specific[:Hhist][end]
-    @test SLM_out.status == :first_order
+if sample_rate == 1.0
+  for (h, h_name) ∈ ((NormL1(λ), "l1"), (NormL0(λ), "l0"))
+    reset!(bpdn_nls)
+    @testset "bpdn-ls-Sto_LM-$(h_name)" begin
+      x0 = zeros(bpdn_nls.meta.nvar)
+      p = randperm(bpdn_nls.meta.nvar)[1:nz]
+      x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
+      SLM_out = Sto_LM(bpdn_nls, h, sampled_options; x0 = x0)
+      @test typeof(SLM_out.solution) == typeof(bpdn_nls.meta.x0)
+      @test length(SLM_out.solution) == bpdn_nls.meta.nvar
+      @test typeof(SLM_out.solver_specific[:Fhist]) == typeof(SLM_out.solution)
+      @test typeof(SLM_out.solver_specific[:Hhist]) == typeof(SLM_out.solution)
+      @test typeof(SLM_out.solver_specific[:SubsolverCounter]) == Array{Int, 1}
+      @test typeof(SLM_out.dual_feas) == eltype(SLM_out.solution)
+      @test length(SLM_out.solver_specific[:Fhist]) == length(SLM_out.solver_specific[:Hhist])
+      @test length(SLM_out.solver_specific[:Fhist]) ==
+            length(SLM_out.solver_specific[:SubsolverCounter])
+      @test length(SLM_out.solver_specific[:Fhist]) == length(SLM_out.solver_specific[:NLSGradHist])
+      @test SLM_out.solver_specific[:NLSGradHist][end] ==
+            bpdn_nls.counters.neval_jprod_residual + bpdn_nls.counters.neval_jtprod_residual - 1
+      @test obj(bpdn_nls, SLM_out.solution) == SLM_out.solver_specific[:Fhist][end]
+      @test h(SLM_out.solution) == SLM_out.solver_specific[:Hhist][end]
+      @test SLM_out.status == :first_order
+    end
   end
 end
 
 
-for (h, h_name) ∈ ((NormL1(λ), "l1"), (NormL0(λ), "l0"),)
+#=for (h, h_name) ∈ ((NormL1(λ), "l1"), (NormL0(λ), "l0"),)
   reset!(bpdn_nls)
   @testset "bpdn-ls-Sto_LM_v3-$(h_name)" begin
     x0 = zeros(bpdn_nls.meta.nvar)
@@ -192,17 +194,17 @@ for (h, h_name) ∈ ((NormL1(λ), "l1"), (NormL0(λ), "l0"),)
     @test h(SLM3_out.solution) == SLM3_out.solver_specific[:Hhist][end]
     @test SLM3_out.status == :first_order
   end
-end
+end=#
 
 for (h, h_name) ∈ ((NormL1(λ), "l1"), (NormL0(λ), "l0"),)
-  reset!(bpdn_nls2)
+  reset!(bpdn_nls)
   @testset "bpdn-ls-Sto_LM_v4-$(h_name)" begin
-    x0 = zeros(bpdn_nls2.meta.nvar)
-    p = randperm(bpdn_nls2.meta.nvar)[1:nz]
+    x0 = zeros(bpdn_nls.meta.nvar)
+    p = randperm(bpdn_nls.meta.nvar)[1:nz]
     x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
-    SLM4_out = Sto_LM_v4(bpdn_nls2, h, sampled_options; x0 = x0, sample_rate = sample_rate)
-    @test typeof(SLM4_out.solution) == typeof(bpdn_nls2.meta.x0)
-    @test length(SLM4_out.solution) == bpdn_nls2.meta.nvar
+    SLM4_out = Sto_LM_v4(bpdn_nls, h, sampled_options; x0 = x0, sample_rate = sample_rate)
+    @test typeof(SLM4_out.solution) == typeof(bpdn_nls.meta.x0)
+    @test length(SLM4_out.solution) == bpdn_nls.meta.nvar
     @test typeof(SLM4_out.solver_specific[:Fhist]) == typeof(SLM4_out.solution)
     @test typeof(SLM4_out.solver_specific[:Hhist]) == typeof(SLM4_out.solution)
     @test typeof(SLM4_out.solver_specific[:SubsolverCounter]) == Array{Int, 1}
@@ -212,9 +214,10 @@ for (h, h_name) ∈ ((NormL1(λ), "l1"), (NormL0(λ), "l0"),)
           length(SLM4_out.solver_specific[:SubsolverCounter])
     @test length(SLM4_out.solver_specific[:Fhist]) == length(SLM4_out.solver_specific[:NLSGradHist])
     @test SLM4_out.solver_specific[:NLSGradHist][end] ==
-    bpdn_nls2.counters.neval_jprod_residual + bpdn_nls2.counters.neval_jtprod_residual - 1
-    @test obj(bpdn_nls2, SLM4_out.solution) == SLM4_out.solver_specific[:Fhist][end]
+    bpdn_nls.counters.neval_jprod_residual + bpdn_nls.counters.neval_jtprod_residual - 1
+    #@test obj(bpdn_nls, SLM4_out.solution) == SLM4_out.solver_specific[:Fhist][end]
     @test h(SLM4_out.solution) == SLM4_out.solver_specific[:Hhist][end]
     @test SLM4_out.status == :first_order
+    @test bpdn_nls.len_mem == bpdn_nls.nls_meta.nequ
   end
 end

@@ -42,7 +42,7 @@ the quantities are sampled ones from the original data of the Problem.
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
 function Sto_LM_v4(
-  nls::SampledNLSModel2,
+  nls::SampledNLSModel,
   h::H,
   options::ROSolverOptions;
   x0::AbstractVector = nls.meta.x0,
@@ -120,22 +120,23 @@ function Sto_LM_v4(
   end
 
   # main algorithm initialization
-  sampler = sort(randperm(nls.nls_meta.nequ)[1:Int(sample_rate * nls.nls_meta.nequ)])
+  #sampler = sort(randperm(nls.nls_meta.nequ)[1:Int(sample_rate * nls.nls_meta.nequ)])
 
   #creating required objects
-  Fk = rand(length(sampler)) #creates an "empty" vector of similar size as the sampler for future storage
+  Fk = rand(length(nls.sampler)) #creates an "empty" vector of similar size as the sampler for future storage
   Fkn = similar(Fk)
 
   Jk = jac_op_residual(nls, xk)
 
-  residual!(nls, xk, Fk; sampler = sampler) #replace the values in Fk at indexes indicated by sampler*
+  residual!(nls, xk, Fk) #replace the values in Fk at indexes indicated by sampler*
   fk = dot(Fk, Fk) / 2 #objective estimated without noise
 
   #sampled Jacobian
-  ∇fk = Jk[sampler, :]' * Fk #same size as xk
+  ∇fk = similar(xk)
+  jtprod_residual!(nls, xk, Fk, ∇fk)
+  #∇fk = Jk' * Fk #same size as xk
   JdFk = similar(Fk)   # temporary storage
   Jt_Fk = similar(∇fk)
-
 
   μmax = opnorm(Jk)
   #η3 = μmax^2
@@ -158,7 +159,7 @@ function Sto_LM_v4(
 
     # model for the Cauchy-Point decrease
     φcp(d) = begin
-      jtprod_residual!(nls, xk, Fk, Jt_Fk; sampler = sampler)
+      jtprod_residual!(nls, xk, Fk, Jt_Fk)
       dot(Fk, Fk) / 2 + dot(Jt_Fk, d)
     end
 
@@ -174,6 +175,7 @@ function Sto_LM_v4(
     prox!(scp, ψ, ∇fk, νcp)
     ξcp = fk + hk - φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
     #ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
+    
     if ξcp ≤ 0
       ξcp = - ξcp
     end
@@ -186,7 +188,7 @@ function Sto_LM_v4(
       ϵ_subsolver += ϵ_increment
     end
 
-    if metric < ϵ #checks if the optimal condition is satisfied
+    if (metric < ϵ) && (nls.len_mem == nls.nls_meta.nequ) #checks if the optimal condition is satisfied and if all of the data have been visited
       # the current xk is approximately first-order stationary
       optimal = true
       continue
@@ -199,21 +201,21 @@ function Sto_LM_v4(
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
     φ(d) = begin
-      jprod_residual!(nls, xk, d, JdFk; sampler = sampler)
+      jprod_residual!(nls, xk, d, JdFk)
       JdFk .+= Fk
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
     end
 
     ∇φ!(g, d) = begin
-      jprod_residual!(nls, xk, d, JdFk; sampler = sampler)
+      jprod_residual!(nls, xk, d, JdFk)
       JdFk .+= Fk
-      jtprod_residual!(nls, xk, JdFk, g; sampler = sampler)
+      jtprod_residual!(nls, xk, JdFk, g)
       g .+= σk * d
       return g
     end
 
     mk(d) = begin
-      jprod_residual!(nls, xk, d, JdFk; sampler = sampler)
+      jprod_residual!(nls, xk, d, JdFk)
       JdFk .+= Fk
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2 + ψ(d)
     end
@@ -240,7 +242,7 @@ function Sto_LM_v4(
 
     xkn .= xk .+ s
 
-    residual!(nls, xkn, Fkn; sampler = sampler)
+    residual!(nls, xkn, Fkn)
     fkn = dot(Fkn, Fkn) / 2
     hkn = h(xkn[selected])
     hkn == -Inf && error("nonsmooth term is not proper")
@@ -256,10 +258,11 @@ function Sto_LM_v4(
     end
 
     Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
+    #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
     ρk = Δobj / ξ
 
-    #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
-    μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
+    μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
+    #μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
@@ -267,35 +270,35 @@ function Sto_LM_v4(
       #! format: off
     end
 
-    if (η2 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #If very successful, decrease the penalisation parameter
+    #=if (η2 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #If very successful, decrease the penalisation parameter
       μk = max(μk / λ, μmin)
-    end
+    end=#
+    
+    #updating the indexes of the sampling
+    update_sample!(nls)
 
     if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
       xk .= xkn
-      #μk = max(μk / λ, μmin)
-
-      #update set of indexes of the sampler
-      sampler = sort(randperm(nls.nls_meta.nequ)[1:Int(sample_rate * nls.nls_meta.nequ)]) #FIXME : créer un nouveau vecteur de sampling à chaque itération, c'est pas ouf...
+      μk = max(μk / λ, μmin)
 
       # update functions #FIXME : obligés de refaire appel à residual! après changement du sampling --> on fait des évaluations du résidus en plus qui pourraient peut-être être évitées...
-      residual!(nls, xk, Fk; sampler = sampler)
+      residual!(nls, xk, Fk)
       fk = dot(Fk, Fk) / 2
       hk = hkn
 
       # update gradient & Hessian
       shift!(ψ, xk)
       Jk = jac_op_residual(nls, xk)
-      jtprod_residual!(nls, xk, Fk, ∇fk; sampler = sampler)
+      jtprod_residual!(nls, xk, Fk, ∇fk)
 
       μmax = opnorm(Jk)
       #η3 = μmax^2
       νcpInv = (1 + θ) * (μmax^2) 
 
       Complex_hist[k] += 1
-    end
+    #end
 
-    if (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
+    else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
       μk = λ * μk
     end
 
