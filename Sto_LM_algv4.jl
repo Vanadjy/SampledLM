@@ -119,9 +119,6 @@ function Sto_LM_v4(
     #! format: on
   end
 
-  # main algorithm initialization
-  #sampler = sort(randperm(nls.nls_meta.nequ)[1:Int(sample_rate * nls.nls_meta.nequ)])
-
   #creating required objects
   Fk = rand(length(nls.sampler)) #creates an "empty" vector of similar size as the sampler for future storage
   Fkn = similar(Fk)
@@ -134,12 +131,10 @@ function Sto_LM_v4(
   #sampled Jacobian
   ∇fk = similar(xk)
   jtprod_residual!(nls, xk, Fk, ∇fk)
-  #∇fk = Jk' * Fk #same size as xk
   JdFk = similar(Fk)   # temporary storage
   Jt_Fk = similar(∇fk)
 
   μmax = opnorm(Jk)
-  #η3 = μmax^2
   νcpInv = (1 + θ) * μmax^2
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 

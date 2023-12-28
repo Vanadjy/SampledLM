@@ -155,7 +155,7 @@ function NLPModels.residual!(
   increment!(nls, :neval_residual)
   #the next function should return the sampled function Fx whose indexes are stored in sampler without computing the other lines
   #TODO : faire en sorte que les indices de calcul de nls.resid! soient parcouru avec "for i in sampler" au lieu de parcourir tous les indices.
-  nls.resid!(Fx, x; nls.sampler)
+  nls.resid!(Fx, x; sampler = nls.sampler)
   Fx
 end
 
@@ -168,7 +168,7 @@ function NLPModels.jprod_residual!(
   NLPModels.@lencheck nls.meta.nvar x v
   NLPModels.@lencheck length(nls.sampler) Jv
   increment!(nls, :neval_jprod_residual)
-  nls.jprod_resid!(Jv, x, v; nls.sampler)
+  nls.jprod_resid!(Jv, x, v; sampler = nls.sampler)
   #@assert Jv == Jv[sort(randperm(nls.nls_meta.nequ)[1:Int(1.0 * nls.nls_meta.nequ)])]
   Jv
 end
@@ -182,7 +182,7 @@ function NLPModels.jtprod_residual!(
   NLPModels.@lencheck nls.meta.nvar x Jtv
   NLPModels.@lencheck length(nls.sampler) v
   increment!(nls, :neval_jtprod_residual)
-  nls.jtprod_resid!(Jtv, x, v; nls.sampler)
+  nls.jtprod_resid!(Jtv, x, v; sampler = nls.sampler)
   #@assert Jtv == Jtv[sort(randperm(nls.nls_meta.nequ)[1:Int(1.0 * nls.nls_meta.nequ)])]
   Jtv
 end

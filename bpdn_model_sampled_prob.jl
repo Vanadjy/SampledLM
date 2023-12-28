@@ -1,6 +1,6 @@
 #export bpdn_model, bpdn_nls_model
 
-function bpdn_data_prob(m::Int, n::Int, k::Int, noise::Float64 = 0.01; bounds::Bool = false, sample_rate::AbstractFloat = 1.0)
+function bpdn_data_prob(m::Int, n::Int, k::Int, noise::Float64 = 0.01; bounds::Bool = false)
     m ≤ n || error("number of rows ($m) should be ≤ number of columns ($n)")
     x0 = zeros(n)
     p = randperm(n)[1:k]
@@ -18,8 +18,8 @@ function bpdn_data_prob(m::Int, n::Int, k::Int, noise::Float64 = 0.01; bounds::B
     A, b, b0, x0
   end
   
-  bpdn_data_prob(compound::Int = 1, args...; bounds::Bool = false, sample_rate::AbstractFloat = 1.0) =
-  bpdn_data_prob(200 * compound, 512 * compound, 10 * compound, args...; bounds = bounds, sample_rate)
+  bpdn_data_prob(compound::Int = 1, args...; bounds::Bool = false) =
+  bpdn_data_prob(200 * compound, 512 * compound, 10 * compound, args...; bounds = bounds)
   
   """
       model, nls_model, sol = bpdn_model(args...)
@@ -59,12 +59,17 @@ function bpdn_data_prob(m::Int, n::Int, k::Int, noise::Float64 = 0.01; bounds::B
   If `bounds == true`, the positive part of x̄ is returned.
   """
   function bpdn_model_prob(compound::Int = 1, args... ; bounds::Bool = false, sample_rate::AbstractFloat = 1.0)
-    A, b, b0, x0 = bpdn_data_prob(args...; bounds = bounds, sample_rate = sample_rate)
+    A, b, b0, x0 = bpdn_data_prob(args...; bounds = bounds)
     r = similar(b)
 
+    #initializes sampling parameters
+    sampler_size = Int(sample_rate * size(A,1))
+    sampler = zeros(sampler_size)
+    sampler[1:sampler_size] .= sort(randperm(size(A,1))[1:sampler_size])
+
     function resid!(r, x; sampler = 1:size(A,1))
-      mul!(r[1:length(sampler)], A[sampler, :], x)
-      r[1:length(sampler)] .-= b[sampler]
+      mul!(r[1:sampler_size], A[sampler, :], x)
+      r[1:sampler_size] .-= b[sampler]
       r
     end
   
