@@ -109,9 +109,7 @@ mutable struct SampledNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
   jtprod_resid!::Jt
   
   #stochastic parameters
-  sampler::AbstractVector{<:Integer}
-  sampler_mem::AbstractVector{<:Integer}
-  len_mem::Int
+  sample::AbstractVector{<:Integer}
 
   function SampledNLSModel{T, S, R, J, Jt}(
     r::R,
@@ -119,28 +117,24 @@ mutable struct SampledNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
     jtv::Jt,
     nequ::Int,
     x::S,
-    sampler::AbstractVector{<:Integer},
-    sampler_mem::AbstractVector{<:Integer},
-    len_mem::Int;
+    sample::AbstractVector{<:Integer};
     kwargs...,
   ) where {T, S, R <: Function, J <: Function, Jt <: Function}
     nvar = length(x)
     meta = NLPModelMeta(nvar, x0 = x; kwargs...)
     nls_meta = NLSMeta{T, S}(nequ, nvar, x0 = x)
-    return new{T, S, R, J, Jt}(meta, nls_meta, NLSCounters(), r, jv, jtv, sampler, sampler_mem, len_mem)
+    return new{T, S, R, J, Jt}(meta, nls_meta, NLSCounters(), r, jv, jtv, sample)
   end
 end
 
-SampledNLSModel(r, jv, jtv, nequ::Int, x::S, sampler::AbstractVector{<:Integer}, sampler_mem::AbstractVector{<:Integer}, len_mem::Int; kwargs...) where {S} =
+SampledNLSModel(r, jv, jtv, nequ::Int, x::S, sample::AbstractVector{<:Integer}; kwargs...) where {S} =
 SampledNLSModel{eltype(S), S, typeof(r), typeof(jv), typeof(jtv)}(
     r,
     jv,
     jtv,
     nequ,
     x,
-    sampler,
-    sampler_mem,
-    len_mem;
+    sample;
     kwargs...,
   )
 
@@ -150,12 +144,12 @@ function NLPModels.residual!(
     Fx::AbstractVector,
     )
   NLPModels.@lencheck nls.meta.nvar x
-  NLPModels.@lencheck length(nls.sampler) Fx
-  #sampler = sort(randperm(nls.nls_meta.nequ)[1:Int(sample_rate * nls.nls_meta.nequ)])
+  NLPModels.@lencheck length(nls.sample) Fx
+  #sample = sort(randperm(nls.nls_meta.nequ)[1:Int(sample_rate * nls.nls_meta.nequ)])
   increment!(nls, :neval_residual)
-  #the next function should return the sampled function Fx whose indexes are stored in sampler without computing the other lines
-  #TODO : faire en sorte que les indices de calcul de nls.resid! soient parcouru avec "for i in sampler" au lieu de parcourir tous les indices.
-  nls.resid!(Fx, x; sampler = nls.sampler)
+  #the next function should return the sampled function Fx whose indexes are stored in sample without computing the other lines
+  #TODO : faire en sorte que les indices de calcul de nls.resid! soient parcouru avec "for i in sample" au lieu de parcourir tous les indices.
+  nls.resid!(Fx, x; sample = nls.sample)
   Fx
 end
 
@@ -166,9 +160,9 @@ function NLPModels.jprod_residual!(
   Jv::AbstractVector,
 )
   NLPModels.@lencheck nls.meta.nvar x v
-  NLPModels.@lencheck length(nls.sampler) Jv
+  NLPModels.@lencheck length(nls.sample) Jv
   increment!(nls, :neval_jprod_residual)
-  nls.jprod_resid!(Jv, x, v; sampler = nls.sampler)
+  nls.jprod_resid!(Jv, x, v; sample = nls.sample)
   #@assert Jv == Jv[sort(randperm(nls.nls_meta.nequ)[1:Int(1.0 * nls.nls_meta.nequ)])]
   Jv
 end
@@ -180,9 +174,9 @@ function NLPModels.jtprod_residual!(
   Jtv::AbstractVector,
 )
   NLPModels.@lencheck nls.meta.nvar x Jtv
-  NLPModels.@lencheck length(nls.sampler) v
+  NLPModels.@lencheck length(nls.sample) v
   increment!(nls, :neval_jtprod_residual)
-  nls.jtprod_resid!(Jtv, x, v; sampler = nls.sampler)
+  nls.jtprod_resid!(Jtv, x, v; sample = nls.sample)
   #@assert Jtv == Jtv[sort(randperm(nls.nls_meta.nequ)[1:Int(1.0 * nls.nls_meta.nequ)])]
   Jtv
 end
@@ -194,7 +188,7 @@ function NLPModels.jac_op_residual!(
   Jtv::AbstractVector,
 )
   @lencheck nls.meta.nvar x Jtv
-  @lencheck length(nls.sampler) Jv
+  @lencheck length(nls.sample) Jv
 
   prod! = @closure (res, v, α, β) -> begin
     jprod_residual!(nls, x, v, Jv)
@@ -216,7 +210,7 @@ function NLPModels.jac_op_residual!(
   end
 
   return LinearOperator{eltype(x)}(
-    length(nls.sampler),
+    length(nls.sample),
     nls_meta(nls).nvar,
     false,
     false,
@@ -228,7 +222,7 @@ end
 
 function NLPModels.jac_op_residual(nls::SampledNLSModel{T, S, R, J, Jt}, x::AbstractVector{T}) where {T, S, R, J, Jt}
   @lencheck nls.meta.nvar x
-  Jv = S(undef, length(nls.sampler))
+  Jv = S(undef, length(nls.sample))
   Jtv = S(undef, nls.meta.nvar)
   return NLPModels.jac_op_residual!(nls, x, Jv, Jtv)
 end

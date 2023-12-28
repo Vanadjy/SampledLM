@@ -108,6 +108,7 @@ function Sto_LM(
   k = 0
   Fobj_hist = zeros(maxIter)
   Hobj_hist = zeros(maxIter)
+  Metric_hist = zeros(maxIter)
   Complex_hist = zeros(Int, maxIter)
   Grad_hist = zeros(Int, maxIter)
   Resid_hist = zeros(Int, maxIter)
@@ -174,6 +175,7 @@ function Sto_LM(
     end=#
 
     metric = sqrt(ξcp*νcpInv)
+    Metric_hist[k] = metric
 
     if ξcp ≥ 0 && k == 1
       ϵ_increment = ϵr * metric
@@ -327,5 +329,5 @@ function Sto_LM(
   set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
   set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
   set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
-  return stats
+  return stats, Metric_hist[1:k]
 end

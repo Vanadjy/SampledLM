@@ -1,7 +1,7 @@
 #export SLM
 
 """
-    Sto_LM_v3(nls, h, options; kwargs...)
+    Sto_LM_v4(nls, h, options; kwargs...)
 
 A Levenberg-Marquardt method for the problem
 
@@ -49,8 +49,7 @@ function Sto_LM_v4(
   subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
   subsolver = R2,
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
-  selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
-  sample_rate = 1.0
+  selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar)
 ) where {H}
 
   start_time = time()
@@ -61,6 +60,7 @@ function Sto_LM_v4(
   ϵr = options.ϵr
   verbose = options.verbose
   maxIter = options.maxIter
+  maxIter = Int(floor(maxIter * (nls.nls_meta.nequ / length(nls.sample)))) #computing the sample rate
   maxTime = options.maxTime
   η1 = options.η1
   η2 = options.η2
@@ -109,6 +109,7 @@ function Sto_LM_v4(
   k = 0
   Fobj_hist = zeros(maxIter)
   Hobj_hist = zeros(maxIter)
+  Metric_hist = zeros(maxIter)
   Complex_hist = zeros(Int, maxIter)
   Grad_hist = zeros(Int, maxIter)
   Resid_hist = zeros(Int, maxIter)
@@ -120,12 +121,12 @@ function Sto_LM_v4(
   end
 
   #creating required objects
-  Fk = rand(length(nls.sampler)) #creates an "empty" vector of similar size as the sampler for future storage
+  Fk = rand(length(nls.sample)) #creates an "empty" vector of similar size as the sample for future storage
   Fkn = similar(Fk)
 
   Jk = jac_op_residual(nls, xk)
 
-  residual!(nls, xk, Fk) #replace the values in Fk at indexes indicated by sampler*
+  residual!(nls, xk, Fk) #replace the values in Fk at indexes indicated by sample*
   fk = dot(Fk, Fk) / 2 #objective estimated without noise
 
   #sampled Jacobian
@@ -176,6 +177,7 @@ function Sto_LM_v4(
     end
 
     metric = sqrt(ξcp*νcpInv)
+    Metric_hist[k] = metric
 
     if ξcp ≥ 0 && k == 1
       ϵ_increment = ϵr * metric
@@ -183,7 +185,7 @@ function Sto_LM_v4(
       ϵ_subsolver += ϵ_increment
     end
 
-    if (metric < ϵ) && (nls.len_mem == nls.nls_meta.nequ) #checks if the optimal condition is satisfied and if all of the data have been visited
+    if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
       # the current xk is approximately first-order stationary
       optimal = true
       continue
@@ -270,7 +272,7 @@ function Sto_LM_v4(
     end=#
     
     #updating the indexes of the sampling
-    update_sample!(nls)
+    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:length(nls.sample)])
 
     if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
       xk .= xkn
@@ -333,5 +335,5 @@ function Sto_LM_v4(
   set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
   set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
   set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
-  return stats
+  return stats, Metric_hist[1:k]
 end

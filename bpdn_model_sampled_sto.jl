@@ -62,20 +62,17 @@ function bpdn_model_sto(compound::Int = 1, args... ; bounds::Bool = false, sampl
   A, b, b0, x0 = bpdn_data_sto(args...; bounds = bounds)
 
   #initializes sampling parameters
-  sampler = sort(randperm(size(A,1))[1:Int(sample_rate * size(A,1))])
-  sampler_mem = copy(sampler)
-  len_mem = length(sampler)
-  #update_sampler!(size(A,1), sampler, sampling_mem, len_mem)
-  r = similar(b[1:length(sampler)])
+  sample = sort(randperm(size(A,1))[1:Int(sample_rate * size(A,1))])
+  r = similar(b[1:length(sample)])
 
-  function resid!(r, x; sampler = sampler)
-    mul!(r, A[sampler, :], x)
-    r .-= b[sampler]
+  function resid!(r, x; sample = sample)
+    mul!(r, A[sample, :], x)
+    r .-= b[sample]
     r
   end
 
-  jprod_resid!(Jv, x, v; sampler = sampler) = mul!(Jv, A[sampler, :], v) #Jv must be of length mₛ ad v of length n
-  jtprod_resid!(Jtv, x, v; sampler = sampler) = mul!(Jtv, A[sampler, :]', v) #v must be of length mₛ and Jtv of length n
+  jprod_resid!(Jv, x, v; sample = sample) = mul!(Jv, A[sample, :], v) #Jv must be of length mₛ ad v of length n
+  jtprod_resid!(Jtv, x, v; sample = sample) = mul!(Jtv, A[sample, :]', v) #v must be of length mₛ and Jtv of length n
 
   
   function obj(x)
@@ -100,6 +97,6 @@ function bpdn_model_sto(compound::Int = 1, args... ; bounds::Bool = false, sampl
   end
 
   FirstOrderModel(obj, grad!, zero(x0); nlpmodel_kwargs...),
-  SampledNLSModel(resid!, jprod_resid!, jtprod_resid!, size(A, 1), zero(x0), sampler, sampler_mem, len_mem; nlsmodel_kwargs...),
+  SampledNLSModel(resid!, jprod_resid!, jtprod_resid!, size(A, 1), zero(x0), sample; nlsmodel_kwargs...),
   x0
 end
