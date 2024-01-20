@@ -70,8 +70,10 @@ function Sto_LM_v4(
   νcp = options.νcp
   σmin = options.σmin
   μmin = options.μmin
-  M = options.M
-  metric = 10.0
+  metric = options.metric
+
+  m = nls.nls_meta.nequ
+  mₛ = length(nls.sample)
 
   # store initial values of the subsolver_options fields that will be modified
   ν_subsolver = subsolver_options.ν
@@ -105,28 +107,31 @@ function Sto_LM_v4(
   xkn = similar(xk)
 
   local ξcp
+  local exact_ξcp
   local ξ
   k = 0
   Fobj_hist = zeros(maxIter)
+  exact_Fobj_hist = zeros(maxIter)
   Hobj_hist = zeros(maxIter)
   Metric_hist = zeros(maxIter)
+  exact_Metric_hist = zeros(maxIter)
   Complex_hist = zeros(Int, maxIter)
   Grad_hist = zeros(Int, maxIter)
   Resid_hist = zeros(Int, maxIter)
 
   if verbose > 0
     #! format: off
-    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %1s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg"
+    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg"
     #! format: on
   end
 
   #creating required objects
-  Fk = rand(length(nls.sample)) #creates an "empty" vector of similar size as the sample for future storage
+  Fk = residual(nls, xk)
   Fkn = similar(Fk)
+  exact_Fk = zeros(1:m)
 
   Jk = jac_op_residual(nls, xk)
 
-  residual!(nls, xk, Fk) #replace the values in Fk at indexes indicated by sample*
   fk = dot(Fk, Fk) / 2 #objective estimated without noise
 
   #sampled Jacobian
@@ -134,6 +139,7 @@ function Sto_LM_v4(
   jtprod_residual!(nls, xk, Fk, ∇fk)
   JdFk = similar(Fk)   # temporary storage
   Jt_Fk = similar(∇fk)
+  exact_Jt_Fk = similar(∇fk)
 
   μmax = opnorm(Jk)
   νcpInv = (1 + θ) * μmax^2
@@ -161,7 +167,6 @@ function Sto_LM_v4(
 
     #submodel to find scp
     mkcp(d) = φcp(d) + ψ(d) #+ νcpInv * dot(d,d) / 2
- 
     
     #computes the Cauchy step
     νcp = 1 / νcpInv
@@ -170,6 +175,7 @@ function Sto_LM_v4(
     # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
     prox!(scp, ψ, ∇fk, νcp)
     ξcp = fk + hk - φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
+
     #ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
     
     if ξcp ≤ 0
@@ -263,16 +269,32 @@ function Sto_LM_v4(
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.1e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk norm(xk) norm(s) νInv μ_stat
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat
       #! format: off
     end
 
     #=if (η2 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #If very successful, decrease the penalisation parameter
       μk = max(μk / λ, μmin)
     end=#
-    
+    #-- to compute exact quantities --#
+    nls.sample = 1:m
+    residual!(nls, xk, exact_Fk)
+    exact_fk = dot(exact_Fk, exact_Fk) / 2
+
+    exact_φcp(d) = begin
+      jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
+      dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
+    end
+
+    exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
+    exact_metric = sqrt(abs(exact_ξcp * νcpInv))
+
+    exact_Fobj_hist[k] = exact_fk
+    exact_Metric_hist[k] = exact_metric
+    # -- -- #
+
     #updating the indexes of the sampling
-    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:length(nls.sample)])
+    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:mₛ])
 
     if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
       xk .= xkn
@@ -307,7 +329,7 @@ function Sto_LM_v4(
       @info @sprintf "%6d %8s %8.1e %8.1e" k "" fk hk
     elseif optimal
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.1e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
       #! format: on
       @info "SLM: terminating with √ξcp/νcp = $metric"
     end
@@ -335,5 +357,5 @@ function Sto_LM_v4(
   set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
   set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
   set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
-  return stats, Metric_hist[1:k]
+  return stats, Metric_hist[1:k], exact_Fobj_hist[1:k], exact_Metric_hist[1:k]
 end

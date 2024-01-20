@@ -69,8 +69,7 @@ function Sto_LM(
   νcp = options.νcp
   σmin = options.σmin
   μmin = options.μmin
-  M = options.M
-  metric = 10.0
+  metric = options.metric
 
   # store initial values of the subsolver_options fields that will be modified
   ν_subsolver = subsolver_options.ν

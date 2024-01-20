@@ -63,19 +63,21 @@ function bpdn_data_prob(m::Int, n::Int, k::Int, noise::Float64 = 0.01; bounds::B
     r = similar(b)
 
     #initializes sampling parameters
-    sampler_size = Int(sample_rate * size(A,1))
-    sampler = zeros(sampler_size)
-    sampler[1:sampler_size] .= sort(randperm(size(A,1))[1:sampler_size])
+    sample_size = Int(ceil(sample_rate * size(A,1)))
+    sample = zeros(Int, size(A,1))
+    sample[1:sample_size] .= sort(randperm(size(A,1))[1:sample_size])
 
-    function resid!(r, x; sampler = 1:size(A,1))
-      mul!(r[1:sampler_size], A[sampler, :], x)
-      r[1:sampler_size] .-= b[sampler]
+    function resid!(r, x; sample = sample, sample_size = sample_size)
+      mul!(r[1:sample_size], A[sample[1:sample_size], :], x)
+      r[1:sample_size] .-= b[sample[1:sample_size]]
       r
     end
   
-    jprod_resid!(Jv, x, v; sampler = 1:size(A,1)) = mul!(Jv[sampler], A[sampler, :], v) #v must be of length n
-    jtprod_resid!(Jtv, x, v; sampler = 1:size(A,1)) = mul!(Jtv, A[sampler, :]', v[sampler]) #v must be of length mₛ
-  
+    #jprod_resid!(Jv, x, v; sample = sample, sample_size = sample_size) = mul!(Jv[1:sample_size], A[sample[1:sample_size], :], v) #v must be of length n
+    #jtprod_resid!(Jtv, x, v; sample = sample, sample_size = sample_size) = mul!(Jtv, A[sample[1:sample_size], :]', v[1:sample_size]) #v must be of length m
+    jprod_resid!(Jv, x, v; sample = sample, sample_size = sample_size) = mul!(Jv, A, v)
+    jtprod_resid!(Jtv, x, v; sample = sample, sample_size = sample_size) = mul!(Jtv, A', v)
+
     
     function obj(x)
       resid!(r, x)
@@ -99,6 +101,6 @@ function bpdn_data_prob(m::Int, n::Int, k::Int, noise::Float64 = 0.01; bounds::B
     end
   
     FirstOrderModel(obj, grad!, zero(x0); nlpmodel_kwargs...),
-    SampledNLSModel2(resid!, jprod_resid!, jtprod_resid!, size(A, 1), zero(x0); nlsmodel_kwargs...),
+    ProbNLSModel(resid!, jprod_resid!, jtprod_resid!, size(A, 1), zero(x0), sample, sample_size; nlsmodel_kwargs...),
     x0
   end

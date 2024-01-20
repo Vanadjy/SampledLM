@@ -20,7 +20,7 @@ mutable struct ROSolverOptions{R}
   θ::R  # step length factor in relation to Hessian norm
   β::R  # TR size as factor of first PG step
   λ::R # parameter of the random stepwalk - NEW -
-  M::R # big value to select the Cauchy Step in last resort - NEW -
+  metric::R #parameter of the stationnarity metric of the algorithm - NEW -
   spectral::Bool # for TRDH: use spectral gradient update if true, otherwise DiagonalQN
   psb::Bool # for TRDH with DiagonalQN (spectral = false): use PSB update if true, otherwise Andrei update
   reduce_TR::Bool
@@ -31,7 +31,7 @@ mutable struct ROSolverOptions{R}
     neg_tol::R = eps(R)^(1 / 4),
     Δk::R = one(R),
     verbose::Int = 0,
-    maxIter::Int = 1000,
+    maxIter::Int = 500,
     maxTime::Float64 = 3600.0,
     σmin::R = eps(R),
     μmin::R = eps(R),
@@ -45,7 +45,7 @@ mutable struct ROSolverOptions{R}
     θ::R = R(1e-3),
     β::R = 1 / eps(R),
     λ::R = R(3),
-    M::R = R(10e6),
+    metric::R = R(10),
     spectral::Bool = false,
     psb::Bool = false,
     reduce_TR::Bool = true,
@@ -69,6 +69,7 @@ mutable struct ROSolverOptions{R}
     @assert θ > 0
     @assert β ≥ 1
     @assert λ > 1
+    @assert metric > 0
     return new{R}(
       ϵa,
       ϵr,
@@ -89,7 +90,7 @@ mutable struct ROSolverOptions{R}
       θ,
       β,
       λ,
-      M,
+      metric,
       spectral,
       psb,
       reduce_TR,
@@ -151,6 +152,12 @@ function NLPModels.residual!(
   #TODO : faire en sorte que les indices de calcul de nls.resid! soient parcouru avec "for i in sample" au lieu de parcourir tous les indices.
   nls.resid!(Fx, x; sample = nls.sample)
   Fx
+end
+
+function NLPModels.residual(nls::AbstractNLSModel{T, S}, x::AbstractVector{T}) where {T, S}
+  @lencheck nls.meta.nvar x
+  Fx = S(undef, length(nls.sample))
+  residual!(nls, x, Fx)
 end
 
 function NLPModels.jprod_residual!(
