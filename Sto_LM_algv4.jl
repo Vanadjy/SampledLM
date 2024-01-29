@@ -73,7 +73,6 @@ function Sto_LM_v4(
   metric = options.metric
 
   m = nls.nls_meta.nequ
-  mₛ = length(nls.sample)
 
   # store initial values of the subsolver_options fields that will be modified
   ν_subsolver = subsolver_options.ν
@@ -153,6 +152,7 @@ function Sto_LM_v4(
 
   while !(optimal || tired)
     k = k + 1
+    mₛ = length(nls.sample) #current length of the sample
     elapsed_time = time() - start_time
     Fobj_hist[k] = fk
     Hobj_hist[k] = hk
@@ -294,7 +294,10 @@ function Sto_LM_v4(
     # -- -- #
 
     #updating the indexes of the sampling
-    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:mₛ])
+    #nls.sample = sort(randperm(nls.nls_meta.nequ)[1:mₛ])
+    nls.sample = randperm(nls.nls_meta.nequ)[1:mₛ]
+    update_sample!(nls, k)
+    #display(nls.data_mem)
 
     if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
       xk .= xkn
@@ -320,6 +323,17 @@ function Sto_LM_v4(
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
       μk = λ * μk
     end
+
+    #update of the sampling rate towards the accuracy reached
+    #=if metric < 1e-2
+      nls.sample_rate = .50
+    elseif metric < 1e-3
+      nls.sample_rate = .80
+    elseif metric < 1e-4
+      nls.sample_rate = .90
+    elseif metric < 1e-5
+      nls.sample_rate = 1.0
+    end=#
 
     tired = k ≥ maxIter || elapsed_time > maxTime
   end

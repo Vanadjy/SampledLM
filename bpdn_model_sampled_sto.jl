@@ -63,6 +63,8 @@ function bpdn_model_sto(compound::Int = 1, args... ; bounds::Bool = false, sampl
 
   #initializes sampling parameters
   sample = sort(randperm(size(A,1))[1:Int(sample_rate * size(A,1))])
+  data_mem = copy(sample)
+  epoch_counter = Int[]
   r = similar(b[1:length(sample)])
 
   function resid!(r, x; sample = sample)
@@ -97,6 +99,6 @@ function bpdn_model_sto(compound::Int = 1, args... ; bounds::Bool = false, sampl
   end
 
   FirstOrderModel(obj, grad!, zero(x0); nlpmodel_kwargs...),
-  SampledNLSModel(resid!, jprod_resid!, jtprod_resid!, size(A, 1), zero(x0), sample; nlsmodel_kwargs...),
+  SampledNLSModel(resid!, jprod_resid!, jtprod_resid!, size(A, 1), zero(x0), sample, data_mem, sample_rate, epoch_counter; nlsmodel_kwargs...),
   x0
 end

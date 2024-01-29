@@ -31,7 +31,7 @@ mutable struct ROSolverOptions{R}
     neg_tol::R = eps(R)^(1 / 4),
     Δk::R = one(R),
     verbose::Int = 0,
-    maxIter::Int = 500,
+    maxIter::Int = 1000,
     maxTime::Float64 = 3600.0,
     σmin::R = eps(R),
     μmin::R = eps(R),
@@ -111,6 +111,9 @@ mutable struct SampledNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
   
   #stochastic parameters
   sample::AbstractVector{<:Integer}
+  data_mem::AbstractVector{<:Integer}
+  sample_rate::Real
+  epoch_counter::AbstractVector{<:Integer}
 
   function SampledNLSModel{T, S, R, J, Jt}(
     r::R,
@@ -118,24 +121,30 @@ mutable struct SampledNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
     jtv::Jt,
     nequ::Int,
     x::S,
-    sample::AbstractVector{<:Integer};
+    sample::AbstractVector{<:Integer},
+    data_mem::AbstractVector{<:Integer},
+    sample_rate::Real,
+    epoch_counter::AbstractVector{<:Integer};
     kwargs...,
   ) where {T, S, R <: Function, J <: Function, Jt <: Function}
     nvar = length(x)
     meta = NLPModelMeta(nvar, x0 = x; kwargs...)
     nls_meta = NLSMeta{T, S}(nequ, nvar, x0 = x)
-    return new{T, S, R, J, Jt}(meta, nls_meta, NLSCounters(), r, jv, jtv, sample)
+    return new{T, S, R, J, Jt}(meta, nls_meta, NLSCounters(), r, jv, jtv, sample, data_mem, sample_rate, epoch_counter)
   end
 end
 
-SampledNLSModel(r, jv, jtv, nequ::Int, x::S, sample::AbstractVector{<:Integer}; kwargs...) where {S} =
+SampledNLSModel(r, jv, jtv, nequ::Int, x::S, sample::AbstractVector{<:Integer}, data_mem::AbstractVector{<:Integer}, sample_rate::Real, epoch_counter::AbstractVector{<:Integer}; kwargs...) where {S} =
 SampledNLSModel{eltype(S), S, typeof(r), typeof(jv), typeof(jtv)}(
     r,
     jv,
     jtv,
     nequ,
     x,
-    sample;
+    sample,
+    data_mem,
+    sample_rate,
+    epoch_counter;
     kwargs...,
   )
 

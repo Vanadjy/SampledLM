@@ -1,5 +1,27 @@
+function update_sample!(nls, k)
+    if (length(nls.data_mem) / nls.nls_meta.nequ) + nls.sample_rate ≤ 1.0 #case where we don't have any data recovery
+        #display("no recovery : $((length(nls.data_mem) / nls.nls_meta.nequ) + nls.sample_rate)")
+        # creates a new sample which can select indexes which are not yet in data_mem
+        nls.sample = sort(shuffle!(setdiff(collect(1:nls.nls_meta.nequ), nls.data_mem))[1:length(nls.sample)])
+
+        #adding to data_mem the indexes contained in the current sample
+        nls.data_mem = vcat(nls.data_mem, nls.sample)
+
+    else #case where we have data recovery
+        #display("recovery : $((length(nls.data_mem) / nls.nls_meta.nequ) + nls.sample_rate)")
+        sample_size = Int(nls.sample_rate * nls.nls_meta.nequ)
+        sample_complete = shuffle!(nls.data_mem)[1:(sample_size + length(nls.data_mem) - nls.nls_meta.nequ)]
+        #picks up all the unvisited data and add a random part from the current memory
+        nls.sample = sort(vcat(setdiff!(collect(1:nls.nls_meta.nequ), nls.data_mem), sample_complete))
+
+        # adding in memory the sampled data used to complete the sample
+        nls.data_mem = sample_complete
+        push!(nls.epoch_counter, k)
+    end
+end
+
 function uniform_sample(length, sample_rate)
-    sample = [1]
+    sample = []
     counter = 0.0
     for i in 2:length
         counter += sample_rate
@@ -9,8 +31,4 @@ function uniform_sample(length, sample_rate)
         end
     end
     sample
-end
-
-function my_zero(x)
-    return 0.0
 end
