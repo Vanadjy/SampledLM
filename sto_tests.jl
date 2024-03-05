@@ -1,119 +1,40 @@
 compound = 1
-sample_rates = [1.0, .9, .8, .7, .5, .3, .2]
-#sample_rates = [.3]
+sample_rates = [1.0, .7, .5, .2, .05, .01]
 
-gr()
-mosaique = []
+#sample_rates = [.5]
+
 plot_parameter = ["objective", "metric"]
 param = plot_parameter[2]
+Confidence = Dict([("95%", 1.96), ("99%", 2.58)])
+conf = "95%"
+gr()
+graph = plot()
 
-  for sample_rate in sample_rates
-    graph = plot()
-    #xlabel!("k")
-    #ylabel!(L"Estimated $sqrt{\frac{\hat{\xi}_{cp}(x_j,\nu_{j,cp}^{-1})}{\nu_{j,cp}}}$")
-    nz = 10 * compound
-    #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-3, ϵr = 1e-3, verbose = 10;)
-    bpdn, bpdn_nls, sol = bpdn_model_sto(compound; sample_rate = sample_rate)
-    #bpdn2, bpdn_nls2, sol2 = bpdn_model_prob(compound)
-    λ = norm(grad(bpdn, zeros(bpdn.meta.nvar)), Inf) / 10
+for sample_rate in sample_rates
+  nz = 10 * compound
+  #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
+  sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-3, ϵr = 1e-3, verbose = 10;)
+  bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
+  glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
+  ijcnn1, ijcnn1_nls = ijcnn1_model_sto(sample_rate)
+  lrcomp, lrcomp_nls, sol_lrcomp = lrcomp_model(50, 20; sample_rate = sample_rate)
 
-    #=for (h, h_name) ∈ ((NormL0(λ), "l0"), (NormL1(λ), "l1"), (IndBallL0(10 * compound), "B0"))
-      for solver_sym ∈ (:LM, :LMTR)
-        solver_name = string(solver_sym)
-        solver = eval(solver_sym)
-        solver_sym == :LMTR && h_name == "B0" && continue  # FIXME
-        @testset "bpdn-ls-$(solver_name)-$(h_name)" begin
-          x0 = zeros(bpdn_nls.meta.nvar)
-          p = randperm(bpdn_nls.meta.nvar)[1:nz]
-          x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
-          args = solver_sym == :LM ? () : (NormLinf(1.0),)
-          out = solver(bpdn_nls, h, args..., options, x0 = x0)
-          @test typeof(out.solution) == typeof(bpdn_nls.meta.x0)
-          @test length(out.solution) == bpdn_nls.meta.nvar
-          @test typeof(out.solver_specific[:Fhist]) == typeof(out.solution)
-          @test typeof(out.solver_specific[:Hhist]) == typeof(out.solution)
-          @test typeof(out.solver_specific[:SubsolverCounter]) == Array{Int, 1}
-          @test typeof(out.dual_feas) == eltype(out.solution)
-          @test length(out.solver_specific[:Fhist]) == length(out.solver_specific[:Hhist])
-          @test length(out.solver_specific[:Fhist]) == length(out.solver_specific[:SubsolverCounter])
-          @test length(out.solver_specific[:Fhist]) == length(out.solver_specific[:NLSGradHist])
-          @test out.solver_specific[:NLSGradHist][end] ==
-                bpdn_nls.counters.neval_jprod_residual + bpdn_nls.counters.neval_jtprod_residual - 1
-          @test obj(bpdn_nls, out.solution) == out.solver_specific[:Fhist][end]
-          @test h(out.solution) == out.solver_specific[:Hhist][end]
-          @test out.status == :first_order
-        end
-      end
-    end=#
+  #bpdn2, bpdn_nls2, sol2 = bpdn_model_prob(compound)
+  λ = norm(grad(bpdn, zeros(bpdn.meta.nvar)), Inf) / 10
 
-    # ------------ SAMPLED VERSIONS ------------------- #
+  #nls_prob_collection = [(bpdn_nls, "bpdn-ls"), (glasso_nls, "group-lasso-ls"), (ijcnn1_nls, "ijcnn1-ls"), (lrcomp_nls, "lrcomp-ls")]
+  nls_prob_collection = [(ijcnn1_nls, "ijcnn1-ls")]
 
-    # Sto_LM with h = L1 and χ = L2 is a special case
-    if sample_rate == 1.0
-      for (h, h_name) ∈ ((NormL1(λ), "l1"), (NormL0(λ), "l0"))
-        reset!(bpdn_nls)
-        @testset "bpdn-ls-Sto_LM-$(h_name) - τ = $(sample_rate*100)%" begin
-          x0 = zeros(bpdn_nls.meta.nvar)
-          p = randperm(bpdn_nls.meta.nvar)[1:nz]
-          x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
-          SLM_out, Metric_hist = Sto_LM(bpdn_nls, h, sampled_options; x0 = x0)
-          @test typeof(SLM_out.solution) == typeof(bpdn_nls.meta.x0)
-          @test length(SLM_out.solution) == bpdn_nls.meta.nvar
-          @test typeof(SLM_out.solver_specific[:Fhist]) == typeof(SLM_out.solution)
-          @test typeof(SLM_out.solver_specific[:Hhist]) == typeof(SLM_out.solution)
-          @test typeof(SLM_out.solver_specific[:SubsolverCounter]) == Array{Int, 1}
-          @test typeof(SLM_out.dual_feas) == eltype(SLM_out.solution)
-          @test length(SLM_out.solver_specific[:Fhist]) == length(SLM_out.solver_specific[:Hhist])
-          @test length(SLM_out.solver_specific[:Fhist]) ==
-                length(SLM_out.solver_specific[:SubsolverCounter])
-          @test length(SLM_out.solver_specific[:Fhist]) == length(SLM_out.solver_specific[:NLSGradHist])
-          @test SLM_out.solver_specific[:NLSGradHist][end] ==
-                bpdn_nls.counters.neval_jprod_residual + bpdn_nls.counters.neval_jtprod_residual - 1
-          @test obj(bpdn_nls, SLM_out.solution) == SLM_out.solver_specific[:Fhist][end]
-          @test h(SLM_out.solution) == SLM_out.solver_specific[:Hhist][end]
-          @test SLM_out.status == :first_order
-
-          SLM_out.solver_specific[:Fhist] .+ SLM_out.solver_specific[:Hhist]
-          #plot!(1:SLM_out.iter, Metric_hist, label="LM for h = $h_name")
-        end
-      end
-    end
-
-    #=for (h, h_name) ∈ ((NormL1(λ), "l1"), (NormL0(λ), "l0"),)
-      reset!(bpdn_nls)
-      @testset "bpdn-ls-Sto_LM_v3-$(h_name)" begin
-        x0 = zeros(bpdn_nls.meta.nvar)
-        p = randperm(bpdn_nls.meta.nvar)[1:nz]
-        x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
-        SLM3_out = Sto_LM_v3(bpdn_nls, h, sampled_options; x0 = x0, sample_rate = sample_rate)
-        @test typeof(SLM3_out.solution) == typeof(bpdn_nls.meta.x0)
-        @test length(SLM3_out.solution) == bpdn_nls.meta.nvar
-        @test typeof(SLM3_out.solver_specific[:Fhist]) == typeof(SLM3_out.solution)
-        @test typeof(SLM3_out.solver_specific[:Hhist]) == typeof(SLM3_out.solution)
-        @test typeof(SLM3_out.solver_specific[:SubsolverCounter]) == Array{Int, 1}
-        @test typeof(SLM3_out.dual_feas) == eltype(SLM3_out.solution)
-        @test length(SLM3_out.solver_specific[:Fhist]) == length(SLM3_out.solver_specific[:Hhist])
-        @test length(SLM3_out.solver_specific[:Fhist]) ==
-              length(SLM3_out.solver_specific[:SubsolverCounter])
-        @test length(SLM3_out.solver_specific[:Fhist]) == length(SLM3_out.solver_specific[:NLSGradHist])
-        @test SLM3_out.solver_specific[:NLSGradHist][end] ==
-        bpdn_nls.counters.neval_jprod_residual + bpdn_nls.counters.neval_jtprod_residual - 1
-        @test obj(bpdn_nls, SLM3_out.solution) == SLM3_out.solver_specific[:Fhist][end]
-        @test h(SLM3_out.solution) == SLM3_out.solver_specific[:Hhist][end]
-        @test SLM3_out.status == :first_order
-      end
-    end=#
-    if sample_rate < 1.0
+  for (prob, prob_name) in nls_prob_collection
       for (h, h_name) ∈ ((NormL1(λ), "l1"),)
-        reset!(bpdn_nls)
-        @testset "bpdn-ls-Sto_LM_v4-$(h_name) - τ = $(sample_rate*100)%" begin
-          x0 = zeros(bpdn_nls.meta.nvar)
-          p = randperm(bpdn_nls.meta.nvar)[1:nz]
-          x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
-          SLM4_out, Metric_hist, exact_F_hist, exact_Metric_hist = Sto_LM_v4(bpdn_nls, h, sampled_options; x0 = x0)
-          @test typeof(SLM4_out.solution) == typeof(bpdn_nls.meta.x0)
-          @test length(SLM4_out.solution) == bpdn_nls.meta.nvar
+        reset!(prob)
+        @testset "$prob_name-Sto_LM_v4-$(h_name) - τ = $(sample_rate*100)%" begin
+          x0 = zeros(prob.meta.nvar)
+          #p = randperm(prob.meta.nvar)[1:nz]
+          #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
+          SLM4_out, Metric_hist, exact_F_hist, exact_Metric_hist = Sto_LM_v4(prob, h, sampled_options; x0 = x0)
+          @test typeof(SLM4_out.solution) == typeof(prob.meta.x0)
+          @test length(SLM4_out.solution) == prob.meta.nvar
           @test typeof(SLM4_out.solver_specific[:Fhist]) == typeof(SLM4_out.solution)
           @test typeof(SLM4_out.solver_specific[:Hhist]) == typeof(SLM4_out.solution)
           @test typeof(SLM4_out.solver_specific[:SubsolverCounter]) == Array{Int, 1}
@@ -123,35 +44,51 @@ param = plot_parameter[2]
                 length(SLM4_out.solver_specific[:SubsolverCounter])
           @test length(SLM4_out.solver_specific[:Fhist]) == length(SLM4_out.solver_specific[:NLSGradHist])
           @test SLM4_out.solver_specific[:NLSGradHist][end] ==
-          bpdn_nls.counters.neval_jprod_residual + bpdn_nls.counters.neval_jtprod_residual - 1
-          #@test obj(bpdn_nls, SLM4_out.solution) == SLM4_out.solver_specific[:Fhist][end]
+          prob.counters.neval_jprod_residual + prob.counters.neval_jtprod_residual - 1
+          #@test obj(prob, SLM4_out.solution) == SLM4_out.solver_specific[:Fhist][end]
           @test h(SLM4_out.solution) == SLM4_out.solver_specific[:Hhist][end]
-          @test SLM4_out.status == :first_order
+          @test SLM4_out.status == :max_iter
 
           SLM4_out.solver_specific[:Fhist] .+ SLM4_out.solver_specific[:Hhist]
           X = uniform_sample(SLM4_out.iter, sample_rate)
 
-          #plot!(X, SLM4_out.solver_specific[:Fhist][X], label = "Sto_LM for h = $h_name and τ = $(sample_rate*100)%", xaxis=:log10)
-          #plot!(X, Metric_hist[X], label = "Estimated Metric", title = "Sto_LM for h = $h_name ; sampling rate τ = $(sample_rate*100)%")
-
           #plot metric
-          if sample_rate == sample_rates[end-1]
-            title!("Evolution of $(param) through each epoch")
-          end
+          #for param in plot_parameter
 
-          if param == "metric"
-            #plot metric
-            plot!(1:length(bpdn_nls.epoch_counter), Metric_hist[bpdn_nls.epoch_counter], label = "τ = $(sample_rate*100)%")
-            plot!(1:length(bpdn_nls.epoch_counter), exact_Metric_hist[bpdn_nls.epoch_counter], label = "τ = $(sample_rate*100)%")
-          else
-            #plot f
-            plot!(1:length(bpdn_nls.epoch_counter), SLM4_out.solver_specific[:Fhist][bpdn_nls.epoch_counter], label = "τ = $(sample_rate*100)%")
-            plot!(1:length(bpdn_nls.epoch_counter), exact_F_hist[bpdn_nls.epoch_counter], label = "τ = $(sample_rate*100)%")
-          end
+            if param == "metric"
+              sample_size = length(prob.sample)
+              plot!(1:length(prob.epoch_counter), Metric_hist[prob.epoch_counter], xaxis=:log10, label = "Sto_LM - $(sample_rate*100)%", title = "Evolution of sampled √ξcp/νcp for $prob_name", ribbon=(fill(Confidence[conf] / sqrt(sample_size), length(prob.epoch_counter)), fill(Confidence[conf] / sqrt(sample_size), length(prob.epoch_counter))))
+
+              #plot!(1:length(prob.epoch_counter), exact_Metric_hist[prob.epoch_counter], xaxis=:log10, label = "Sto_LM - $(sample_rate*100)%", title = "Evolution of exact √ξcp/νcp for $prob_name")
+              #=plot!(X, Metric_hist[X], label = "τ = $(sample_rate*100)%")
+              plot!(X, exact_Metric_hist[X], label = "τ = $(sample_rate*100)%")=#
+              #scatter!(prob.opt_counter, Metric_hist[prob.opt_counter], mc=:green, ms=2, ma=0.5, label = "Hits below tolerance : $(length(prob.opt_counter))")
+              xlabel!("epoch")
+              ylabel!("√ξcp/νcp")
+            end
+
+            #plot f+h
+            if param == "objective"
+              sample_size = length(prob.sample)
+              plot!(1:length(prob.epoch_counter), SLM4_out.solver_specific[:Fhist][prob.epoch_counter] + SLM4_out.solver_specific[:Hhist][prob.epoch_counter], xaxis=:log10, yaxis=:log10, label = "Sto_LM - $(sample_rate*100)%", title = "Evolution of sampled f + h for $prob_name", ribbon=(fill(Confidence[conf] / sqrt(sample_size), length(prob.epoch_counter)), fill(Confidence[conf] / sqrt(sample_size), length(prob.epoch_counter))))
+
+              #plot!(1:length(prob.epoch_counter), exact_F_hist[prob.epoch_counter] + SLM4_out.solver_specific[:Hhist][prob.epoch_counter], xaxis=:log10, yaxis=:log10, label = "Sto_LM - $(sample_rate*100)%", title = "Evolution of exact f + h for $prob_name")
+              #=plot!(X, SLM4_out.solver_specific[:Fhist][X], label = "τ = $(sample_rate*100)%")
+              plot!(X, exact_F_hist[X], label = "τ = $(sample_rate*100)%")=#
+              #scatter!(prob.opt_counter, SLM4_out.solver_specific[:Fhist][prob.opt_counter] + SLM4_out.solver_specific[:Hhist][prob.opt_counter], mc=:green, ms=2, ma=0.5, label = "Hit below tolerance : : $(length(prob.opt_counter))")
+              xlabel!("epoch")
+              ylabel!("f + h")
+            end
+          #end
         end
-        push!(mosaique, graph)
+      #push!(mosaique, graph)
       end
-    end
   end
-  p = plot(mosaique[1], mosaique[2], mosaique[3], mosaique[4], mosaique[5], mosaique[6], layout = (2,3), legend = true)
-  display(p)
+end
+
+#mosaique = plot(p1, p2, layout = (2, 1), legend = true)
+display(graph)
+
+#p = plot(mosaique[1], mosaique[2], mosaique[3], mosaique[4], mosaique[5], mosaique[6], layout = (2,3), legend = true)
+#p = plot(mosaique[1])
+#display(p)

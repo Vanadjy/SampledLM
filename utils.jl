@@ -9,7 +9,7 @@ function update_sample!(nls, k)
 
     else #case where we have data recovery
         #display("recovery : $((length(nls.data_mem) / nls.nls_meta.nequ) + nls.sample_rate)")
-        sample_size = Int(nls.sample_rate * nls.nls_meta.nequ)
+        sample_size = Int(ceil(nls.sample_rate * nls.nls_meta.nequ))
         sample_complete = shuffle!(nls.data_mem)[1:(sample_size + length(nls.data_mem) - nls.nls_meta.nequ)]
         #picks up all the unvisited data and add a random part from the current memory
         nls.sample = sort(vcat(setdiff!(collect(1:nls.nls_meta.nequ), nls.data_mem), sample_complete))

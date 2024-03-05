@@ -1,4 +1,4 @@
-#export Prob_LM
+#export SLM
 
 """
     Prob_LM(nls, h, options; kwargs...)
@@ -42,7 +42,7 @@ the quantities are sampled ones from the original data of the Problem.
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
 function Prob_LM(
-  nls::ProbNLSModel,
+  nls::SampledNLSModel,
   h::H,
   options::ROSolverOptions;
   x0::AbstractVector = nls.meta.x0,
@@ -60,6 +60,7 @@ function Prob_LM(
   ϵr = options.ϵr
   verbose = options.verbose
   maxIter = options.maxIter
+  maxIter = Int(floor(maxIter * (nls.nls_meta.nequ / nls.sample_size))) #computing the sample rate
   maxTime = options.maxTime
   η1 = options.η1
   η2 = options.η2
@@ -70,6 +71,10 @@ function Prob_LM(
   σmin = options.σmin
   μmin = options.μmin
   metric = options.metric
+
+  m = nls.nls_meta.nequ
+  threshold_indicator = false
+  opt_counter = 0
 
   # store initial values of the subsolver_options fields that will be modified
   ν_subsolver = subsolver_options.ν
@@ -103,43 +108,40 @@ function Prob_LM(
   xkn = similar(xk)
 
   local ξcp
+  local exact_ξcp
   local ξ
   k = 0
   Fobj_hist = zeros(maxIter)
+  exact_Fobj_hist = zeros(maxIter)
   Hobj_hist = zeros(maxIter)
   Metric_hist = zeros(maxIter)
+  exact_Metric_hist = zeros(maxIter)
   Complex_hist = zeros(Int, maxIter)
   Grad_hist = zeros(Int, maxIter)
   Resid_hist = zeros(Int, maxIter)
 
   if verbose > 0
     #! format: off
-    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %7s %1s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "rate" "reg"
+    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %7s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "rate" "opt_count"
     #! format: on
   end
 
-  # main algorithm initialization
-  sample_rate = nls.sample_size / nls.nls_meta.nequ
-
   #creating required objects
-  Fk = rand(nls.nls_meta.nequ)
+  Fk = residual(nls, xk)
   Fkn = similar(Fk)
+  exact_Fk = zeros(1:m)
 
   Jk = jac_op_residual(nls, xk)
 
-  residual!(nls, xk, Fk)
   fk = dot(Fk[1:nls.sample_size], Fk[1:nls.sample_size]) / 2 #objective estimated without noise
 
   #sampled Jacobian
-  #∇fk = Jk' * Fk[1:nls.sample_size] #same size as xk
   ∇fk = similar(xk)
-  jtprod_residual!(nls, xk, Fk, ∇fk) #changes the values of ∇fk
-
+  jtprod_residual!(nls, xk, Fk, ∇fk)
   JdFk = similar(Fk)   # temporary storage
   Jt_Fk = similar(∇fk)
-  #jprod_residual!(nls, xk, ∇fk, JdFk)
+  exact_Jt_Fk = similar(∇fk)
 
-  #η3 = μmax^2
   μmax = opnorm(Jk)
   νcpInv = (1 + θ) * μmax^2
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
@@ -166,7 +168,7 @@ function Prob_LM(
 
     #submodel to find scp
     mkcp(d) = φcp(d) + ψ(d) #+ νcpInv * dot(d,d) / 2
- 
+    
     #computes the Cauchy step
     νcp = 1 / νcpInv
     ∇fk .*= -νcp
@@ -174,7 +176,9 @@ function Prob_LM(
     # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
     prox!(scp, ψ, ∇fk, νcp)
     ξcp = fk + hk - φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
+
     #ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
+    
     if ξcp ≤ 0
       ξcp = - ξcp
     end
@@ -188,9 +192,12 @@ function Prob_LM(
       ϵ_subsolver += ϵ_increment
     end
 
-    if metric < ϵ #checks if the optimal condition is satisfied
+    if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
       # the current xk is approximately first-order stationary
-      optimal = true
+      opt_counter += 1
+      if opt_counter == 5
+        optimal = true
+      end
       continue
     end
 
@@ -258,6 +265,7 @@ function Prob_LM(
     end
 
     Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
+    #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
     ρk = Δobj / ξ
 
     μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
@@ -265,24 +273,68 @@ function Prob_LM(
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.2e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv sample_rate μ_stat
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %7.1e %6d" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat (nls.sample_rate*100) opt_counter
       #! format: off
     end
 
-    #="if (η2 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #If very successful, decrease the penalisation parameter
+    #=if (η2 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #If very successful, decrease the penalisation parameter
       μk = max(μk / λ, μmin)
     end=#
+    #-- to compute exact quantities --#
+    nls.sample = 1:m
+    nls.sample_size = length(nls.sample)
+    residual!(nls, xk, exact_Fk)
+    exact_fk = dot(exact_Fk, exact_Fk) / 2
 
-    #update set of indexes of the sampler
-    ζk = ceil((nls.meta.nvar + 1) * (k / (sqrt(eps()) * min(1, 1 / μk^4))))
-    nls.sample_size = Int(min(nls.nls_meta.nequ, ζk))
-    sample_rate = nls.sample_size / nls.nls_meta.nequ
-    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:nls.sample_size]) #FIXME : créer un nouveau vecteur de sampling à chaque itération, c'est pas ouf...
+    exact_φcp(d) = begin
+      jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
+      dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
+    end
+
+    exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
+    exact_metric = sqrt(abs(exact_ξcp * νcpInv))
+
+    exact_Fobj_hist[k] = exact_fk
+    exact_Metric_hist[k] = exact_metric
+    # -- -- #
+
+    #updating the indexes of the sampling
+
+    #update of the sampling rate towards the accuracy reached
+    #=if metric < 1e-2
+      nls.sample_rate = .5
+      nls.sample_size = Int(nls.nls_meta.nequ * nls.sample_rate) #updated length of the sample
+      display(nls.sample_rate)
+      nls.sample = randperm(nls.nls_meta.nequ)[1:nls.sample_size]
+      update_sample!(nls, k)
+      #display(nls.data_mem)
+
+      Fk = residual(nls, xk) #changes the size of Fk to fit with the new sample_rate
+      Jk = jac_op_residual(nls, xk)
+    #=elseif metric < 1e-3
+      nls.sample_rate = .8
+    elseif metric < 1e-4
+      nls.sample_rate = .9
+    elseif metric < 1e-5
+      nls.sample_rate = 1.0=#
+    end=#
+
+    #=if !(threshold_indicator || metric ≥ 0.5e-1)
+      threshold_indicator = true
+      nls.sample_rate = 1.0
+    end=#
+
+    nls.sample = zero(nls.sample)
+    nls.sample_size = Int(nls.nls_meta.nequ * nls.sample_rate)
+    update_sample!(nls, k)
+    #nls.sample[1:nls.sample_size] = sort(randperm(nls.nls_meta.nequ)[1:nls.sample_size])
+    #display((length(nls.data_mem) / nls.nls_meta.nequ) + nls.sample_rate)
 
     if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
-      μk = max(μk / λ, μmin)
-      # update functions #FIXME : obligés de refaire appel à residual! après changement du sampling --> on fait des évaluations du résidus en plus qui pourraient peut-être être évitées...
       xk .= xkn
+      μk = max(μk / λ, μmin)
+
+      # update functions #FIXME : obligés de refaire appel à residual! après changement du sampling --> on fait des évaluations du résidus en plus qui pourraient peut-être être évitées...
       residual!(nls, xk, Fk)
       fk = dot(Fk[1:nls.sample_size], Fk[1:nls.sample_size]) / 2
       hk = hkn
@@ -293,12 +345,14 @@ function Prob_LM(
       jtprod_residual!(nls, xk, Fk, ∇fk)
 
       μmax = opnorm(Jk)
+      #μmax = norm(Matrix(Jk))
       #η3 = μmax^2
       νcpInv = (1 + θ) * (μmax^2) 
 
       Complex_hist[k] += 1
+    #end
 
-    else #if (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
+    else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
       μk = λ * μk
     end
 
@@ -310,7 +364,7 @@ function Prob_LM(
       @info @sprintf "%6d %8s %8.1e %8.1e" k "" fk hk
     elseif optimal
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv (nls.sample_rate*100)
       #! format: on
       @info "SLM: terminating with √ξcp/νcp = $metric"
     end
@@ -338,5 +392,5 @@ function Prob_LM(
   set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
   set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
   set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
-  return stats, Metric_hist[1:k]
+  return stats, Metric_hist[1:k], exact_Fobj_hist[1:k], exact_Metric_hist[1:k]
 end

@@ -60,7 +60,7 @@ function Sto_LM_v4(
   ϵr = options.ϵr
   verbose = options.verbose
   maxIter = options.maxIter
-  maxIter = Int(floor(maxIter * (nls.nls_meta.nequ / length(nls.sample)))) #computing the sample rate
+  maxIter = Int(ceil(maxIter * (nls.nls_meta.nequ / length(nls.sample)))) #computing the sample rate
   maxTime = options.maxTime
   η1 = options.η1
   η2 = options.η2
@@ -120,7 +120,7 @@ function Sto_LM_v4(
 
   if verbose > 0
     #! format: off
-    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg"
+    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "count"
     #! format: on
   end
 
@@ -149,6 +149,7 @@ function Sto_LM_v4(
 
   optimal = false
   tired = k ≥ maxIter || elapsed_time > maxTime
+  #tired = elapsed_time > maxTime
 
   while !(optimal || tired)
     k = k + 1
@@ -193,8 +194,10 @@ function Sto_LM_v4(
 
     if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
       # the current xk is approximately first-order stationary
-      optimal = true
-      continue
+      push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
+      #=if length(nls.opt_counter) == 200
+        optimal = true
+      end=#
     end
 
     subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, ξcp / 10))
@@ -236,7 +239,6 @@ function Sto_LM_v4(
     subsolver_options.ϵa = ϵa_subsolver
 
     Complex_hist[k] = iter
-
     # additionnal condition on step s
     if dot(s,s) > 2 / μk
       println("cauchy step used")
@@ -269,7 +271,7 @@ function Sto_LM_v4(
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6d" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat length(nls.opt_counter)
       #! format: off
     end
 

@@ -1,4 +1,4 @@
-mutable struct ProbNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
+mutable struct SampledNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
   meta::NLPModelMeta{T, S}
   nls_meta::NLSMeta{T, S}
   counters::NLSCounters
@@ -6,54 +6,72 @@ mutable struct ProbNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
   resid!::R
   jprod_resid!::J
   jtprod_resid!::Jt
-
-  #probabilistic parameters
+  
+  #stochastic parameters
   sample::AbstractVector{<:Integer}
+  data_mem::AbstractVector{<:Integer}
+  sample_rate::Real
   sample_size::Int
+  epoch_counter::AbstractVector{<:Integer}
 
-  function ProbNLSModel{T, S, R, J, Jt}(
+  function SampledNLSModel{T, S, R, J, Jt}(
     r::R,
     jv::J,
     jtv::Jt,
     nequ::Int,
     x::S,
     sample::AbstractVector{<:Integer},
-    sample_size::Int;
+    data_mem::AbstractVector{<:Integer},
+    sample_rate::Real,
+    sample_size::Int,
+    epoch_counter::AbstractVector{<:Integer};
     kwargs...,
   ) where {T, S, R <: Function, J <: Function, Jt <: Function}
     nvar = length(x)
     meta = NLPModelMeta(nvar, x0 = x; kwargs...)
     nls_meta = NLSMeta{T, S}(nequ, nvar, x0 = x)
-    return new{T, S, R, J, Jt}(meta, nls_meta, NLSCounters(), r, jv, jtv, sample, sample_size)
+    return new{T, S, R, J, Jt}(meta, nls_meta, NLSCounters(), r, jv, jtv, sample, data_mem, sample_rate, sample_size, epoch_counter)
   end
 end
 
-ProbNLSModel(r, jv, jtv, nequ::Int, x::S, sample::AbstractVector{<:Integer}, sample_size::Int; kwargs...) where {S} =
-ProbNLSModel{eltype(S), S, typeof(r), typeof(jv), typeof(jtv)}(
+SampledNLSModel(r, jv, jtv, nequ::Int, x::S, sample::AbstractVector{<:Integer}, data_mem::AbstractVector{<:Integer}, sample_rate::Real, sample_size::Int, epoch_counter::AbstractVector{<:Integer}; kwargs...) where {S} =
+SampledNLSModel{eltype(S), S, typeof(r), typeof(jv), typeof(jtv)}(
     r,
     jv,
     jtv,
     nequ,
     x,
     sample,
-    sample_size;
+    data_mem,
+    sample_rate,
+    sample_size,
+    epoch_counter;
     kwargs...,
   )
 
 function NLPModels.residual!(
-    nls::ProbNLSModel, 
+    nls::SampledNLSModel, 
     x::AbstractVector, 
     Fx::AbstractVector,
     )
   NLPModels.@lencheck nls.meta.nvar x
   NLPModels.@lencheck nls.nls_meta.nequ Fx
+  #sample = sort(randperm(nls.nls_meta.nequ)[1:Int(sample_rate * nls.nls_meta.nequ)])
   increment!(nls, :neval_residual)
+  #the next function should return the sampled function Fx whose indexes are stored in sample without computing the other lines
+  #TODO : faire en sorte que les indices de calcul de nls.resid! soient parcouru avec "for i in sample" au lieu de parcourir tous les indices.
   nls.resid!(Fx, x; sample = nls.sample, sample_size = nls.sample_size)
   Fx
 end
 
+function NLPModels.residual(nls::AbstractNLSModel{T, S}, x::AbstractVector{T}) where {T, S}
+  @lencheck nls.meta.nvar x
+  Fx = S(undef, nls.nls_meta.nequ)
+  residual!(nls, x, Fx)
+end
+
 function NLPModels.jprod_residual!(
-  nls::ProbNLSModel,
+  nls::SampledNLSModel,
   x::AbstractVector,
   v::AbstractVector,
   Jv::AbstractVector,
@@ -67,7 +85,7 @@ function NLPModels.jprod_residual!(
 end
 
 function NLPModels.jtprod_residual!(
-  nls::ProbNLSModel,
+  nls::SampledNLSModel,
   x::AbstractVector,
   v::AbstractVector,
   Jtv::AbstractVector,
@@ -80,9 +98,8 @@ function NLPModels.jtprod_residual!(
   Jtv
 end
 
-
 function NLPModels.jac_op_residual!(
-  nls::ProbNLSModel,
+  nls::SampledNLSModel,
   x::AbstractVector,
   Jv::AbstractVector,
   Jtv::AbstractVector,
@@ -120,7 +137,7 @@ function NLPModels.jac_op_residual!(
   )
 end
 
-function NLPModels.jac_op_residual(nls::ProbNLSModel{T, S, R, J, Jt}, x::AbstractVector{T}) where {T, S, R, J, Jt}
+function NLPModels.jac_op_residual(nls::SampledNLSModel{T, S, R, J, Jt}, x::AbstractVector{T}) where {T, S, R, J, Jt}
   @lencheck nls.meta.nvar x
   Jv = S(undef, nls.nls_meta.nequ)
   Jtv = S(undef, nls.meta.nvar)
