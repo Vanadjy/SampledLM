@@ -118,6 +118,14 @@ function Sto_LM_v4(
   Grad_hist = zeros(Int, maxIter)
   Resid_hist = zeros(Int, maxIter)
 
+  #Historics in terms of time
+  TimeHist = []
+  #=Fobj_hist_time = zeros(maxTime_int)
+  exact_Fobj_hist_time = zeros(maxTime_int)
+  Hobj_hist_time = zeros(maxTime_int)
+  Metric_hist_time = zeros(maxTime_int)
+  exact_Metric_hist_time = zeros(maxTime_int)=#
+
   if verbose > 0
     #! format: off
     @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "count"
@@ -141,7 +149,7 @@ function Sto_LM_v4(
   exact_Jt_Fk = similar(∇fk)
 
   μmax = opnorm(Jk)
-  νcpInv = (1 + θ) * μmax^2
+  νcpInv = (1 - θ) * μmax^2
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
   s = zero(xk)
@@ -159,6 +167,7 @@ function Sto_LM_v4(
     Hobj_hist[k] = hk
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
     Resid_hist[k] = nls.counters.neval_residual
+    push!(TimeHist, elapsed_time)
 
     # model for the Cauchy-Point decrease
     φcp(d) = begin
@@ -240,7 +249,7 @@ function Sto_LM_v4(
 
     Complex_hist[k] = iter
     # additionnal condition on step s
-    if dot(s,s) > 2 / μk
+    if norm(s) > 2 / μk
       println("cauchy step used")
       s .= scp # Cauchy step allows a minimum decrease
     end
@@ -373,5 +382,5 @@ function Sto_LM_v4(
   set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
   set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
   set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
-  return stats, Metric_hist[1:k], exact_Fobj_hist[1:k], exact_Metric_hist[1:k]
+  return stats, Metric_hist[1:k], exact_Fobj_hist[1:k], exact_Metric_hist[1:k], TimeHist
 end
