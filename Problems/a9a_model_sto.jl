@@ -1,16 +1,16 @@
 using SparseArrays
 using Plots
 
-function ijcnn1_load_data(n::Int = 49990, d::Int = 22)
+function a9a_load_data(n::Int = 32561, d::Int = 123)
     A = zeros(n,d)
     y = zeros(n)
-    f = open(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\data_files\ijcnn1\ijcnn1.txt")
+    f = open(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\data_files\a9a\a9a.txt")
     lines = readlines(f)
     i = 1
     while i ≤ n
         dummy = split(lines[i], ' ')
         y[i] = parse(Float64, dummy[1])
-        for j in 2:(length(dummy))
+        for j in 2:(length(dummy)-1)
             loc_val = split(dummy[j],':')
             if length(loc_val) < 2
                 display(i)
@@ -24,7 +24,7 @@ function ijcnn1_load_data(n::Int = 49990, d::Int = 22)
     A, y
 end
 
-function ijcnn1_model_sto(sample_rate)
-    A, b = ijcnn1_load_data()
+function a9a_model_sto(sample_rate)
+    A, b = a9a_load_data()
     return svm_model_sto(A, b; sample_rate = sample_rate)
 end

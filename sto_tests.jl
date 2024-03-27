@@ -1,13 +1,14 @@
 compound = 1
-sample_rates = [1.0, .5, .05, .01]
+#sample_rates = [.2, .1, .05, .01]
+sample_rates = [1.0, .2, .1, .05]
 
-#sample_rates = [.01]
+#sample_rates = [.2]
 
 plot_parameter = ["objective", "metric"]
 param = plot_parameter[1]
 
-abscissas = ["epoch", "time"]
-abscissa = abscissas[2]
+abscissas = ["epoch", "CPU time"]
+abscissa = abscissas[1]
 sampled_res = true
 Confidence = Dict([("95%", 1.96), ("99%", 2.58)])
 conf = "95%"
@@ -16,9 +17,9 @@ n_exec = 5
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-  MaxEpochs = 50
+  MaxEpochs = 20
   MaxTime = 3600.0
-elseif abscissa == "time"
+elseif abscissa == "CPU time"
   MaxEpochs = 1000
   MaxTime = 10.0
 end
@@ -32,14 +33,18 @@ for sample_rate in sample_rates
   sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-3, ϵr = 1e-3, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
   bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
   #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
-  ijcnn1, ijcnn1_nls = ijcnn1_model_sto(sample_rate)
+  #ijcnn1, ijcnn1_nls = ijcnn1_model_sto(sample_rate)
+  #a9a, a9a_nls = a9a_model_sto(sample_rate)
+  mnist, mnist_nls = MNIST_train_model_sto(sample_rate)
   #lrcomp, lrcomp_nls, sol_lrcomp = lrcomp_model(50, 20; sample_rate = sample_rate)
 
   #bpdn2, bpdn_nls2, sol2 = bpdn_model_prob(compound)
   λ = norm(grad(bpdn, zeros(bpdn.meta.nvar)), Inf) / 10
 
   #nls_prob_collection = [(bpdn_nls, "bpdn-ls"), (glasso_nls, "group-lasso-ls"), (ijcnn1_nls, "ijcnn1-ls"), (lrcomp_nls, "lrcomp-ls")]
-  nls_prob_collection = [(ijcnn1_nls, "ijcnn1-ls")]
+  #nls_prob_collection = [(ijcnn1_nls, "ijcnn1-ls")]
+  #nls_prob_collection = [(a9a_nls, "a9a-ls")]
+  nls_prob_collection = [(mnist_nls, "mnist-train-ls")]
 
   Obj_Hists_epochs = zeros(1 + MaxEpochs, n_exec)
   Metr_Hists_epochs = similar(Obj_Hists_epochs)
@@ -57,6 +62,7 @@ for sample_rate in sample_rates
           #p = randperm(prob.meta.nvar)[1:nz]
           #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
           SLM4_out, Metric_hist, exact_F_hist, exact_Metric_hist, TimeHist = Sto_LM_v4(prob, h, sampled_options; x0 = x0)
+
           @test typeof(SLM4_out.solution) == typeof(prob.meta.x0)
           @test length(SLM4_out.solution) == prob.meta.nvar
           @test typeof(SLM4_out.solver_specific[:Fhist]) == typeof(SLM4_out.solution)
@@ -103,7 +109,7 @@ for sample_rate in sample_rates
             Obj_Hists_epochs[:, k] = exact_F_hist[prob.epoch_counter]
             Obj_Hists_epochs[:, k] += SLM4_out.solver_specific[:Hhist][prob.epoch_counter]
             Metr_Hists_epochs[:, k] = exact_Metric_hist[prob.epoch_counter]
-          elseif abscissa == "time"
+          elseif abscissa == "CPU time"
             push!(Obj_Hists_time, exact_F_hist + SLM4_out.solver_specific[:Hhist])
           end
         end
@@ -134,7 +140,7 @@ for sample_rate in sample_rates
           plot!(axes(Metr_Hists_epochs, 1), med_metric, label = "Sto_LM - $(sample_rate*100)%", title = "Sampled √ξcp/νcp for $prob_name on $n_exec executions", xaxis=:log10, ribbon=(std_metric, std_metric))
         end
         
-      elseif abscissa == "time"
+      elseif abscissa == "CPU time"
         local t = maximum(length.(Time_Hists))
         local m = maximum(length.(Obj_Hists_time))
         Obj_Mat_time = zeros(m, n_exec)
@@ -162,11 +168,11 @@ for sample_rate in sample_rates
           #std_metric[l] = std(filter(!iszero, Metr_Hists_epochs[l, :]))
           med_time[l] = median(filter(!iszero, Time_mat[l, :]))
         end
-        std_obj *= Confidence[conf] / sqrt(sample_size)
+        #std_obj *= Confidence[conf] / sqrt(sample_size)
         #std_metric *= Confidence[conf] / sqrt(sample_size)
 
         if param == "objective"
-          plot!(med_time, med_obj, label = "Sto_LM - $(sample_rate*100)%", title = "Exact f + h for $prob_name on $n_exec executions", yaxis=:log10, ribbon=(std_obj, std_obj))
+          plot!(sort(med_time), med_obj, label = "Sto_LM - $(sample_rate*100)%", title = "Exact f + h for $prob_name on $n_exec executions", xaxis=:log10, yaxis=:log10, ribbon=(std_obj, std_obj))
         elseif param == "metric"
           plot!(axes(Metr_Hists, 1), med_metric, label = "Sto_LM - $(sample_rate*100)%", title = "Sampled √ξcp/νcp for $prob_name on $n_exec executions", xaxis=:log10, ribbon=(std_metric, std_metric))
         end
@@ -175,6 +181,19 @@ for sample_rate in sample_rates
     end
   end
 end
+
+#=bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound)
+ijcnn1_full, ijcnn1_nls_full = ijcnn1_model_sto(1.0)
+sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+λ = norm(grad(bpdn, zeros(bpdn.meta.nvar)), Inf) / 10
+h = NormL1(λ)
+x0 = zeros(ijcnn1_full.meta.nvar)
+l_bound = ijcnn1_full.meta.lvar
+u_bound = ijcnn1_full.meta.uvar
+
+xk_R2, k_R2, R2_out = R2(ijcnn1_full.f, ijcnn1_full.∇f!, h, sampled_options_full, x0)
+R2_out[:Fhist] += R2_out[:Hhist]
+plot!(1:k_R2, R2_out[:Fhist], label = "R2", xaxis=:log10, yaxis=:log10)=#
 
 xlabel!(abscissa)
 if param == "objective"

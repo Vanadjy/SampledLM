@@ -13,6 +13,9 @@ using RegularizedProblems, RegularizedOptimization
 using NLSProblems
 using FastClosures
 using Plots, LaTeXStrings
+using MLDatasets
+
+Random.seed!(10)
 
 include("input_struct_sto.jl")
 #include("input_struct_prob.jl")

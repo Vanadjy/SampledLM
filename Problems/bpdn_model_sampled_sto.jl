@@ -62,7 +62,7 @@ function bpdn_model_sto(compound::Int = 1, args... ; bounds::Bool = false, sampl
   A, b, b0, x0 = bpdn_data_sto(args...; bounds = bounds)
 
   #initializes sampling parameters
-  sample = sort(randperm(size(A,1))[1:Int(sample_rate * size(A,1))])
+  sample = sort(randperm(size(A,1))[1:Int(ceil(sample_rate * size(A,1)))])
   data_mem = copy(sample)
   r = similar(b[1:length(sample)])
 

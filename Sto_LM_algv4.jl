@@ -118,13 +118,8 @@ function Sto_LM_v4(
   Grad_hist = zeros(Int, maxIter)
   Resid_hist = zeros(Int, maxIter)
 
-  #Historics in terms of time
+  #Historic of time
   TimeHist = []
-  #=Fobj_hist_time = zeros(maxTime_int)
-  exact_Fobj_hist_time = zeros(maxTime_int)
-  Hobj_hist_time = zeros(maxTime_int)
-  Metric_hist_time = zeros(maxTime_int)
-  exact_Metric_hist_time = zeros(maxTime_int)=#
 
   if verbose > 0
     #! format: off
@@ -149,7 +144,7 @@ function Sto_LM_v4(
   exact_Jt_Fk = similar(∇fk)
 
   μmax = opnorm(Jk)
-  νcpInv = (1 - θ) * μmax^2
+  νcpInv = (1 - θ) * (μmax^2 + σmin)
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
   s = zero(xk)
@@ -211,7 +206,7 @@ function Sto_LM_v4(
 
     subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, ξcp / 10))
     #update of σk
-    σk = μk * metric
+    σk = max(μk * metric, σmin)
 
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
@@ -326,7 +321,7 @@ function Sto_LM_v4(
 
       μmax = opnorm(Jk)
       #η3 = μmax^2
-      νcpInv = (1 + θ) * (μmax^2) 
+      νcpInv = (1 - θ) * (μmax^2 + σmin) 
 
       Complex_hist[k] += 1
     #end
