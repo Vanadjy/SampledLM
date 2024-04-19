@@ -10,20 +10,22 @@ using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, 
 using LinearAlgebra: length
 using Random, Test, OnlineStats, Distributions, Noise
 using RegularizedProblems, RegularizedOptimization
-using NLSProblems
+using NLSProblems, NLPModels
 using FastClosures
 using Plots, LaTeXStrings
 using MLDatasets
 
-Random.seed!(10)
+Random.seed!(0)
 
 include("input_struct_sto.jl")
 #include("input_struct_prob.jl")
 include("Problems/Sto_LM_Problems.jl")
-include("OldCodes/Sto_LM_alg.jl")
+include("OldCodes/LM_alg.jl")
+include("Sto_LM_alg.jl")
 include("Sto_LM_algv3.jl")
-include("Sto_LM_algv4.jl")
-#include("Prob_LM.jl")
+include("Sto_LM_guided_alg.jl")
+include("Sto_LM_cp.jl")
+include("Prob_LM_alg.jl")
 include("utils.jl")
 @testset "Stochastic tests" begin
     include("sto_tests.jl")

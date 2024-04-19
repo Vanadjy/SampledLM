@@ -26,5 +26,5 @@ end
 
 function ijcnn1_model_sto(sample_rate)
     A, b = ijcnn1_load_data()
-    return svm_model_sto(A, b; sample_rate = sample_rate)
+    return svm_model_sto_MNIST(A', b; sample_rate = sample_rate)
 end

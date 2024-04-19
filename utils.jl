@@ -32,3 +32,21 @@ function uniform_sample(length, sample_rate)
     end
     sample
 end
+
+function basic_change_sample_rate(epoch_count::Int)
+    if (epoch_count >= 0) && (epoch_count <= 5)
+        return .05
+      elseif (epoch_count > 5) && (epoch_count <= 10)
+        return .1
+      elseif (epoch_count > 10) && (epoch_count <= 15)
+        return .2
+      else
+        return 1.0
+      end
+end
+
+function basic_warn_sample_update(epoch_count::Int)
+    if epoch_count ∈ [6, 11, 16]
+        return true
+    end
+end

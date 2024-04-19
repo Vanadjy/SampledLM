@@ -1,7 +1,7 @@
-export Sto_LM
+#export LM
 
 """
-    Sto_LM(nls, h, options; kwargs...)
+    LM(nls, h, options; kwargs...)
 
 A Levenberg-Marquardt method for the problem
 
@@ -17,9 +17,6 @@ At each iteration, a step s is computed as an approximate solution of
 where F(x) and J(x) are the residual and its Jacobian at x, respectively, ψ(s; x) = h(x + s),
 and σ > 0 is a regularization parameter.
 
-In this version of the algorithm, the smooth part of both the objective and the model are estimations as 
-the quantities are sampled ones from the original data of the Problem.
-
 ### Arguments
 
 * `nls::AbstractNLSModel`: a smooth nonlinear least-squares problem
@@ -30,9 +27,9 @@ the quantities are sampled ones from the original data of the Problem.
 
 * `x0::AbstractVector`: an initial guess (default: `nls.meta.x0`)
 * `subsolver_logger::AbstractLogger`: a logger to pass to the subproblem solver
-* `subsolver`: the procedure used to compute a step (`PG` or `R2`)
+* `subsolver`: the procedure used to compute a step (`PG`, `R2` or `TRDH`)
 * `subsolver_options::ROSolverOptions`: default options to pass to the subsolver.
-* `selected::AbstractVector{<:Integer}`: list of selected indexes for the sampling 
+* `selected::AbstractVector{<:Integer}`: (default `1:nls.meta.nvar`).
 
 ### Return values
 
@@ -41,17 +38,16 @@ the quantities are sampled ones from the original data of the Problem.
 * `Hobj_hist`: an array with the history of values of the nonsmooth objective
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
-function Sto_LM(
+function LM(
   nls::AbstractNLSModel,
   h::H,
-  options::ROSolverOptions;
+  options::RegularizedOptimization.ROSolverOptions;
   x0::AbstractVector = nls.meta.x0,
   subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
   subsolver = R2,
-  subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
-  selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar)
+  subsolver_options = ROSolverOptions(ϵa = options.ϵa),
+  selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
 ) where {H}
-
   start_time = time()
   elapsed_time = 0.0
   # initialize passed options
@@ -63,17 +59,20 @@ function Sto_LM(
   maxTime = options.maxTime
   η1 = options.η1
   η2 = options.η2
-  η3 = options.η3
+  γ = options.γ
   θ = options.θ
-  λ = options.λ
-  νcp = options.νcp
   σmin = options.σmin
-  μmin = options.μmin
-  metric = options.metric
 
   # store initial values of the subsolver_options fields that will be modified
   ν_subsolver = subsolver_options.ν
   ϵa_subsolver = subsolver_options.ϵa
+
+  local l_bound, u_bound
+  treats_bounds = has_bounds(nls) || subsolver == TRDH
+  if treats_bounds
+    l_bound = nls.meta.lvar
+    u_bound = nls.meta.uvar
+  end
 
   if verbose == 0
     ptf = Inf
@@ -87,61 +86,50 @@ function Sto_LM(
 
   # initialize parameters
   σk = max(1 / options.ν, σmin)
-  μk = max(1 / options.ν , μmin)
   xk = copy(x0)
   hk = h(xk[selected])
   if hk == Inf
-    verbose > 0 && @info "SLM: finding initial guess where nonsmooth term is finite"
+    verbose > 0 && @info "LM: finding initial guess where nonsmooth term is finite"
     prox!(xk, h, x0, one(eltype(x0)))
     hk = h(xk[selected])
     hk < Inf || error("prox computation must be erroneous")
-    verbose > 0 && @debug "SLM: found point where h has value" hk
+    verbose > 0 && @debug "LM: found point where h has value" hk
   end
   hk == -Inf && error("nonsmooth term is not proper")
-  ψ = shifted(h, xk)
+  ψ = treats_bounds ? shifted(h, xk, l_bound - xk, u_bound - xk, selected) : shifted(h, xk)
 
   xkn = similar(xk)
 
-  local ξcp
-  local ξ
+  local ξ1
   k = 0
   Fobj_hist = zeros(maxIter)
   Hobj_hist = zeros(maxIter)
-  Metric_hist = zeros(maxIter)
   Complex_hist = zeros(Int, maxIter)
   Grad_hist = zeros(Int, maxIter)
   Resid_hist = zeros(Int, maxIter)
 
   if verbose > 0
     #! format: off
-    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %1s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg"
+    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %1s" "outer" "inner" "f(x)" "h(x)" "√ξ1" "√ξ" "ρ" "σ" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg"
     #! format: on
   end
 
   # main algorithm initialization
-  # TODO : remplacer les évaluations complètes par des évaluations samplées
-  #sampler = sort(randperm(nls.nls_meta.nequ)[1:Int(sample_rate * nls.nls_meta.nequ)])
-  #Pour le moment, le sample_rate est fixe
   Fk = residual(nls, xk)
   Fkn = similar(Fk)
-
   fk = dot(Fk, Fk) / 2
   Jk = jac_op_residual(nls, xk)
-
   ∇fk = Jk' * Fk
   JdFk = similar(Fk)   # temporary storage
   Jt_Fk = similar(∇fk)
 
-  μmax = opnorm(Jk)
-  νcpInv = (1 + θ) * μmax^2
-  νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
+  σmax = opnorm(Jk)
+  νInv = (1 + θ) * (σmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
   s = zero(xk)
-  scp = similar(s)
 
   optimal = false
   tired = k ≥ maxIter || elapsed_time > maxTime
-
 
   while !(optimal || tired)
     k = k + 1
@@ -151,46 +139,13 @@ function Sto_LM(
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
     Resid_hist[k] = nls.counters.neval_residual
 
-    # model for the Cauchy-Point decrease
-    φcp(d) = begin
+    # model for first prox-gradient iteration
+    φ1(d) = begin
       jtprod_residual!(nls, xk, Fk, Jt_Fk)
       dot(Fk, Fk) / 2 + dot(Jt_Fk, d)
     end
 
-    #submodel to find scp
-    mkcp(d) = φcp(d) + ψ(d) #+ νcpInv * dot(d,d) / 2
- 
-    
-    #computes the Cauchy step
-    νcp = 1 / νcpInv
-    ∇fk .*= -νcp
-    # take first proximal gradient step s1 and see if current xk is nearly stationary
-    # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
-    prox!(scp, ψ, ∇fk, νcp)
-    ξcp = fk + hk - mkcp(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
-    ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
-    #=if ξcp ≤ 0
-      ξcp = - ξcp
-    end=#
-
-    metric = sqrt(ξcp*νcpInv)
-    Metric_hist[k] = metric
-
-    if ξcp ≥ 0 && k == 1
-      ϵ_increment = ϵr * metric
-      ϵ += ϵ_increment  # make stopping test absolute and relative
-      ϵ_subsolver += ϵ_increment
-    end
-
-    if metric < ϵ #checks if the optimal condition is satisfied
-      # the current xk is approximately first-order stationary
-      optimal = true
-      continue
-    end
-
-    subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, ξcp / 10))
-    #update of σk
-    σk = μk * metric
+    mk1(d) = φ1(d) + ψ(d)
 
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
@@ -213,14 +168,36 @@ function Sto_LM(
       JdFk .+= Fk
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2 + ψ(d)
     end
-  
-    νInv = (1 + θ) * (μmax^2 + σk) # μmax^2 + σk = ||Jmk||² + σk 
-    ν = 1 / νInv
-    subsolver_options.ν = ν
 
+    # take first proximal gradient step s1 and see if current xk is nearly stationary
+    # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
+    ν = 1 / νInv
+    ∇fk .*= -ν  # reuse gradient storage
+    prox!(s, ψ, ∇fk, ν)
+    ξ1 = fk + hk - mk1(s) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
+    #ξ1 > 0 || error("LM: first prox-gradient step should produce a decrease but ξ1 = $(ξ1)")
+    if ξ1 ≤ 0
+        ξ1 = - ξ1
+    end
+
+    if ξ1 ≥ 0 && k == 1
+      ϵ_increment = ϵr * sqrt(ξ1)
+      ϵ += ϵ_increment  # make stopping test absolute and relative
+      ϵ_subsolver += ϵ_increment
+    end
+
+    if sqrt(ξ1) < ϵ
+      # the current xk is approximately first-order stationary
+      optimal = true
+      continue
+    end
+
+    subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, ξ1 / 10))
+    subsolver_options.ν = ν
+    subsolver_args = subsolver == TRDH ? (SpectralGradient(1 / ν, nls.meta.nvar),) : ()
     @debug "setting inner stopping tolerance to" subsolver_options.optTol
     s, iter, _ = with_logger(subsolver_logger) do
-      subsolver(φ, ∇φ!, ψ, subsolver_options, s)
+      subsolver(φ, ∇φ!, ψ, subsolver_args..., subsolver_options, s)
     end
     # restore initial subsolver_options here so that it is not modified if there is an error
     subsolver_options.ν = ν_subsolver
@@ -228,14 +205,7 @@ function Sto_LM(
 
     Complex_hist[k] = iter
 
-    # additionnal condition on step s
-    if dot(s,s) > 2 / μk
-      println("cauchy step used")
-      s .= scp # Cauchy step allows a minimum decrease
-    end
-
     xkn .= xk .+ s
-
     residual!(nls, xkn, Fkn)
     fkn = dot(Fkn, Fkn) / 2
     hkn = h(xkn[selected])
@@ -243,33 +213,31 @@ function Sto_LM(
     mks = mk(s)
     ξ = fk + hk - mks + max(1, abs(hk)) * 10 * eps()
 
-    if (ξ ≤ 0 || isnan(ξ))
+    #=if (ξ ≤ 0 || isnan(ξ))
       error("LM: failed to compute a step: ξ = $ξ")
+    end=#
+    if ξ ≤ 0
+        ξ = - ξ
     end
 
-    #=if ξ ≤ 0
-      ξ = - ξ
-    end=#
-
     Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
-    #Pred = φ(zeros(length(s))) + hk - φ(s) - ψ(s)
     ρk = Δobj / ξ
 
-    μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
+    σ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.1e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk norm(xk) norm(s) νInv μ_stat
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.1e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %1s" k iter fk hk sqrt(ξ1) sqrt(ξ) ρk σk norm(xk) norm(s) νInv σ_stat
       #! format: off
     end
 
-    if η2 ≤ ρk < Inf #If very successful, decrease the penalisation parameter
-      μk = max(μk / λ, μmin)
+    if η2 ≤ ρk < Inf
+      σk = max(σk / γ, σmin)
     end
 
-    if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
+    if η1 ≤ ρk < Inf
       xk .= xkn
-      #μk = max(μk / λ, μmin)
+      treats_bounds && set_bounds!(ψ, l_bound - xk, u_bound - xk)
 
       # update functions
       Fk .= Fkn
@@ -281,14 +249,14 @@ function Sto_LM(
       Jk = jac_op_residual(nls, xk)
       jtprod_residual!(nls, xk, Fk, ∇fk)
 
-      μmax = opnorm(Jk)
-      νcpInv = (1 + θ) * (μmax^2) 
+      σmax = opnorm(Jk)
+      νInv = (1 + θ) * (σmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
       Complex_hist[k] += 1
     end
 
-    if ρk < η1 || ρk == Inf #unsuccessful step
-      μk = λ * μk
+    if ρk < η1 || ρk == Inf
+      σk = σk * γ
     end
 
     tired = k ≥ maxIter || elapsed_time > maxTime
@@ -299,9 +267,9 @@ function Sto_LM(
       @info @sprintf "%6d %8s %8.1e %8.1e" k "" fk hk
     elseif optimal
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.1e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.1e %7.1e %8s %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξ1) sqrt(ξ1) "" σk norm(xk) norm(s) νInv
       #! format: on
-      @info "SLM: terminating with √ξcp/νcp = $metric"
+      @info "LM: terminating with √ξ1 = $(sqrt(ξ1))"
     end
   end
   status = if optimal
@@ -318,7 +286,7 @@ function Sto_LM(
   set_status!(stats, status)
   set_solution!(stats, xk)
   set_objective!(stats, fk + hk)
-  set_residuals!(stats, zero(eltype(xk)), ξcp ≥ 0 ? sqrt(ξcp * νcpInv) : ξcp)
+  set_residuals!(stats, zero(eltype(xk)), ξ1 ≥ 0 ? sqrt(ξ1) : ξ1)
   set_iter!(stats, k)
   set_time!(stats, elapsed_time)
   set_solver_specific!(stats, :Fhist, Fobj_hist[1:k])
@@ -327,5 +295,5 @@ function Sto_LM(
   set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
   set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
   set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
-  return stats, Metric_hist[1:k]
+  return stats
 end

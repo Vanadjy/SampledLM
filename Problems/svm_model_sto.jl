@@ -34,12 +34,14 @@ function svm_model_sto(A, b; sample_rate::AbstractFloat = 1.0)
       resid!(r, x)
       dot(r, r) / 2
     end
-    function grad!(g, x)
-      mul!(r, Ahat, x)
+    function grad!(g, x; sample = sample)
+      r = similar(b[1:length(sample)])
+      tmp = similar(r)
+      mul!(r, Ahat[sample, :], x)
       tmp .= (sech.(r)) .^ 2
       tmp .*= (1 .- tanh.(r))
       tmp .*= -1
-      mul!(g, Ahat', tmp)
+      mul!(g, Ahat[sample, :]', tmp)
       g
     end
   
@@ -83,12 +85,12 @@ function svm_model_sto_MNIST(A, b; sample_rate::AbstractFloat = 1.0)
     resid!(r, x)
     dot(r, r) / 2
   end
-  function grad!(g, x)
-    mul!(r, Ahat, x)
+  function grad!(g, x; sample = sample)
+    mul!(r, Ahat[sample, :], x)
     tmp .= (sech.(r)) .^ 2
     tmp .*= (1 .- tanh.(r))
     tmp .*= -1
-    mul!(g, Ahat', tmp)
+    mul!(g, Ahat[sample, :]', tmp)
     g
   end
 

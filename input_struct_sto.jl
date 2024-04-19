@@ -156,15 +156,13 @@ function NLPModels.residual!(
     )
   NLPModels.@lencheck nls.meta.nvar x
   NLPModels.@lencheck length(nls.sample) Fx
-  #sample = sort(randperm(nls.nls_meta.nequ)[1:Int(sample_rate * nls.nls_meta.nequ)])
   increment!(nls, :neval_residual)
-  #the next function should return the sampled function Fx whose indexes are stored in sample without computing the other lines
-  #TODO : faire en sorte que les indices de calcul de nls.resid! soient parcouru avec "for i in sample" au lieu de parcourir tous les indices.
+  #returns the sampled function Fx whose indexes are stored in sample without computing the other lines
   nls.resid!(Fx, x; sample = nls.sample)
   Fx
 end
 
-function NLPModels.residual(nls::AbstractNLSModel{T, S}, x::AbstractVector{T}) where {T, S}
+function NLPModels.residual(nls::SampledNLSModel{T, S, R, J, Jt}, x::AbstractVector{T}) where {T, S, R, J, Jt}
   @lencheck nls.meta.nvar x
   Fx = S(undef, length(nls.sample))
   residual!(nls, x, Fx)

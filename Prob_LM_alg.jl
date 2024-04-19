@@ -1,7 +1,7 @@
-export Sto_LM
+#export Prob_LM
 
 """
-    Sto_LM(nls, h, options; kwargs...)
+    Prob_LM(nls, h, options; kwargs...)
 
 A Levenberg-Marquardt method for the problem
 
@@ -41,8 +41,8 @@ the quantities are sampled ones from the original data of the Problem.
 * `Hobj_hist`: an array with the history of values of the nonsmooth objective
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
-function Sto_LM(
-  nls::AbstractNLSModel,
+function Prob_LM(
+  nls::SampledNLSModel,
   h::H,
   options::ROSolverOptions;
   x0::AbstractVector = nls.meta.x0,
@@ -60,6 +60,8 @@ function Sto_LM(
   ϵr = options.ϵr
   verbose = options.verbose
   maxIter = options.maxIter
+  maxEpoch = maxIter
+  maxIter = Int(ceil(maxIter * (nls.nls_meta.nequ / length(nls.sample)))) #computing the sample rate
   maxTime = options.maxTime
   η1 = options.η1
   η2 = options.η2
@@ -70,6 +72,13 @@ function Sto_LM(
   σmin = options.σmin
   μmin = options.μmin
   metric = options.metric
+
+  m = nls.nls_meta.nequ
+
+  # Initializes epoch_counter
+  epoch_count = 0
+  epoch_progress = 0
+  push!(nls.epoch_counter, 0)
 
   # store initial values of the subsolver_options fields that will be modified
   ν_subsolver = subsolver_options.ν
@@ -103,45 +112,53 @@ function Sto_LM(
   xkn = similar(xk)
 
   local ξcp
+  local exact_ξcp
   local ξ
   k = 0
   Fobj_hist = zeros(maxIter)
+  exact_Fobj_hist = zeros(maxIter)
   Hobj_hist = zeros(maxIter)
   Metric_hist = zeros(maxIter)
+  exact_Metric_hist = zeros(maxIter)
   Complex_hist = zeros(Int, maxIter)
   Grad_hist = zeros(Int, maxIter)
   Resid_hist = zeros(Int, maxIter)
 
+  #Historic of time
+  TimeHist = []
+
   if verbose > 0
     #! format: off
-    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %1s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg"
+    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "count"
     #! format: on
   end
 
-  # main algorithm initialization
-  # TODO : remplacer les évaluations complètes par des évaluations samplées
-  #sampler = sort(randperm(nls.nls_meta.nequ)[1:Int(sample_rate * nls.nls_meta.nequ)])
-  #Pour le moment, le sample_rate est fixe
+  #creating required objects
   Fk = residual(nls, xk)
   Fkn = similar(Fk)
+  exact_Fk = zeros(1:m)
 
-  fk = dot(Fk, Fk) / 2
   Jk = jac_op_residual(nls, xk)
 
-  ∇fk = Jk' * Fk
-  JdFk = similar(Fk)   # temporary storage
+  fk = dot(Fk, Fk) / 2 #objective estimated without noise
+
+  #sampled Jacobian
+  ∇fk = similar(xk)
+  jtprod_residual!(nls, xk, Fk, ∇fk)
+  JdFk = similar(Fk) # temporary storage
   Jt_Fk = similar(∇fk)
+  exact_Jt_Fk = similar(∇fk)
 
   μmax = opnorm(Jk)
-  νcpInv = (1 + θ) * μmax^2
+  νcpInv = (1 + θ) * (μmax^2 + σmin)
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
   s = zero(xk)
   scp = similar(s)
 
   optimal = false
-  tired = k ≥ maxIter || elapsed_time > maxTime
-
+  tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
+  #tired = elapsed_time > maxTime
 
   while !(optimal || tired)
     k = k + 1
@@ -150,6 +167,11 @@ function Sto_LM(
     Hobj_hist[k] = hk
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
     Resid_hist[k] = nls.counters.neval_residual
+    if k == 1
+      push!(TimeHist, 0.0)
+    else
+      push!(TimeHist, elapsed_time)
+    end
 
     # model for the Cauchy-Point decrease
     φcp(d) = begin
@@ -159,7 +181,6 @@ function Sto_LM(
 
     #submodel to find scp
     mkcp(d) = φcp(d) + ψ(d) #+ νcpInv * dot(d,d) / 2
- 
     
     #computes the Cauchy step
     νcp = 1 / νcpInv
@@ -167,11 +188,13 @@ function Sto_LM(
     # take first proximal gradient step s1 and see if current xk is nearly stationary
     # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
     prox!(scp, ψ, ∇fk, νcp)
-    ξcp = fk + hk - mkcp(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
-    ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
-    #=if ξcp ≤ 0
+    ξcp = fk + hk - φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
+
+    #ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
+    
+    if ξcp ≤ 0
       ξcp = - ξcp
-    end=#
+    end
 
     metric = sqrt(ξcp*νcpInv)
     Metric_hist[k] = metric
@@ -182,15 +205,17 @@ function Sto_LM(
       ϵ_subsolver += ϵ_increment
     end
 
-    if metric < ϵ #checks if the optimal condition is satisfied
+    if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
       # the current xk is approximately first-order stationary
-      optimal = true
-      continue
+      push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
+      #=if length(nls.opt_counter) == 200
+        optimal = true
+      end=#
     end
 
     subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, ξcp / 10))
     #update of σk
-    σk = μk * metric
+    σk = max(μk * metric, σmin)
 
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
@@ -227,9 +252,8 @@ function Sto_LM(
     subsolver_options.ϵa = ϵa_subsolver
 
     Complex_hist[k] = iter
-
     # additionnal condition on step s
-    if dot(s,s) > 2 / μk
+    if norm(s) > 2 / μk
       println("cauchy step used")
       s .= scp # Cauchy step allows a minimum decrease
     end
@@ -243,37 +267,80 @@ function Sto_LM(
     mks = mk(s)
     ξ = fk + hk - mks + max(1, abs(hk)) * 10 * eps()
 
-    if (ξ ≤ 0 || isnan(ξ))
+    #=if (ξ ≤ 0 || isnan(ξ))
       error("LM: failed to compute a step: ξ = $ξ")
-    end
-
-    #=if ξ ≤ 0
-      ξ = - ξ
     end=#
 
+    if ξ ≤ 0
+      ξ = - ξ
+    end
+
     Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
-    #Pred = φ(zeros(length(s))) + hk - φ(s) - ψ(s)
+    #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
     ρk = Δobj / ξ
 
-    μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
+    μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
+    #μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.1e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk norm(xk) norm(s) νInv μ_stat
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6d" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat length(nls.opt_counter)
       #! format: off
     end
 
-    if η2 ≤ ρk < Inf #If very successful, decrease the penalisation parameter
-      μk = max(μk / λ, μmin)
+    #-- to compute exact quantities --#
+    if nls.sample_rate < 1.0
+      nls.sample = 1:m
+      residual!(nls, xk, exact_Fk)
+      exact_fk = dot(exact_Fk, exact_Fk) / 2
+
+      exact_φcp(d) = begin
+        jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
+        dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
+      end
+
+      exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
+      exact_metric = sqrt(abs(exact_ξcp * νcpInv))
+
+      exact_Fobj_hist[k] = exact_fk
+      exact_Metric_hist[k] = exact_metric
+    end
+    # -- -- #
+
+    # TODO include a strategy that changes the sample rate to get τ' = min(1.0, τ)
+
+    # Change sample rate
+    nls.sample_rate = basic_change_sample_rate(epoch_count)
+
+    #updating the indexes of the sampling
+    epoch_progress += nls.sample_rate
+    #changes sample with new sample rate
+    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
+    if epoch_progress >= 1 #we passed on all the data
+      epoch_count += 1
+      push!(nls.epoch_counter, k)
+      epoch_progress -= 1
     end
 
-    if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
-      xk .= xkn
-      #μk = max(μk / λ, μmin)
+    # mandatory updates whenever the sample_rate chages #
+    if epoch_count ∈ [6, 11, 16]
+      Fk = residual(nls, xk)
+      JdFk = similar(Fk)
+      fk = dot(Fk, Fk) / 2
 
-      # update functions
-      Fk .= Fkn
-      fk = fkn
+      Jk = jac_op_residual(nls, xk)
+      jtprod_residual!(nls, xk, Fk, ∇fk)
+      μmax = opnorm(Jk)
+      νcpInv = (1 + θ) * (μmax^2 + σmin)
+    end 
+
+    if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
+      xk .= xkn
+      μk = max(μk / λ, μmin)
+
+      # update functions #FIXME : obligés de refaire appel à residual! après changement du sampling --> on fait des évaluations du résidus en plus qui pourraient peut-être être évitées...
+      Fk = residual(nls, xk)
+      fk = dot(Fk, Fk) / 2
       hk = hkn
 
       # update gradient & Hessian
@@ -282,12 +349,11 @@ function Sto_LM(
       jtprod_residual!(nls, xk, Fk, ∇fk)
 
       μmax = opnorm(Jk)
-      νcpInv = (1 + θ) * (μmax^2) 
+      νcpInv = (1 + θ) * (μmax^2 + σmin) 
 
       Complex_hist[k] += 1
-    end
 
-    if ρk < η1 || ρk == Inf #unsuccessful step
+    else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
       μk = λ * μk
     end
 
@@ -299,7 +365,7 @@ function Sto_LM(
       @info @sprintf "%6d %8s %8.1e %8.1e" k "" fk hk
     elseif optimal
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.1e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
       #! format: on
       @info "SLM: terminating with √ξcp/νcp = $metric"
     end
@@ -327,5 +393,5 @@ function Sto_LM(
   set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
   set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
   set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
-  return stats, Metric_hist[1:k]
+  return stats, Metric_hist[1:k], exact_Fobj_hist[1:k], exact_Metric_hist[1:k], TimeHist
 end

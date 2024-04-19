@@ -41,7 +41,7 @@ the quantities are sampled ones from the original data of the Problem.
 * `Hobj_hist`: an array with the history of values of the nonsmooth objective
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
-function Sto_LM_v4(
+function Sto_LM_cp(
   nls::SampledNLSModel,
   h::H,
   options::ROSolverOptions;
@@ -147,8 +147,7 @@ function Sto_LM_v4(
   νcpInv = (1 - θ) * (μmax^2 + σmin)
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
-  s = zero(xk)
-  scp = similar(s)
+  scp = zero(xk)
 
   optimal = false
   tired = k ≥ maxIter || elapsed_time > maxTime
@@ -235,27 +234,24 @@ function Sto_LM_v4(
     subsolver_options.ν = ν
 
     @debug "setting inner stopping tolerance to" subsolver_options.optTol
-    s, iter, _ = with_logger(subsolver_logger) do
+    #=s, iter, _ = with_logger(subsolver_logger) do
       subsolver(φ, ∇φ!, ψ, subsolver_options, s)
-    end
+    end=#
+    iter = 0
     # restore initial subsolver_options here so that it is not modified if there is an error
     subsolver_options.ν = ν_subsolver
     subsolver_options.ϵa = ϵa_subsolver
 
     Complex_hist[k] = iter
     # additionnal condition on step s
-    if norm(s) > 2 / μk
-      println("cauchy step used")
-      s .= scp # Cauchy step allows a minimum decrease
-    end
 
-    xkn .= xk .+ s
+    xkn .= xk .+ scp
 
     residual!(nls, xkn, Fkn)
     fkn = dot(Fkn, Fkn) / 2
     hkn = h(xkn[selected])
     hkn == -Inf && error("nonsmooth term is not proper")
-    mks = mk(s)
+    mks = mk(scp)
     ξ = fk + hk - mks + max(1, abs(hk)) * 10 * eps()
 
     #=if (ξ ≤ 0 || isnan(ξ))
@@ -275,7 +271,7 @@ function Sto_LM_v4(
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6d" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat length(nls.opt_counter)
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6d" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(scp) νInv μ_stat length(nls.opt_counter)
       #! format: off
     end
 

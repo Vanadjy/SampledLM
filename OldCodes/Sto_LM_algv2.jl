@@ -42,9 +42,9 @@ the quantities are sampled ones from the original data of the Problem.
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
 function Sto_LM_v2(
-  nls::SampledNLSModel,
+  nls::AbstractNLSModel,
   h::H,
-  options::ROSolverOptions;
+  options::RegularizedOptimization.ROSolverOptions;
   x0::AbstractVector = nls.meta.x0,
   subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
   subsolver = R2,
