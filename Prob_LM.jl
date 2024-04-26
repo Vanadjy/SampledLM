@@ -392,5 +392,8 @@ function Prob_LM(
   set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
   set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
   set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
+  set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
+  set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
+  set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
   return stats, Metric_hist[1:k], exact_Fobj_hist[1:k], exact_Metric_hist[1:k]
 end

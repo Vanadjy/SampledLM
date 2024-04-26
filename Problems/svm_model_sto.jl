@@ -1,4 +1,4 @@
-function svm_model_sto(A, b; sample_rate::AbstractFloat = 1.0)
+#=function svm_model_sto(A, b; sample_rate::AbstractFloat = 1.0)
     Ahat = Diagonal(b) * A #dimensions : m × n
 
     #initializes sampling parameters
@@ -47,9 +47,9 @@ function svm_model_sto(A, b; sample_rate::AbstractFloat = 1.0)
   
     FirstOrderModel(obj, grad!, ones(size(A, 1)), name = "Nonlinear-SVM"),
     SampledNLSModel(resid!, jacv!, jactv!, length(b), ones(size(A, 2)), sample, data_mem, sample_rate)
-  end
+  end=#
 
-function svm_model_sto_MNIST(A, b; sample_rate::AbstractFloat = 1.0)
+function svm_model_sto(A, b; sample_rate::AbstractFloat = 1.0)
   Ahat = Diagonal(b) * A' #dimensions : m × n
 
   #initializes sampling parameters
@@ -95,5 +95,6 @@ function svm_model_sto_MNIST(A, b; sample_rate::AbstractFloat = 1.0)
   end
 
   FirstOrderModel(obj, grad!, ones(size(A, 1)), name = "Nonlinear-SVM"),
-  SampledNLSModel(resid!, jacv!, jactv!, length(b), ones(size(A, 1)), sample, data_mem, sample_rate)
+  SampledNLSModel(resid!, jacv!, jactv!, length(b), ones(size(A, 1)), sample, data_mem, sample_rate),
+  b
 end

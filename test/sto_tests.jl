@@ -16,7 +16,6 @@ Confidence = Dict([("95%", 1.96), ("99%", 2.58)])
 conf = "95%"
 n_exec = 10
 guide = false
-compare = true
 probabilist = false
 
 MaxEpochs = 0
@@ -29,60 +28,17 @@ elseif abscissa == "CPU time"
   MaxTime = 10.0
 end
 
-selected_probs = ["ijcnn1", "mnist"]
-selected_hs = ["l0", "l1"]
+#selected_probs = ["ijcnn1", "mnist"]
+selected_probs = ["mnist"]
+#selected_hs = ["l0", "l1"]
+selected_hs = ["l1"]
 #selected_prob = "mnist"
+
+acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100
 
 for selected_prob in selected_probs
   for selected_h in selected_hs
-    yscale = :log10
-    gr()
-    graph = plot()
-    #plots of other algorithms
-    if compare && (abscissa == "epoch")
-      bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound)
-      mnist_full, mnist_nls_full = RegularizedProblems.svm_train_model()
-      A_ijcnn1, b_ijcnn1 = ijcnn1_load_data()
-      ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
-      sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-16, ϵr = 1e-16, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-      subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = 1e-1)
-
-      if selected_prob == "ijcnn1"
-        prob = ijcnn1_full
-        prob_nls = ijcnn1_nls_full
-      elseif selected_prob == "mnist"
-        prob = mnist_full
-        prob_nls = mnist_nls_full
-      end
-
-      λ = .1
-      if selected_h == "l0"
-        h = NormL0(λ)
-      elseif selected_h == "l1"
-        h = NormL1(λ)
-      end
-
-      x0 = ones(prob.meta.nvar)
-      m = prob_nls.nls_meta.nequ
-      l_bound = prob.meta.lvar
-      u_bound = prob.meta.uvar
-
-      xk_R2, k_R2, R2_out = R2(prob.f, prob.∇f!, h, sampled_options_full, x0)
-      LM_out = LM(prob_nls, h, sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
-
-      if h == NormL0(λ)
-        LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormLinf(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
-        plot!(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, xaxis = :log2, linetype=:steppre, label = "LMTR", lc = :black, ls=:dash)
-      elseif h == NormL1(λ)
-        LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
-        plot!(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, xaxis = :log2, linetype=:steppre, label = "LMTR", lc = :black, ls=:dash)
-      end
-      #R2_out[:Fhist] += R2_out[:Hhist]
-
-      plot!(1:k_R2, 0.5*(R2_out[:Fhist] + R2_out[:Hhist])/m, label = "R2", lc = :red, ls = :dashdot, linetype=:steppre, xaxis = :log2, yaxis = yscale)
-      plot!(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, xaxis = :log2, yaxis = yscale, linetype=:steppre, label = "LM", lc = :orange, ls = :dot)
-    end
-
+    # -- SAMPLED VERSION -- #
 
     for sample_rate in sample_rates
       nz = 10 * compound
@@ -101,16 +57,6 @@ for selected_prob in selected_probs
       elseif selected_prob == "mnist"
         nls_prob_collection = [(mnist_nls, "mnist-train-ls")]
       end
-
-      # initialize all historic collections #
-      Obj_Hists_epochs = zeros(1 + MaxEpochs, n_exec)
-      Obj_Hists_epochs_cp = similar(Obj_Hists_epochs)
-      Metr_Hists_epochs = similar(Obj_Hists_epochs)
-      Metr_Hists_epochs_cp = similar(Obj_Hists_epochs)
-      Time_Hists = []
-      Time_Hists_cp = []
-      Obj_Hists_time = []
-      Obj_Hists_time_cp = []
 
       for (prob, prob_name) in nls_prob_collection
         if selected_h == "l0"
@@ -156,42 +102,13 @@ for selected_prob in selected_probs
                 #@test obj(prob, SLM4_out.solution) == SLM4_out.solver_specific[:Fhist][end]
               @test h(SLM4_out.solution) == SLM4_out.solver_specific[:Hhist][end]
               @test SLM4_out.status == :max_iter
-
-
-              push!(Time_Hists, TimeHist)
-              if param == "objective"
-                if abscissa == "epoch"
-                  Obj_Hists_epochs[:, k] = exact_F_hist[prob.epoch_counter]
-                  Obj_Hists_epochs[:, k] += SLM4_out.solver_specific[:Hhist][prob.epoch_counter]
-                  Metr_Hists_epochs[:, k] = exact_Metric_hist[prob.epoch_counter]
-
-                  # cp version #
-                  #=Obj_Hists_epochs_cp[:, k] = exact_F_hist_cp[prob.epoch_counter]
-                  Obj_Hists_epochs_cp[:, k] += SLM_cp_out.solver_specific[:Hhist][prob.epoch_counter]
-                  Metr_Hists_epochs_cp[:, k] = exact_Metric_hist_cp[prob.epoch_counter]=#
-                elseif abscissa == "CPU time"
-                  push!(Obj_Hists_time, exact_F_hist + SLM4_out.solver_specific[:Hhist])
-
-                  # cp version #
-                  #push!(Obj_Hists_time_cp, exact_F_hist_cp + SLM_cp_out.solver_specific[:Hhist])
-                end
-              elseif param == "MSE"
-                sample_size = length(prob.sample)
-                if abscissa == "epoch"
-                  Obj_Hists_epochs[:, k] = SLM4_out.solver_specific[:Fhist][prob.epoch_counter]
-                  Obj_Hists_epochs[:, k] += SLM4_out.solver_specific[:Hhist][prob.epoch_counter]
-                  Obj_Hists_epochs[:, k] ./= 2*sample_size
-                elseif abscissa == "CPU time"
-                  push!(Obj_Hists_time, (SLM4_out.solver_specific[:Fhist] + SLM4_out.solver_specific[:Hhist]) / (2*sample_size))
-                end
-              end
-            end
-            if k < n_exec
-              prob.epoch_counter = Int[1]
             end
           end
+        end
+      end
 
-          if abscissa == "epoch"
+
+          #=if abscissa == "epoch"
             sample_size = length(prob.sample)
             med_obj = zeros(axes(Obj_Hists_epochs, 1))
             std_obj = similar(med_obj)
@@ -321,4 +238,4 @@ for selected_prob in selected_probs
     end
     display(graph)
   end
-end
+end=#

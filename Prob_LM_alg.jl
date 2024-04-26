@@ -78,7 +78,6 @@ function Prob_LM(
   # Initializes epoch_counter
   epoch_count = 0
   epoch_progress = 0
-  push!(nls.epoch_counter, 0)
 
   # store initial values of the subsolver_options fields that will be modified
   ν_subsolver = subsolver_options.ν
@@ -309,22 +308,25 @@ function Prob_LM(
 
     # TODO include a strategy that changes the sample rate to get τ' = min(1.0, τ)
 
-    # Change sample rate
-    nls.sample_rate = basic_change_sample_rate(epoch_count)
-
     #updating the indexes of the sampling
     epoch_progress += nls.sample_rate
-    #changes sample with new sample rate
-    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
     if epoch_progress >= 1 #we passed on all the data
       epoch_count += 1
       push!(nls.epoch_counter, k)
       epoch_progress -= 1
     end
 
+    # Change sample rate
+    nls.sample_rate = basic_change_sample_rate(epoch_count)
+
+    #changes sample with new sample rate
+    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
+
     # mandatory updates whenever the sample_rate chages #
-    if epoch_count ∈ [6, 11, 16]
+    if epoch_count ∈ [4, 6, 13]
+      #display("Went here for epoch_count = $epoch_count and sample_rate = $(nls.sample_rate)")
       Fk = residual(nls, xk)
+      Fkn = similar(Fk)
       JdFk = similar(Fk)
       fk = dot(Fk, Fk) / 2
 
@@ -357,7 +359,7 @@ function Prob_LM(
       μk = λ * μk
     end
 
-    tired = k ≥ maxIter || elapsed_time > maxTime
+    tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
   end
 
   if verbose > 0
@@ -388,10 +390,14 @@ function Prob_LM(
   set_iter!(stats, k)
   set_time!(stats, elapsed_time)
   set_solver_specific!(stats, :Fhist, Fobj_hist[1:k])
+  set_solver_specific!(stats, :ExactFhist, exact_Fobj_hist[1:k])
   set_solver_specific!(stats, :Hhist, Hobj_hist[1:k])
   set_solver_specific!(stats, :NonSmooth, h)
   set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
   set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
   set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
-  return stats, Metric_hist[1:k], exact_Fobj_hist[1:k], exact_Metric_hist[1:k], TimeHist
+  set_solver_specific!(stats, :MetricHist, Metric_hist[1:k])
+  set_solver_specific!(stats, :ExactMetricHist, exact_Metric_hist[1:k])
+  set_solver_specific!(stats, :TimeHist, TimeHist)
+  return stats
 end

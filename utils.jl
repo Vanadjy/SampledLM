@@ -34,13 +34,13 @@ function uniform_sample(length, sample_rate)
 end
 
 function basic_change_sample_rate(epoch_count::Int)
-    if (epoch_count >= 0) && (epoch_count <= 5)
+    if (epoch_count >= 0) && (epoch_count <= 3)
         return .05
-      elseif (epoch_count > 5) && (epoch_count <= 10)
+      elseif (epoch_count > 3) && (epoch_count <= 5)
         return .1
-      elseif (epoch_count > 10) && (epoch_count <= 15)
+      elseif (epoch_count > 5) && (epoch_count <= 12)
         return .2
-      else
+      elseif (epoch_count > 12)
         return 1.0
       end
 end

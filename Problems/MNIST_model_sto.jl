@@ -33,10 +33,10 @@ end
 
 function MNIST_test_model_sto(sample_rate; digits::Tuple{Int, Int} = (1, 7), switch::Bool = false)
     A, b = tan_data_test(digits, switch)
-    return svm_model_sto_MNIST(A, b; sample_rate = sample_rate)
+    return svm_model_sto(A, b; sample_rate = sample_rate)
 end
 
 function MNIST_train_model_sto(sample_rate; digits::Tuple{Int, Int} = (1, 7), switch::Bool = false)
     A, b = tan_data_train(digits, switch)
-    return svm_model_sto_MNIST(A, b; sample_rate = sample_rate)
+    return svm_model_sto(A, b; sample_rate = sample_rate)
 end

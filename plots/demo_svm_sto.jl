@@ -4,15 +4,19 @@ using ProximalOperators, ShiftedProximalOperators, MLDatasets, RegularizedProble
 using NLPModels, NLPModelsModifiers #ReverseADNLSModels
 using RegularizedOptimization
 using DataFrames
-import SolverBenchmark
+using SolverBenchmark
 
-include("plot-utils-svm.jl")
+include("plot-utils-svm-sto.jl")
 
 # Random.seed!(1234)
 
-function demo_solver(nlp_tr, nls_tr, sol_tr, nlp_test, nls_test, sol_test, h, χ, suffix="l0-linf")
-    options = ROSolverOptions(ν=1.0, β=1e16, ϵa=1e-4, ϵr=1e-4, verbose=10, σmin=1e-5)
-    suboptions = ROSolverOptions(maxIter = 100)
+function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test, sampled_nls_test, sol_test, h, χ, suffix="l0-linf")
+    MaxEpochs = 10
+    MaxTime = 3600.0
+    options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-16, ϵr = 1e-16, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+    suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 15, ϵa = 1e-1)
+
+    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-16, ϵr = 1e-16, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
     acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100
 
     @info "using R2 to solve with" h
@@ -24,16 +28,6 @@ function demo_solver(nlp_tr, nls_tr, sol_tr, nlp_test, nls_test, sol_test, h, χ
     r2test = residual(nls_test, R2_out.solution)
     @show acc(r2train), acc(r2test)
     r2dec = plot_svm(R2_out, R2_out.solution, "r2-$(suffix)")
-
-    #=@info "using TR to solve with" h χ
-    reset!(nlp_tr)
-    TR_out = TR(nlp_tr, h, χ, options, x0=nlp_tr.meta.x0, subsolver_options = suboptions)
-    trtrain = residual(nls_tr, TR_out.solution)
-    trtest = residual(nls_test, TR_out.solution)
-    ntr = neval_obj(nlp_tr)
-    ngtr = neval_grad(nlp_tr)
-    @show acc(trtrain), acc(trtest)
-    trdec = plot_svm(TR_out, TR_out.solution, "tr-$(suffix)")=#
 
     @info " using LMTR to solve with" h χ
     reset!(nls_tr)
@@ -56,33 +50,36 @@ function demo_solver(nlp_tr, nls_tr, sol_tr, nlp_test, nls_test, sol_test, h, χ
     lmdec = plot_svm(LM_out, LM_out.solution, "lm-$(suffix)")
 
     @info " using Sto_LM to solve with" h
-    reset!(nls_tr)
-    Sto_LM_out = LM(nls_tr, h, options, x0=nls_tr.meta.x0, subsolver_options = suboptions)
-    lmtrain = residual(nls_tr, LM_out.solution)
-    lmtest = residual(nls_test, LM_out.solution)
-    nlm = neval_residual(nls_tr)
-    nglm = neval_jtprod_residual(nls_tr) + neval_jprod_residual(nls_tr)
-    @show acc(lmtrain), acc(lmtest)
-    lmdec = plot_svm(LM_out, LM_out.solution, "lm-$(suffix)")
+    reset!(sampled_nls_tr)
+    sampled_nls_tr.epoch_counter = Int[1]
+    Sto_LM_out, Metric_hist, exact_F_hist, exact_Metric_hist, TimeHist = Sto_LM(sampled_nls_tr, h, sampled_options, x0=sampled_nls_tr.meta.x0, subsolver_options = suboptions)
+    
+    slmtrain = residual(sampled_nls_tr, Sto_LM_out.solution)
+    slmtest = residual(sampled_nls_test, Sto_LM_out.solution)
+    nslm = neval_residual(sampled_nls_tr)
+    ngslm = neval_jtprod_residual(sampled_nls_tr) + neval_jprod_residual(sampled_nls_tr)
+    @show acc(slmtrain), acc(slmtest)
+    slmdec = plot_svm(Sto_LM_out, Sto_LM_out.solution, "sto-lm-$(suffix)")
 
     c = PGFPlots.Axis(
         [
             PGFPlots.Plots.Linear(1:length(r2dec), r2dec, mark="none", style="black, dotted", legendentry="R2"),
-            PGFPlots.Plots.Linear(1:length(trdec), trdec, mark="none", style="black, dashed", legendentry="TR"),
             PGFPlots.Plots.Linear(LM_out.solver_specific[:ResidHist], lmdec, mark="none", style="black, thick", legendentry="LM"),
             PGFPlots.Plots.Linear(LMTR_out.solver_specific[:ResidHist], lmtrdec, mark="none", style = "black, very thin", legendentry="LMTR"),
+            PGFPlots.Plots.Linear(Sto_LM_out.solver_specific[:ResidHist], slmdec, mark="none", style = "black", legendentry="Sto_LM"),
+
         ],
         xlabel="\$ k^{th}\$   \$ f \$ Eval",
         ylabel="Objective Value",
         ymode="log",
         xmode="log",
     )
-    PGFPlots.save("svm-objdec.tikz", c, include_preamble=false)
+    PGFPlots.save("svm-objdec.tikz", c)
 
     temp = hcat([R2_out.solver_specific[:Fhist][end], R2_out.solver_specific[:Hhist][end],R2_out.objective, acc(r2train), acc(r2test), nr2, ngr2, sum(R2_out.solver_specific[:SubsolverCounter]), R2_out.elapsed_time],
-        [TR_out.solver_specific[:Fhist][end], TR_out.solver_specific[:Hhist][end], TR_out.objective, acc(trtrain), acc(trtest), ntr, ngtr, sum(TR_out.solver_specific[:SubsolverCounter]), TR_out.elapsed_time],
         [LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
-        [LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time])'
+        [LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
+        [exact_F_hist[end], Sto_LM_out.solver_specific[:Hhist][end], exact_F_hist[end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time])'
 
     df = DataFrame(temp, [:f, :h, :fh, :x,:xt, :n, :g, :p, :s])
     T = []
@@ -91,7 +88,7 @@ function demo_solver(nlp_tr, nls_tr, sol_tr, nlp_test, nls_test, sol_test, h, χ
     end
     select!(df, Not(:xt))
     df[!, :x] = T
-    df[!, :Alg] = ["R2", "TR", "LM", "LMTR"]
+    df[!, :Alg] = ["R2", "LM", "LMTR", "Sto-LM-$(sampled_nls_tr.sample_rate*100)%"]
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
         :f => "%10.2f",
@@ -118,7 +115,7 @@ function demo_solver(nlp_tr, nls_tr, sol_tr, nlp_test, nls_test, sol_test, h, χ
     end
 end
 
-function demo_svm()
+function demo_svm_sto(;sample_rate = .05)
     ## load phishing data from libsvm
     # A = readdlm("data_matrix.txt")
     # b = readdlm("label_vector.txt")
@@ -131,16 +128,16 @@ function demo_svm()
     # btrain = b[train_ind]
     # Atrain = A[train_ind,:]'
 
-    nlp_train, nls_train, sol_train = svm_train_model()#Atrain, btrain) #
-    nlp_test, nls_test, sol_test = svm_test_model()#Atest, btest)
+    nlp_train, nls_train, sol_train = RegularizedProblems.svm_train_model()#Atrain, btrain) #
+    nlp_test, nls_test, sol_test = RegularizedProblems.svm_test_model()#Atest, btest)
+    nlp_train_sto, nls_train_sto, sto_sol_train = MNIST_train_model_sto(sample_rate)
+    nlp_test_sto, nls_test_sto, sto_sol_test = MNIST_test_model_sto(sample_rate)
+
     nlp_train = LSR1Model(nlp_train)
     λ = 1e-1
     h = RootNormLhalf(λ)
+    # h = NormL0(λ)
     χ = NormLinf(1.0)
 
-
-    demo_solver(nlp_train, nls_train, sol_train, nlp_test, nls_test, sol_test, h, χ, "lhalf-linf")
+    demo_solver(nlp_train, nls_train, nls_train_sto, sol_train, nlp_test, nls_test, nls_test_sto, sol_test, h, χ, "lhalf-linf")
 end
-
-demo_svm()
-

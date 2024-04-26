@@ -1,4 +1,4 @@
-export ROSolverOptions
+#export ROSolverOptions
 
 mutable struct ROSolverOptions{R}
   ϵa::R  # termination criteria

@@ -112,6 +112,7 @@ function Sto_LM(
   local exact_ξcp
   local ξ
   k = 0
+  X_hist = []
   Fobj_hist = zeros(maxIter)
   exact_Fobj_hist = zeros(maxIter)
   Hobj_hist = zeros(maxIter)
@@ -161,6 +162,7 @@ function Sto_LM(
     k = k + 1
     mₛ = length(nls.sample) #current length of the sample
     elapsed_time = time() - start_time
+    push!(X_hist, xk)
     Fobj_hist[k] = fk
     Hobj_hist[k] = hk
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
@@ -368,11 +370,16 @@ function Sto_LM(
   set_residuals!(stats, zero(eltype(xk)), ξcp ≥ 0 ? sqrt(ξcp * νcpInv) : ξcp)
   set_iter!(stats, k)
   set_time!(stats, elapsed_time)
+  set_solver_specific!(stats, :Xhist, X_hist[1:k])
   set_solver_specific!(stats, :Fhist, Fobj_hist[1:k])
+  set_solver_specific!(stats, :ExactFhist, exact_Fobj_hist[1:k])
   set_solver_specific!(stats, :Hhist, Hobj_hist[1:k])
   set_solver_specific!(stats, :NonSmooth, h)
   set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
   set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
   set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
-  return stats, Metric_hist[1:k], exact_Fobj_hist[1:k], exact_Metric_hist[1:k], TimeHist
+  set_solver_specific!(stats, :MetricHist, Metric_hist[1:k])
+  set_solver_specific!(stats, :ExactMetricHist, exact_Metric_hist[1:k])
+  set_solver_specific!(stats, :TimeHist, TimeHist)
+  return stats
 end
