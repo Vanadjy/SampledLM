@@ -15,7 +15,7 @@ using FastClosures
 using Plots, LaTeXStrings
 using MLDatasets
 
-seed = 10
+seed = 1
 
 include("input_struct_sto.jl")
 #include("input_struct_prob.jl")
@@ -36,16 +36,20 @@ include("plots/plots.jl")
 
 Random.seed!(seed)
 n_exec = 10
-#sample_rates = [1.0, .2, .1, .05, .01]
-#sample_rates = [1.0, .2, .1, .05]
-sample_rates = [.05]
+sample_rates = []
+
+versions = [1, 3]
+sample_rate0 = .1
+
 #selected_probs = ["ijcnn1", "mnist"]
 selected_probs = ["mnist"]
+
 #selected_hs = ["l0", "l1", "l1/2"]
-selected_hs = ["l1"]
+selected_hs = ["l0", "l1", "l1/2"]
+
 abscissas = ["epoch", "CPU time"]
 abscissa = abscissas[1]
-plot_Sto_LM(sample_rates, selected_probs, selected_hs; abscissa = abscissa, n_exec = n_exec)
+plot_Sto_LM(sample_rates, versions, selected_probs, selected_hs; abscissa = abscissa, n_exec = n_exec, smooth = false, sample_rate0 = sample_rate0)
 
 # Plots for MNIST map #
 

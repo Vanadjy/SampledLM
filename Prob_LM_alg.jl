@@ -49,11 +49,32 @@ function Prob_LM(
   subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
   subsolver = R2,
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
-  selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar)
+  selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
+  sample_rate0::Float64 = .05,
+  version::Int = 1
 ) where {H}
 
+  # initializes epoch counting and progression
+  epoch_count = 0
+  epoch_progress = 0
+
+  # initializes values for adaptive sample rate strategy
+  Num_mean = 0
+  mobile_mean = 0
+  sample_rates_collec = [.2, .5, .9, .99]
+  epoch_limits = [1, 2, 5, 10]
+  @assert length(sample_rates_collec) == length(epoch_limits)
+  nls.sample_rate = sample_rate0
+  ζk = Int(ceil(nls.sample_rate * nls.nls_meta.nequ))
+  nls.sample = sort(randperm(nls.nls_meta.nequ)[1:ζk])
+
+  sample_counter = 1
+  change_sample_rate = false
+
+  # initialize time stats
   start_time = time()
   elapsed_time = 0.0
+
   # initialize passed options
   ϵ = options.ϵa
   ϵ_subsolver = subsolver_options.ϵa
@@ -74,10 +95,6 @@ function Prob_LM(
   metric = options.metric
 
   m = nls.nls_meta.nequ
-
-  # Initializes epoch_counter
-  epoch_count = 0
-  epoch_progress = 0
 
   # store initial values of the subsolver_options fields that will be modified
   ν_subsolver = subsolver_options.ν
@@ -114,21 +131,22 @@ function Prob_LM(
   local exact_ξcp
   local ξ
   k = 0
-  Fobj_hist = zeros(maxIter)
-  exact_Fobj_hist = zeros(maxIter)
-  Hobj_hist = zeros(maxIter)
-  Metric_hist = zeros(maxIter)
-  exact_Metric_hist = zeros(maxIter)
-  Complex_hist = zeros(Int, maxIter)
-  Grad_hist = zeros(Int, maxIter)
-  Resid_hist = zeros(Int, maxIter)
+  Fobj_hist = zeros(maxIter * 100)
+  exact_Fobj_hist = zeros(maxIter * 100)
+  Hobj_hist = zeros(maxIter * 100)
+  Metric_hist = zeros(maxIter * 100)
+  exact_Metric_hist = zeros(maxIter * 100)
+  Complex_hist = zeros(Int, maxIter * 100)
+  Grad_hist = zeros(Int, maxIter * 100)
+  Resid_hist = zeros(Int, maxIter * 100)
+  Sample_hist = zeros(maxIter * 100)
 
   #Historic of time
   TimeHist = []
 
   if verbose > 0
     #! format: off
-    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "count"
+    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "rate"
     #! format: on
   end
 
@@ -166,6 +184,7 @@ function Prob_LM(
     Hobj_hist[k] = hk
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
     Resid_hist[k] = nls.counters.neval_residual
+    Sample_hist[k] = nls.sample_rate
     if k == 1
       push!(TimeHist, 0.0)
     else
@@ -218,6 +237,7 @@ function Prob_LM(
 
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
+
     φ(d) = begin
       jprod_residual!(nls, xk, d, JdFk)
       JdFk .+= Fk
@@ -283,7 +303,7 @@ function Prob_LM(
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6d" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat length(nls.opt_counter)
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat nls.sample_rate
       #! format: off
     end
 
@@ -307,7 +327,6 @@ function Prob_LM(
     # -- -- #
 
     # TODO include a strategy that changes the sample rate to get τ' = min(1.0, τ)
-
     #updating the indexes of the sampling
     epoch_progress += nls.sample_rate
     if epoch_progress >= 1 #we passed on all the data
@@ -316,14 +335,53 @@ function Prob_LM(
       epoch_progress -= 1
     end
 
-    # Change sample rate
-    nls.sample_rate = basic_change_sample_rate(epoch_count)
+    # Version 1: List of predetermined - switch with mobile average #
+    if version == 1
+      # Change sample rate
+      #nls.sample_rate = basic_change_sample_rate(epoch_count)
+      if nls.sample_rate < sample_rates_collec[end]
+        Num_mean = Int(ceil(1 / nls.sample_rate))
+        if k >= Num_mean
+          @views mobile_mean = mean(Fobj_hist[(k - Num_mean + 1):k] + Hobj_hist[(k - Num_mean + 1):k])
+          if abs(mobile_mean - (fk + hk)) ≤ 1e-1 #if the mean on the Num_mean last iterations is near the current objective value
+            nls.sample_rate = sample_rates_collec[sample_counter]
+            sample_counter += 1
+            change_sample_rate = true
+          end
+        end
+      end
+    end
+
+    # Version 2: List of predetermined - switch with arbitrary epochs #
+    if version == 2
+      if nls.sample_rate < sample_rates_collec[end]
+        if epoch_count > epoch_limits[sample_counter]
+          nls.sample_rate = sample_rates_collec[sample_counter]
+          sample_counter += 1
+          change_sample_rate = true
+        end
+      end
+    end
+
+    # Version 3: Adapt sample_size after each iteration #
+    if version == 3
+      # ζk = Int(ceil(k / (1e8 * min(1, 1 / μk^4))))
+      p = .75
+      q = .75
+      ζk = Int(ceil(100 * (log(1 / (1-p)) * max(μk^4, μk^2) + log(1 / (1-q)) * μk^4)))
+      nls.sample_rate = min(1.0, (ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))
+      change_sample_rate = true
+    end
+
+    # Version 4: Double sample_size after a fixed number of epochs #
+
+ 
 
     #changes sample with new sample rate
     nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
 
     # mandatory updates whenever the sample_rate chages #
-    if epoch_count ∈ [4, 6, 13]
+    if change_sample_rate
       #display("Went here for epoch_count = $epoch_count and sample_rate = $(nls.sample_rate)")
       Fk = residual(nls, xk)
       Fkn = similar(Fk)
@@ -334,7 +392,9 @@ function Prob_LM(
       jtprod_residual!(nls, xk, Fk, ∇fk)
       μmax = opnorm(Jk)
       νcpInv = (1 + θ) * (μmax^2 + σmin)
-    end 
+
+      change_sample_rate = false
+    end
 
     if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
       xk .= xkn
@@ -399,5 +459,6 @@ function Prob_LM(
   set_solver_specific!(stats, :MetricHist, Metric_hist[1:k])
   set_solver_specific!(stats, :ExactMetricHist, exact_Metric_hist[1:k])
   set_solver_specific!(stats, :TimeHist, TimeHist)
+  set_solver_specific!(stats, :SampleRateHist, Sample_hist[1:k])
   return stats
 end

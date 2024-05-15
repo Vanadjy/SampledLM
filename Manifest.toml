@@ -2,7 +2,7 @@
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "89f73d9b30f92878a9b2a473b4e856689c8d8de1"
+project_hash = "e92ef68bddc435d2b13692e9a233025d9409804d"
 
 [[deps.AMD]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse_jll"]
@@ -496,6 +496,12 @@ git-tree-sha1 = "8d838ee3772e00c75d6cc06bb08891379868c18d"
 uuid = "92fee26a-97fe-5a0c-ad85-20a5f3185b63"
 version = "0.5.2"
 
+[[deps.Gaston]]
+deps = ["ColorSchemes", "DelimitedFiles", "PrecompileTools", "Random"]
+git-tree-sha1 = "55b32ca83e5749f476a21c7d6c4b10abb46bfa7b"
+uuid = "4b11ee91-296f-5714-9832-002c20994614"
+version = "1.1.2"
+
 [[deps.Gettext_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "XML2_jll"]
 git-tree-sha1 = "9b02998aba7bf074d14de89f9d37ca24a1a0b046"
@@ -964,9 +970,9 @@ version = "0.2.1"
 
 [[deps.MPICH_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Hwloc_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML"]
-git-tree-sha1 = "d8a7bf80c88326ebc98b7d38437208c3a0f20725"
+git-tree-sha1 = "4099bb6809ac109bfc17d521dad33763bcf026b7"
 uuid = "7cb0a576-ebde-5e09-9194-50597f1243b4"
-version = "4.2.1+0"
+version = "4.2.1+1"
 
 [[deps.MPIPreferences]]
 deps = ["Libdl", "Preferences"]

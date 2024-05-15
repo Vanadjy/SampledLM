@@ -11,12 +11,12 @@ include("plot-utils-svm-sto.jl")
 # Random.seed!(1234)
 
 function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test, sampled_nls_test, sol_test, h, χ, suffix="l0-linf")
-    MaxEpochs = 10
+    MaxEpochs = 50
     MaxTime = 3600.0
-    options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-16, ϵr = 1e-16, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-    suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 15, ϵa = 1e-1)
+    options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+    suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 100)
 
-    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-16, ϵr = 1e-16, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
     acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100
 
     @info "using R2 to solve with" h
@@ -49,25 +49,37 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     @show acc(lmtrain), acc(lmtest)
     lmdec = plot_svm(LM_out, LM_out.solution, "lm-$(suffix)")
 
-    @info " using Sto_LM to solve with" h
+    #=@info " using Sto_LM to solve with" h
     reset!(sampled_nls_tr)
     sampled_nls_tr.epoch_counter = Int[1]
-    Sto_LM_out, Metric_hist, exact_F_hist, exact_Metric_hist, TimeHist = Sto_LM(sampled_nls_tr, h, sampled_options, x0=sampled_nls_tr.meta.x0, subsolver_options = suboptions)
+    Sto_LM_out = Sto_LM(sampled_nls_tr, h, sampled_options, x0=sampled_nls_tr.meta.x0, subsolver_options = suboptions)
     
     slmtrain = residual(sampled_nls_tr, Sto_LM_out.solution)
     slmtest = residual(sampled_nls_test, Sto_LM_out.solution)
     nslm = neval_residual(sampled_nls_tr)
     ngslm = neval_jtprod_residual(sampled_nls_tr) + neval_jprod_residual(sampled_nls_tr)
     @show acc(slmtrain), acc(slmtest)
-    slmdec = plot_svm(Sto_LM_out, Sto_LM_out.solution, "sto-lm-$(suffix)")
+    slmdec = plot_svm(Sto_LM_out, Sto_LM_out.solution, "sto-lm-$(suffix)")=#
+
+    @info " using Prob_LM to solve with" h
+    reset!(sampled_nls_tr)
+    sampled_nls_tr.epoch_counter = Int[1]
+    Prob_LM_out = Prob_LM(sampled_nls_tr, h, sampled_options, x0=sampled_nls_tr.meta.x0, subsolver_options = suboptions)
+    
+    plmtrain = residual(sampled_nls_tr, Prob_LM_out.solution)
+    plmtest = residual(sampled_nls_test, Prob_LM_out.solution)
+    nplm = neval_residual(sampled_nls_tr)
+    ngplm = neval_jtprod_residual(sampled_nls_tr) + neval_jprod_residual(sampled_nls_tr)
+    @show acc(plmtrain), acc(plmtest)
+    plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$(suffix)")
 
     c = PGFPlots.Axis(
         [
             PGFPlots.Plots.Linear(1:length(r2dec), r2dec, mark="none", style="black, dotted", legendentry="R2"),
             PGFPlots.Plots.Linear(LM_out.solver_specific[:ResidHist], lmdec, mark="none", style="black, thick", legendentry="LM"),
             PGFPlots.Plots.Linear(LMTR_out.solver_specific[:ResidHist], lmtrdec, mark="none", style = "black, very thin", legendentry="LMTR"),
-            PGFPlots.Plots.Linear(Sto_LM_out.solver_specific[:ResidHist], slmdec, mark="none", style = "black", legendentry="Sto_LM"),
-
+            #PGFPlots.Plots.Linear(Sto_LM_out.solver_specific[:ResidHist], slmdec, mark="none", style = "black", legendentry="Sto_LM"),
+            PGFPlots.Plots.Linear(Prob_LM_out.solver_specific[:ResidHist], plmdec, mark="none", style = "black", legendentry="Sto_LM"),
         ],
         xlabel="\$ k^{th}\$   \$ f \$ Eval",
         ylabel="Objective Value",
@@ -79,7 +91,8 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     temp = hcat([R2_out.solver_specific[:Fhist][end], R2_out.solver_specific[:Hhist][end],R2_out.objective, acc(r2train), acc(r2test), nr2, ngr2, sum(R2_out.solver_specific[:SubsolverCounter]), R2_out.elapsed_time],
         [LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
         [LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
-        [exact_F_hist[end], Sto_LM_out.solver_specific[:Hhist][end], exact_F_hist[end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time])'
+        #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
+        [Prob_LM_out.solver_specific[:ExactFhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.solver_specific[:ExactFhist][end] + Prob_LM_out.solver_specific[:Hhist][end], acc(plmtrain), acc(plmtest), nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])'
 
     df = DataFrame(temp, [:f, :h, :fh, :x,:xt, :n, :g, :p, :s])
     T = []
@@ -88,7 +101,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     end
     select!(df, Not(:xt))
     df[!, :x] = T
-    df[!, :Alg] = ["R2", "LM", "LMTR", "Sto-LM-$(sampled_nls_tr.sample_rate*100)%"]
+    df[!, :Alg] = ["R2", "LM", "LMTR", "Prob_LM"]
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
         :f => "%10.2f",
