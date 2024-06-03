@@ -61,6 +61,7 @@ function Prob_LM(
   # initializes values for adaptive sample rate strategy
   Num_mean = 0
   mobile_mean = 0
+  unchange_mm_count = 0
   sample_rates_collec = [.2, .5, .9, .99]
   epoch_limits = [1, 2, 5, 10]
   @assert length(sample_rates_collec) == length(epoch_limits)
@@ -87,6 +88,7 @@ function Prob_LM(
   η1 = options.η1
   η2 = options.η2
   η3 = options.η3
+  β = options.β
   θ = options.θ
   λ = options.λ
   νcp = options.νcp
@@ -167,14 +169,14 @@ function Prob_LM(
   exact_Jt_Fk = similar(∇fk)
 
   μmax = opnorm(Jk)
-  νcpInv = (1 + θ) * (μmax^2 + σmin)
+  νcpInv = (1 + θ) * (μmax^2 + μk)
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
   s = zero(xk)
   scp = similar(s)
 
   optimal = false
-  tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
+  tired = epoch_count ≥ maxEpoch-1 || elapsed_time > maxTime
   #tired = elapsed_time > maxTime
 
   while !(optimal || tired)
@@ -206,7 +208,7 @@ function Prob_LM(
     # take first proximal gradient step s1 and see if current xk is nearly stationary
     # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
     prox!(scp, ψ, ∇fk, νcp)
-    ξcp = fk + hk - φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
+    ξcp = fk + hk - mkcp(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
 
     #ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
     
@@ -226,12 +228,13 @@ function Prob_LM(
     if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
       # the current xk is approximately first-order stationary
       push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
-      #=if length(nls.opt_counter) == 200
+      if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
         optimal = true
-      end=#
+      end
     end
 
-    subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, ξcp / 10))
+    subsolver_options.ϵa = (length(nls.epoch_counter) ≤ 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric / 10)))
+
     #update of σk
     σk = max(μk * metric, σmin)
 
@@ -264,17 +267,18 @@ function Prob_LM(
 
     @debug "setting inner stopping tolerance to" subsolver_options.optTol
     s, iter, _ = with_logger(subsolver_logger) do
-      subsolver(φ, ∇φ!, ψ, subsolver_options, s)
+      subsolver(φ, ∇φ!, ψ, subsolver_options, scp)
     end
     # restore initial subsolver_options here so that it is not modified if there is an error
     subsolver_options.ν = ν_subsolver
     subsolver_options.ϵa = ϵa_subsolver
 
     Complex_hist[k] = iter
+
     # additionnal condition on step s
-    if norm(s) > 2 / μk
+    if norm(s) > β * norm(scp)
       println("cauchy step used")
-      s .= scp # Cauchy step allows a minimum decrease
+      s .= scp
     end
 
     xkn .= xk .+ s
@@ -298,7 +302,8 @@ function Prob_LM(
     #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
     ρk = Δobj / ξ
 
-    μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
+    #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
+    μ_stat = ρk < η1 ? "↘" : ((metric ≥ η3 / μk) ? "↗" : "↘")
     #μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
 
     if (verbose > 0) && (k % ptf == 0)
@@ -306,7 +311,8 @@ function Prob_LM(
       @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat nls.sample_rate
       #! format: off
     end
-
+    
+    #=
     #-- to compute exact quantities --#
     if nls.sample_rate < 1.0
       nls.sample = 1:m
@@ -325,8 +331,8 @@ function Prob_LM(
       exact_Metric_hist[k] = exact_metric
     end
     # -- -- #
+    =#
 
-    # TODO include a strategy that changes the sample rate to get τ' = min(1.0, τ)
     #updating the indexes of the sampling
     epoch_progress += nls.sample_rate
     if epoch_progress >= 1 #we passed on all the data
@@ -373,9 +379,30 @@ function Prob_LM(
       change_sample_rate = true
     end
 
-    # Version 4: Double sample_size after a fixed number of epochs #
+    # Version 4: Double sample_size after a fixed number of epochs or a mobile mean stagnation #
+    if version == 4
+      # Change sample rate
+      #nls.sample_rate = basic_change_sample_rate(epoch_count)
+      if nls.sample_rate < 1.0
+        Num_mean = Int(ceil(1 / nls.sample_rate))
+        if k >= Num_mean
+          @views mobile_mean = mean(Fobj_hist[(k - Num_mean + 1):k] + Hobj_hist[(k - Num_mean + 1):k])
+          if abs(mobile_mean - (fk + hk)) ≤ 1e-1 #if the mean on the Num_mean last iterations is near the current objective value
+            nls.sample_rate = min(1.0, 3 * nls.sample_rate)
+            change_sample_rate = true
+            unchange_mm_count = 0
+          else # don't have stagnation
+            unchange_mm_count += nls.sample_rate
+            if unchange_mm_count ≥ 3 # force to change sample rate after 3 epochs of unchanged sample rate using mobile mean criterion
+              nls.sample_rate = min(1.0, 2 * nls.sample_rate)
+              change_sample_rate = true
+              unchange_mm_count = 0
+            end
+          end
+        end
+      end
+    end
 
- 
 
     #changes sample with new sample rate
     nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
@@ -391,14 +418,19 @@ function Prob_LM(
       Jk = jac_op_residual(nls, xk)
       jtprod_residual!(nls, xk, Fk, ∇fk)
       μmax = opnorm(Jk)
-      νcpInv = (1 + θ) * (μmax^2 + σmin)
+      νcpInv = (1 + θ) * (μmax^2 + μk)
 
       change_sample_rate = false
     end
 
-    if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
+    if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
-      μk = max(μk / λ, μmin)
+
+      if metric ≥ η3 / μk #very successful step
+        μk = max(μk / λ, μmin)
+      #else
+        #μk = λ * μk
+      end
 
       # update functions #FIXME : obligés de refaire appel à residual! après changement du sampling --> on fait des évaluations du résidus en plus qui pourraient peut-être être évitées...
       Fk = residual(nls, xk)
@@ -411,7 +443,7 @@ function Prob_LM(
       jtprod_residual!(nls, xk, Fk, ∇fk)
 
       μmax = opnorm(Jk)
-      νcpInv = (1 + θ) * (μmax^2 + σmin) 
+      νcpInv = (1 + θ) * (μmax^2 + μk) 
 
       Complex_hist[k] += 1
 
@@ -419,7 +451,7 @@ function Prob_LM(
       μk = λ * μk
     end
 
-    tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
+    tired = epoch_count ≥ maxEpoch-1 || elapsed_time > maxTime
   end
 
   if verbose > 0

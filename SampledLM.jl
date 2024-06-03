@@ -35,17 +35,23 @@ include("plots/plots.jl")
 # Plots for Objective historic, MSE and accuracy #
 
 Random.seed!(seed)
-n_exec = 10
-sample_rates = []
+n_exec = 5
 
-versions = [1, 3]
-sample_rate0 = .1
+versions = [4]
 
 #selected_probs = ["ijcnn1", "mnist"]
 selected_probs = ["mnist"]
 
+if selected_probs == ["ijcnn1"]
+    sample_rate0 = .05
+    sample_rates = [.05]
+elseif selected_probs == ["mnist"]
+    sample_rate0 = .1
+    sample_rates = []
+end
+
 #selected_hs = ["l0", "l1", "l1/2"]
-selected_hs = ["l0", "l1", "l1/2"]
+selected_hs = ["l1/2"]
 
 abscissas = ["epoch", "CPU time"]
 abscissa = abscissas[1]
@@ -54,7 +60,7 @@ plot_Sto_LM(sample_rates, versions, selected_probs, selected_hs; abscissa = absc
 # Plots for MNIST map #
 
 Random.seed!(seed)
-#demo_svm_sto(;sample_rate = .1)
+demo_svm_sto(;sample_rate = .05, n_runs = n_exec)
 
 #include("prob_tests.jl")
 #=@testset "Probabilistic tests" begin
