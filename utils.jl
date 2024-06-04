@@ -50,3 +50,19 @@ function basic_warn_sample_update(epoch_count::Int)
         return true
     end
 end
+
+function get_filename(name::AbstractString)
+    if name[(end - 2):end] == "bz2"
+      filename = name
+    elseif name[(end - 2):end] == "txt"
+      filename = name * ".bz2"
+    elseif name[(end - 2):end] == "pre"
+      filename = name * ".txt.bz2"
+    elseif occursin(r"[0-9]{3}", name[(end - 2):end])
+      filename = name * "-pre.txt.bz2"
+    else
+      error("Cannot recognize $(name)")
+    end
+  
+    return filename
+  end

@@ -42,6 +42,7 @@ mutable struct SampledBAModel{T, S} <: AbstractNLSModel{T, S}
   # sample features
   sample::AbstractVector{<:Integer}
   epoch_counter::AbstractVector{<:Integer}
+  sample_rate::T
 end
 
 """
@@ -49,13 +50,13 @@ end
 
 Constructor of BundleAdjustmentModel, creates an NLSModel with name `name` from a BundleAdjustment archive with precision `T`.
 """
-function BundleAdjustmentModel(name::AbstractString; T::Type = Float64, sample_rate = 1.0)
+function BAmodel_sto(name::AbstractString; T::Type = Float64, sample_rate = 1.0)
   filename = get_filename(name)
   filedir = fetch_ba_name(filename)
   path_and_filename = joinpath(filedir, filename)
   problem_name = filename[1:(end - 12)]
 
-  cams_indices, pnts_indices, pt2d, x0, ncams, npnts, nobs = readfile(path_and_filename, T = T)
+  cams_indices, pnts_indices, pt2d, x0, ncams, npnts, nobs = BundleAdjustmentModels.readfile(path_and_filename, T = T)
 
   S = typeof(x0)
 
@@ -81,8 +82,8 @@ function BundleAdjustmentModel(name::AbstractString; T::Type = Float64, sample_r
   P1_cross = S(undef, 3)
   P2_vec = S(undef, 2)
 
-  sample = sort(randperm(nequ)[1:Int(ceil(sample_rate * nequ))])
-  epoch_counter = 0
+  sample_nobs = sort(randperm(nobs)[1:Int(ceil(sample_rate * nobs))])
+  epoch_counter = [1]
 
   return SampledBAModel(
     meta,
@@ -104,8 +105,9 @@ function BundleAdjustmentModel(name::AbstractString; T::Type = Float64, sample_r
     P1_vec,
     P1_cross,
     P2_vec,
-    sample,
+    sample_nobs,
     epoch_counter,
+    sample_rate,
   )
 end
 
@@ -150,8 +152,9 @@ function residuals!(
     r = view(rxs, (2 * i - 1):(2 * i))
     projection!(x, c, r, k, P)
   end
-  rxs .-= pt2d[sample]
-  return rxs
+  for j in sample
+    rxs[(2 * j - 1):(2 * j)] .-= pt2d[(2 * j - 1):(2 * j)]
+  end
 end
 
 function projection!(
@@ -264,10 +267,11 @@ function NLPModels.jac_coord_residual!(
   end
   return vals
 end
+#=
 
-## ---------------------------------------------------------------------------------- ##
-## ---------------------------- FIRST TRIAL ----------------------------------------- ##
-## ---------------------------------------------------------------------------------- ##
+## -------------------------------------------------------------------------------------------------------------- ##
+## ---------------------------- FIRST TRIAL TO HAVE A SAMPLED-NLS-MODEL ----------------------------------------- ##
+## -------------------------------------------------------------------------------------------------------------- ##
 
 function ba_model_sto(name::AbstractString; T::Type = Float64)
     # data #
@@ -461,3 +465,4 @@ function ba_model_sto(name::AbstractString; T::Type = Float64)
     SampledNLSModel(resid!, jacv!, jactv!, length(b), ones(size(A, 1)), sample, data_mem, sample_rate),
     b
   end
+  =#

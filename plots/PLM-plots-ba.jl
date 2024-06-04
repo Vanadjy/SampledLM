@@ -1,29 +1,27 @@
-function plot_Sto_LM(sample_rates::AbstractVector, versions::AbstractVector, selected_probs::AbstractVector, selected_hs::AbstractVector; abscissa = "CPU time", n_exec = 10, smooth::Bool = false, sample_rate0::Float64 = .05)
+function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, name_list::AbstractVector, selected_hs::AbstractVector; abscissa = "CPU time", n_exec = 10, smooth::Bool = false, sample_rate0::Float64 = .05)
     compound = 1
     color_scheme = Dict([(1.0, 4), (.2, 5), (.1, 6), (.05, 7), (.01, 8)])
     prob_versions_names = Dict([(1, "nondec"), (2, "arbitrary"), (3, "each-it"), (4, "hybrid")])
 
     plot_parameter = ["objective", "metric", "MSE", "accuracy"]
-    param = plot_parameter[3]
+    param = plot_parameter[1]
 
     Confidence = Dict([("95%", 1.96), ("99%", 2.58)])
     conf = "95%"
     guide = false
-    compare = true
+    compare = false
 
     MaxEpochs = 0
     MaxTime = 0.0
     if abscissa == "epoch"
-    MaxEpochs = 20
-    MaxTime = 3600.0
+        MaxEpochs = 50
+        MaxTime = 3600.0
     elseif abscissa == "CPU time"
-    MaxEpochs = 1000
-    MaxTime = 10.0
+        MaxEpochs = 1000
+        MaxTime = 10.0
     end
 
-    acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100
-
-    for selected_prob in selected_probs
+    for name in name_list
         for selected_h in selected_hs
                 yscale = :log10
                 xscale = :log2
@@ -31,20 +29,9 @@ function plot_Sto_LM(sample_rates::AbstractVector, versions::AbstractVector, sel
                 graph = plot()
                 #plots of other algorithms
                 if compare && (abscissa == "epoch")
-                    bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound)
-                    mnist_full, mnist_nls_full = RegularizedProblems.svm_train_model((5, 6))
-                    A_ijcnn1, b_ijcnn1 = ijcnn1_load_data()
-                    ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
-                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-                    subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
-
-                    if selected_prob == "ijcnn1"
-                        prob = ijcnn1_full
-                        prob_nls = ijcnn1_nls_full
-                    elseif selected_prob == "mnist"
-                        prob = mnist_full
-                        prob_nls = mnist_nls_full
-                    end
+                    bam_nls_full = BundleAdjustmentModel(name)
+                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-3, ϵr = 1e-3, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 100)
 
                     λ = .1
                     if !smooth
@@ -59,19 +46,19 @@ function plot_Sto_LM(sample_rates::AbstractVector, versions::AbstractVector, sel
                         h = NormL1(0.0)
                     end
 
-                    x0 = ones(prob.meta.nvar)
-                    m = prob_nls.nls_meta.nequ
-                    l_bound = prob.meta.lvar
-                    u_bound = prob.meta.uvar
+                    x0 = ones(bam_nls_full.meta.nvar)
+                    m = bam_nls_full.nls_meta.nequ
+                    #l_bound = prob.meta.lvar
+                    #u_bound = prob.meta.uvar
 
                     xk_R2, k_R2, R2_out = R2(prob.f, prob.∇f!, h, sampled_options_full, x0)
-                    LM_out = LM(prob_nls, h, sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                    LM_out = LM(bam_nls_full, h, sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
                     if (h == NormL0(λ)) || (h == RootNormLhalf(λ))
-                        LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormLinf(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                        LMTR_out = RegularizedOptimization.LMTR(bam_nls_full, h, NormLinf(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
                     elseif h == NormL1(λ)
-                        LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                        LMTR_out = RegularizedOptimization.LMTR(bam_nls_full, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
                     elseif h == NormL1(0.0)
-                        LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                        LMTR_out = RegularizedOptimization.LMTR(bam_nls_full, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
                     end
 
                     if param == "MSE"
@@ -91,20 +78,12 @@ function plot_Sto_LM(sample_rates::AbstractVector, versions::AbstractVector, sel
                 for sample_rate in sample_rates
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-16, ϵr = 1e-16, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-                    local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
-                    local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
-                    #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
-                    local ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_model_sto(sample_rate)
-                    #a9a, a9a_nls = a9a_model_sto(sample_rate)
-                    local mnist, mnist_nls, mnist_sol = MNIST_train_model_sto(sample_rate; digits = (5, 6))
-                    #lrcomp, lrcomp_nls, sol_lrcomp = lrcomp_model(50, 20; sample_rate = sample_rate)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-3, ϵr = 1e-3, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 100)
+                    local bam_nls = BAmodel_sto(name; sample_rate = sample_rate)
                     local λ = .1
-                    if selected_prob == "ijcnn1"
-                        nls_prob_collection = [(ijcnn1_nls, "ijcnn1-ls")]
-                    elseif selected_prob == "mnist"
-                        nls_prob_collection = [(mnist_nls, "mnist-train-ls")]
-                    end
+
+                    nls_prob_collection = [(bam_nls, "BA-ls-$name")]
 
                     # initialize all historic collections #
                     Obj_Hists_epochs = zeros(1 + MaxEpochs, n_exec)
@@ -112,6 +91,7 @@ function plot_Sto_LM(sample_rates::AbstractVector, versions::AbstractVector, sel
                     Time_Hists = []
                     Obj_Hists_time = []
                     for (prob, prob_name) in nls_prob_collection
+
                         if selected_h == "l0"
                             h = NormL0(λ)
                             h_name = "l0-norm"
@@ -122,6 +102,7 @@ function plot_Sto_LM(sample_rates::AbstractVector, versions::AbstractVector, sel
                             h = RootNormLhalf(λ)
                             h_name = "l1/2-norm"
                         end
+
                         for k in 1:n_exec
                             # executes n_exec times Sto_LM with the same inputs
                             x0 = ones(prob.meta.nvar)
@@ -262,20 +243,13 @@ function plot_Sto_LM(sample_rates::AbstractVector, versions::AbstractVector, sel
                 for version in versions
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-                    local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
-                    local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate0)
-                    #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
-                    local ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_model_sto(sample_rate0)
-                    #a9a, a9a_nls = a9a_model_sto(sample_rate)
-                    local mnist, mnist_nls, mnist_sol = MNIST_train_model_sto(sample_rate0; digits = (5, 6))
-                    #lrcomp, lrcomp_nls, sol_lrcomp = lrcomp_model(50, 20; sample_rate = sample_rate)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, ϵa = 1e-3, ϵr = 1e-3, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 100)
+                    local bam_nls = BAmodel_sto(name; sample_rate = sample_rate0)
                     local λ = .1
-                    if selected_prob == "ijcnn1"
-                        nls_prob_collection = [(ijcnn1_nls, "ijcnn1-ls")]
-                    elseif selected_prob == "mnist"
-                        nls_prob_collection = [(mnist_nls, "mnist-train-ls")]
-                    end
+
+                    nls_prob_collection = [(bam_nls, "BA-ls-$name")]
+
                     Obj_Hists_epochs_prob = zeros(1 + MaxEpochs, n_exec)
                     Metr_Hists_epochs_prob = similar(Obj_Hists_epochs_prob)
                     Time_Hists_prob = []

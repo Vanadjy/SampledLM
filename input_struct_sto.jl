@@ -9,18 +9,19 @@ mutable struct ROSolverOptions{R}
   maxIter::Int  # maximum amount of inner iterations
   maxTime::Float64 #maximum time allotted to the algorithm in s
   σmin::R # minimum σk allowed for LM/R2 method
-  μmin::R # minimum μk allowed for Sampled Methods - NEW -
+  σmax::R # maximum σk allowed for Sampled method
+  μmin::R # minimum μk allowed for Sampled Methods
   η1::R  # step acceptance threshold
   η2::R  # trust-region increase threshold
-  η3::R #Stochastic metric threshold - NEW -
+  η3::R #Stochastic metric threshold
   α::R  # νk Δ^{-1} parameter
   ν::R  # initial guess for step length
-  νcp::R #Initial guess for step length of Cauchy Point computation - NEW -
+  νcp::R #Initial guess for step length of Cauchy Point computation
   γ::R  # trust region buffer
   θ::R  # step length factor in relation to Hessian norm
   β::R  # TR size as factor of first PG step
-  λ::R # parameter of the random stepwalk - NEW -
-  metric::R #parameter of the stationnarity metric of the algorithm - NEW -
+  λ::R # parameter of the random stepwalk
+  metric::R #parameter of the stationnarity metric of the algorithm
   spectral::Bool # for TRDH: use spectral gradient update if true, otherwise DiagonalQN
   psb::Bool # for TRDH with DiagonalQN (spectral = false): use PSB update if true, otherwise Andrei update
   reduce_TR::Bool
@@ -34,6 +35,7 @@ mutable struct ROSolverOptions{R}
     maxIter::Int = 50,
     maxTime::Float64 = 120.0,
     σmin::R = eps(R),
+    σmax::R = eps(R),
     μmin::R = eps(R),
     η1::R = √√eps(R),
     η2::R = R(0.9),
@@ -58,6 +60,7 @@ mutable struct ROSolverOptions{R}
     @assert maxIter ≥ 0
     @assert maxTime ≥ 0
     @assert σmin ≥ 0
+    @assert σmax ≥ 0
     @assert μmin ≥ 0
     @assert 0 < η1 < η2 < 1
     @assert η3 > 0
@@ -79,6 +82,7 @@ mutable struct ROSolverOptions{R}
       maxIter,
       maxTime,
       σmin,
+      σmax,
       μmin,
       η1,
       η2,

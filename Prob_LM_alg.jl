@@ -93,6 +93,7 @@ function Prob_LM(
   λ = options.λ
   νcp = options.νcp
   σmin = options.σmin
+  σmax = options.σmax
   μmin = options.μmin
   metric = options.metric
 
@@ -169,7 +170,7 @@ function Prob_LM(
   exact_Jt_Fk = similar(∇fk)
 
   μmax = opnorm(Jk)
-  νcpInv = (1 + θ) * (μmax^2 + μk)
+  νcpInv = (1 + θ) * (μmax^2 + μmin)
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
   s = zero(xk)
@@ -236,7 +237,7 @@ function Prob_LM(
     subsolver_options.ϵa = (length(nls.epoch_counter) ≤ 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric / 10)))
 
     #update of σk
-    σk = max(μk * metric, σmin)
+    σk = min(max(μk * metric, σmin), σmax)
 
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
@@ -274,7 +275,6 @@ function Prob_LM(
     subsolver_options.ϵa = ϵa_subsolver
 
     Complex_hist[k] = iter
-
     # additionnal condition on step s
     if norm(s) > β * norm(scp)
       println("cauchy step used")
@@ -418,7 +418,7 @@ function Prob_LM(
       Jk = jac_op_residual(nls, xk)
       jtprod_residual!(nls, xk, Fk, ∇fk)
       μmax = opnorm(Jk)
-      νcpInv = (1 + θ) * (μmax^2 + μk)
+      νcpInv = (1 + θ) * (μmax^2 + μmin)
 
       change_sample_rate = false
     end
@@ -443,7 +443,7 @@ function Prob_LM(
       jtprod_residual!(nls, xk, Fk, ∇fk)
 
       μmax = opnorm(Jk)
-      νcpInv = (1 + θ) * (μmax^2 + μk) 
+      νcpInv = (1 + θ) * (μmax^2 + μmin)
 
       Complex_hist[k] += 1
 
