@@ -14,7 +14,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
     MaxEpochs = 0
     MaxTime = 0.0
     if abscissa == "epoch"
-    MaxEpochs = 20
+    MaxEpochs = 100
     MaxTime = 3600.0
     elseif abscissa == "CPU time"
     MaxEpochs = 1000
@@ -36,7 +36,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                     mnist_full, mnist_nls_full = RegularizedProblems.svm_train_model(digits)
                     A_ijcnn1, b_ijcnn1 = ijcnn1_load_data()
                     ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
-                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-3, ϵr = 1e-3, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
                     subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
 
                     if selected_prob == "ijcnn1"
@@ -196,14 +196,14 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
 
                             if (param == "MSE") || (param == "accuracy") || (param == "objective")
                                 if !guide
-                                    plot!(axes(Obj_Hists_epochs, 1), med_obj, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "$prob_name on $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), xaxis = xscale, legend=:outertopright)
+                                    plot!(axes(Obj_Hists_epochs, 1), med_obj, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj, std_obj), xaxis = xscale, legend=:outertopright)
                                 else
-                                    plot!(axes(Obj_Hists_epochs, 1), med_obj, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name on $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), xaxis = xscale, legend=:outertopright)
+                                    plot!(axes(Obj_Hists_epochs, 1), med_obj, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj, std_obj), xaxis = xscale, legend=:outertopright)
                                 end
                             #plot!(axes(Obj_Hists_epochs_cp, 1), med_obj_cp, lc=color_scheme[sample_rate], lw = 1, label = "Sto_LM_cp - $(sample_rate*100)%", title = "Exact f + h for $prob_name on $n_exec runs", xaxis=:log10, yaxis=:log10, ribbon=(std_obj_cp, std_obj_cp), ls = :dot)
 
                             elseif param == "metric"
-                                plot!(axes(Metr_Hists_epochs, 1), med_metric, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "Sampled √ξcp/νcp for $prob_name on $n_exec runs", ribbon=(std_metric, std_metric), legend=:outertopright)
+                                plot!(axes(Metr_Hists_epochs, 1), med_metric, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "Sampled √ξcp/νcp for $prob_name on $n_exec runs - $digits", ribbon=(std_metric, std_metric), legend=:outertopright)
                             end
                             
                         elseif abscissa == "CPU time"
@@ -243,15 +243,15 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
 
                             if (param == "MSE") || (param == "accuracy") || (param == "objective")
                                 if !guide
-                                    plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "$prob_name on $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
+                                    plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
                                 else
-                                    plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name on $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
+                                    plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
                                 end
 
                             # cp version #
                             #plot!(sort(med_time_cp), med_obj_cp, lc = color_scheme[sample_rate], lw = 1, label = "Sto_LM_cp - $(sample_rate*100)%", title = "Exact f + h for $prob_name on $n_exec runs", xaxis=:log10, yaxis=:log10, ribbon=(std_obj_cp, std_obj_cp), ls = :dot)
                             elseif param == "metric"
-                            plot!(axes(Metr_Hists, 1), med_metric, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "Sampled √ξcp/νcp for $prob_name on $n_exec runs", ribbon=(std_metric, std_metric), ls = :dot, legend=:outertopright)
+                            plot!(axes(Metr_Hists, 1), med_metric, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "Sampled √ξcp/νcp for $prob_name on $n_exec runs - $digits", ribbon=(std_metric, std_metric), ls = :dot, legend=:outertopright)
                             end
                         end
                         prob.epoch_counter = Int[1]
@@ -263,7 +263,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                 for version in versions
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = 1e-3, ϵr = 1e-3, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate0)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -348,9 +348,9 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                             #std_metric *= Confidence[conf] / sqrt(sample_size)
 
                             if (param == "MSE") || (param == "accuracy") || (param == "objective")
-                                plot!(1:length(med_obj_prob), med_obj_prob, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "$prob_name on $n_exec runs - h = $h_name", ribbon=(std_obj_prob, std_obj_prob), xaxis = xscale, legend=:outertopright)
+                                plot!(1:length(med_obj_prob), med_obj_prob, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj_prob, std_obj_prob), xaxis = xscale, legend=:outertopright)
                             elseif param == "metric"
-                                plot!(axes(Metr_Hists_epochs, 1), med_metric, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "Sampled √ξcp/νcp for $prob_name on $n_exec runs", ribbon=(std_metric, std_metric), xaxis = xscale, legend=:outertopright)
+                                plot!(axes(Metr_Hists_epochs, 1), med_metric, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "Sampled √ξcp/νcp for $prob_name on $n_exec runs - $digits", ribbon=(std_metric, std_metric), xaxis = xscale, legend=:outertopright)
                             end
                             
                         elseif abscissa == "CPU time"
@@ -383,11 +383,11 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                             std_metric *= Confidence[conf] / sqrt(sample_size)=#
 
                             if (param == "MSE") || (param == "accuracy") || (param == "objective")
-                                plot!(sort(med_time_prob), med_obj_prob, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "$prob_name on $n_exec runs - h = $h_name", ribbon=(std_obj_prob, std_obj_prob), legend=:outertopright)
+                                plot!(sort(med_time_prob), med_obj_prob, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj_prob, std_obj_prob), legend=:outertopright)
                             # cp version #
                             #plot!(sort(med_time_cp), med_obj_cp, lc = color_scheme[sample_rate], lw = 1, label = "Sto_LM_cp - $(sample_rate*100)%", title = "Exact f + h for $prob_name on $n_exec runs", xaxis=:log10, yaxis=:log10, ribbon=(std_obj_cp, std_obj_cp), ls = :dot)
                             elseif param == "metric"
-                                plot!(axes(Metr_Hists, 1), med_metric, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "Sampled √ξcp/νcp for $prob_name on $n_exec runs", ribbon=(std_metric, std_metric), ls = :dot, legend=:outertopright)
+                                plot!(axes(Metr_Hists, 1), med_metric, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "Sampled √ξcp/νcp for $prob_name on $n_exec runs - $digits", ribbon=(std_metric, std_metric), ls = :dot, legend=:outertopright)
                             end
                         end
                         prob.epoch_counter = Int[1]
