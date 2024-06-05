@@ -82,8 +82,8 @@ function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, 
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 100)
                     local bam_nls = BAmodel_sto(name; sample_rate = sample_rate)
                     local λ = .1
-
-                    nls_prob_collection = [(bam_nls, "BA-ls-$name")]
+                    prob_name = replace("$name", "problem"=>"")
+                    nls_prob_collection = [(bam_nls, "BA-ls-$prob_name")]
 
                     # initialize all historic collections #
                     Obj_Hists_epochs = zeros(1 + MaxEpochs, n_exec)
@@ -176,9 +176,9 @@ function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, 
 
                             if (param == "MSE") || (param == "accuracy") || (param == "objective")
                                 if !guide
-                                    plot!(axes(Obj_Hists_epochs, 1), med_obj, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "$prob_name on $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), xaxis = xscale, legend=:outertopright)
+                                    plot!(axes(Obj_Hists_epochs, 1), med_obj, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), xaxis = xscale, legend=:outertopright)
                                 else
-                                    plot!(axes(Obj_Hists_epochs, 1), med_obj, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name on $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), xaxis = xscale, legend=:outertopright)
+                                    plot!(axes(Obj_Hists_epochs, 1), med_obj, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), xaxis = xscale, legend=:outertopright)
                                 end
                             #plot!(axes(Obj_Hists_epochs_cp, 1), med_obj_cp, lc=color_scheme[sample_rate], lw = 1, label = "Sto_LM_cp - $(sample_rate*100)%", title = "Exact f + h for $prob_name on $n_exec runs", xaxis=:log10, yaxis=:log10, ribbon=(std_obj_cp, std_obj_cp), ls = :dot)
 
@@ -223,9 +223,9 @@ function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, 
 
                             if (param == "MSE") || (param == "accuracy") || (param == "objective")
                                 if !guide
-                                    plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "$prob_name on $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
+                                    plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
                                 else
-                                    plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name on $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
+                                    plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
                                 end
 
                             # cp version #
@@ -247,8 +247,9 @@ function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, 
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 100)
                     local bam_nls = BAmodel_sto(name; sample_rate = sample_rate0)
                     local λ = .1
-
-                    nls_prob_collection = [(bam_nls, "BA-ls-$name")]
+                    
+                    prob_name = replace("$name", "problem"=>"")
+                    nls_prob_collection = [(bam_nls, "BA-ls-$prob_name")]
 
                     Obj_Hists_epochs_prob = zeros(1 + MaxEpochs, n_exec)
                     Metr_Hists_epochs_prob = similar(Obj_Hists_epochs_prob)
