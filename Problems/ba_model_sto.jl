@@ -112,7 +112,8 @@ function BAmodel_sto(name::AbstractString; T::Type = Float64, sample_rate = 1.0)
 end
 
 function NLPModels.residual!(nls::SampledBAModel, x::AbstractVector, rx::AbstractVector)
-  increment!(nls, :neval_residual)
+  nls.counters.:neval_residual += nls.sample_rate
+  #increment!(nls, :neval_residual)
   residuals!(
     x,
     rx,
@@ -205,10 +206,10 @@ function NLPModels.jac_structure_residual!(
   rows::AbstractVector{<:Integer},
   cols::AbstractVector{<:Integer},
 )
-  @simd for i in eachindex(sample)
-    idx_obs = (nls.sample[i] - 1) * 24
-    idx_cam = 3 * nls.npnts + 9 * (nls.cams_indices[nls.sample[i]] - 1)
-    idx_pnt = 3 * (nls.pnts_indices[nls.sample[i]] - 1)
+  @simd for i in nls.sample
+    idx_obs = (i - 1) * 24
+    idx_cam = 3 * nls.npnts + 9 * (nls.cams_indices[i] - 1)
+    idx_pnt = 3 * (nls.pnts_indices[i] - 1)
 
     # Only the two rows corresponding to the observation i are not empty
     p = 2 * i
@@ -232,7 +233,8 @@ function NLPModels.jac_coord_residual!(
   x::AbstractVector,
   vals::AbstractVector,
 )
-  increment!(nls, :neval_jac_residual)
+  nls.counters.:neval_jac_residual += nls.sample_rate
+  #increment!(nls, :neval_jac_residual)
   T = eltype(x)
 
   fill!(nls.JP1_mat, zero(T))
@@ -242,9 +244,9 @@ function NLPModels.jac_coord_residual!(
   fill!(nls.JP2_mat, zero(T))
   nls.JP2_mat[3, 4], nls.JP2_mat[4, 5], nls.JP2_mat[5, 6] = 1, 1, 1
 
-  @simd for i in eachindex(nls.sample)
-    idx_cam = nls.cams_indices[nls.sample[i]]
-    idx_pnt = nls.pnts_indices[nls.sample[i]]
+  @simd for i in nls.sample
+    idx_cam = nls.cams_indices[i]
+    idx_pnt = nls.pnts_indices[i]
     @views X = x[((idx_pnt - 1) * 3 + 1):((idx_pnt - 1) * 3 + 3)] # 3D point coordinates
     @views C = x[(3 * nls.npnts + (idx_cam - 1) * 9 + 1):(3 * nls.npnts + (idx_cam - 1) * 9 + 9)] # camera parameters
     @views r = C[1:3] # is the Rodrigues vector for the rotation

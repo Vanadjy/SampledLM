@@ -14,7 +14,7 @@ function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, 
     MaxEpochs = 0
     MaxTime = 0.0
     if abscissa == "epoch"
-        MaxEpochs = 20
+        MaxEpochs = 100
         MaxTime = 3600.0
     elseif abscissa == "CPU time"
         MaxEpochs = 1000
@@ -26,12 +26,12 @@ function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, 
                 yscale = :log10
                 xscale = :log2
                 gr()
-                graph = plot()
+                graph = Plots.plot()
                 #plots of other algorithms
                 if compare && (abscissa == "epoch")
                     bam_nls_full = BundleAdjustmentModel(name)
                     sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-                    subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 100)
+                    subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 300)
 
                     λ = .1
                     if !smooth
@@ -79,7 +79,7 @@ function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, 
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
                     sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = 1e-3, ϵr = 1e-3, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-                    local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 100)
+                    local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 300)
                     local bam_nls = BAmodel_sto(name; sample_rate = sample_rate)
                     local λ = .1
                     prob_name = replace("$name", "problem"=>"")
@@ -244,7 +244,7 @@ function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, 
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
                     sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-                    local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 100)
+                    local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 300)
                     local bam_nls = BAmodel_sto(name; sample_rate = sample_rate0)
                     local λ = .1
                     

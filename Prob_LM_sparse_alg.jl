@@ -1,5 +1,3 @@
-
-
 """
     Prob_LM(nls, h, options; kwargs...)
 
@@ -393,18 +391,18 @@ function Prob_LM(
     if version == 4
       # Change sample rate
       #nls.sample_rate = basic_change_sample_rate(epoch_count)
-      if nls.sample_rate < .9999
+      if nls.sample_rate < .99999
         Num_mean = Int(ceil(1 / nls.sample_rate))
         if k >= Num_mean
           @views mobile_mean = mean(Fobj_hist[(k - Num_mean + 1):k] + Hobj_hist[(k - Num_mean + 1):k])
           if abs(mobile_mean - (fk + hk)) ≤ 1e-1 #if the mean on the Num_mean last iterations is near the current objective value
-            nls.sample_rate = min(.9999, 2 * nls.sample_rate)
+            nls.sample_rate = min(.99999, 2 * nls.sample_rate)
             change_sample_rate = true
             unchange_mm_count = 0
           else # don't have stagnation
             unchange_mm_count += nls.sample_rate
             if unchange_mm_count ≥ 3 # force to change sample rate after 3 epochs of unchanged sample rate using mobile mean criterion
-              nls.sample_rate = min(1.0, 2 * nls.sample_rate)
+              nls.sample_rate = min(.99999, 2 * nls.sample_rate)
               change_sample_rate = true
               unchange_mm_count = 0
             end
