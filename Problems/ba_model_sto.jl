@@ -112,7 +112,7 @@ function BAmodel_sto(name::AbstractString; T::Type = Float64, sample_rate = 1.0)
 end
 
 function NLPModels.residual!(nls::SampledBAModel, x::AbstractVector, rx::AbstractVector)
-  nls.counters.:neval_residual += nls.sample_rate
+  nls.counters.:neval_residual += Int(floor(100 * nls.sample_rate))
   #increment!(nls, :neval_residual)
   residuals!(
     x,
@@ -233,7 +233,7 @@ function NLPModels.jac_coord_residual!(
   x::AbstractVector,
   vals::AbstractVector,
 )
-  nls.counters.:neval_jac_residual += nls.sample_rate
+  nls.counters.:neval_jac_residual += Int(floor(100 * nls.sample_rate))
   #increment!(nls, :neval_jac_residual)
   T = eltype(x)
 

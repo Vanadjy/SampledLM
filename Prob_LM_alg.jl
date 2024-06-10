@@ -426,7 +426,7 @@ function Prob_LM(
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
 
-      if metric ≥ η3 / μk #very successful step
+      if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
         μk = max(μk / λ, μmin)
       #else
         #μk = λ * μk

@@ -1,25 +1,10 @@
-function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector, selected_probs::AbstractVector, selected_hs::AbstractVector, selected_digits::AbstractVector; abscissa = "CPU time", n_exec = 10, smooth::Bool = false, sample_rate0::Float64 = .05)
+function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector, selected_probs::AbstractVector, selected_hs::AbstractVector, selected_digits::AbstractVector; abscissa = "CPU time", n_exec = 10, smooth::Bool = false, sample_rate0::Float64 = .05, param::String = "MSE", compare::Bool = false, guide::Bool = false, MaxEpochs::Int = 1000, MaxTime = 3600.0, precision = 1e-4)
     compound = 1
     color_scheme = Dict([(1.0, 4), (.2, 5), (.1, 6), (.05, 7), (.01, 8)])
     prob_versions_names = Dict([(1, "nondec"), (2, "arbitrary"), (3, "each-it"), (4, "hybrid")])
 
-    plot_parameter = ["objective", "metric", "MSE", "accuracy"]
-    param = plot_parameter[3]
-
     Confidence = Dict([("95%", 1.96), ("99%", 2.58)])
     conf = "95%"
-    guide = false
-    compare = true
-
-    MaxEpochs = 0
-    MaxTime = 0.0
-    if abscissa == "epoch"
-    MaxEpochs = 100
-    MaxTime = 3600.0
-    elseif abscissa == "CPU time"
-    MaxEpochs = 1000
-    MaxTime = 10.0
-    end
 
     acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100
 
@@ -29,14 +14,14 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                 yscale = :log10
                 xscale = :log2
                 gr()
-                graph = plot()
+                graph = Plots.plot()
                 #plots of other algorithms
                 if compare && (abscissa == "epoch")
                     bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound)
                     mnist_full, mnist_nls_full = RegularizedProblems.svm_train_model(digits)
                     A_ijcnn1, b_ijcnn1 = ijcnn1_load_data()
                     ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
-                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
                     subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
 
                     if selected_prob == "ijcnn1"
@@ -47,8 +32,13 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                         prob_nls = mnist_nls_full
                     end
 
-                    λ = .1
+                    x0 = ones(prob.meta.nvar)
+                    m = prob_nls.nls_meta.nequ
+                    l_bound = prob.meta.lvar
+                    u_bound = prob.meta.uvar
+
                     if !smooth
+                        λ = .1
                         if selected_h == "l0"
                             h = NormL0(λ)
                         elseif selected_h == "l1"
@@ -56,34 +46,42 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                         elseif selected_h == "l1/2"
                             h = RootNormLhalf(λ)
                         end
+
+                        xk_R2, k_R2, R2_out = R2(prob.f, prob.∇f!, h, sampled_options_full, x0)
+                        LM_out = LM(prob_nls, h, sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                        if (h == NormL0(λ)) || (h == RootNormLhalf(λ))
+                            LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormLinf(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                        elseif h == NormL1(λ)
+                            LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                        elseif h == NormL1(0.0)
+                            LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                        end
+
+                        if param == "MSE"
+                            plot!(1:k_R2, 0.5*(R2_out[:Fhist] + R2_out[:Hhist])/m, label = "R2", lc = :red, ls = :dashdot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                            plot!(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                            plot!(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, label = "LMTR", lc = :black, ls=:dash, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                        #elseif param == "accuracy"
+                        elseif param == "objective"
+                            plot!(1:k_R2, R2_out[:Fhist] + R2_out[:Hhist], label = "R2", lc = :red, ls = :dashdot, yaxis = yscale)
+                            plot!(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
+                            plot!(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], yaxis = yscale, label = "LMTR", lc = :black, ls=:dash, legend=:outertopright)
+                        end
                     else
-                        h = NormL1(0.0)
-                    end
-
-                    x0 = ones(prob.meta.nvar)
-                    m = prob_nls.nls_meta.nequ
-                    l_bound = prob.meta.lvar
-                    u_bound = prob.meta.uvar
-
-                    xk_R2, k_R2, R2_out = R2(prob.f, prob.∇f!, h, sampled_options_full, x0)
-                    LM_out = LM(prob_nls, h, sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
-                    if (h == NormL0(λ)) || (h == RootNormLhalf(λ))
-                        LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormLinf(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
-                    elseif h == NormL1(λ)
-                        LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
-                    elseif h == NormL1(0.0)
-                        LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
-                    end
-
-                    if param == "MSE"
-                        plot!(1:k_R2, 0.5*(R2_out[:Fhist] + R2_out[:Hhist])/m, label = "R2", lc = :red, ls = :dashdot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
-                        plot!(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
-                        plot!(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, label = "LMTR", lc = :black, ls=:dash, xaxis = xscale, yaxis = yscale, legend=:outertopright)
-                    #elseif param == "accuracy"
-                    elseif param == "objective"
-                        plot!(1:k_R2, R2_out[:Fhist] + R2_out[:Hhist], label = "R2", lc = :red, ls = :dashdot, yaxis = yscale)
-                        plot!(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
-                        plot!(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], yaxis = yscale, label = "LMTR", lc = :black, ls=:dash, legend=:outertopright)
+                        # smooth solvers #
+                        R2_out = JSOSolvers.R2(prob_nls)
+                        LM_out = levenberg_marquardt(prob_nls)
+                        LMTR_out = levenberg_marquardt(prob_nls, TR = true)
+                        if param == "MSE"
+                            plot!(1:length(R2_out.solver_specific[:Fhist]), 0.5*(R2_out.solver_specific[:Fhist] + R2_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                            plot!(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                            plot!(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, label = "LMTR", lc = :black, ls=:dash, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                        #elseif param == "accuracy"
+                        elseif param == "objective"
+                            plot!(1:length(R2_out.solver_specific[:Fhist]), R2_out.solver_specific[:Fhist] + R2_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
+                            plot!(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
+                            plot!(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], yaxis = yscale, label = "LMTR", lc = :black, ls=:dash, legend=:outertopright)
+                        end
                     end
                 end
 
@@ -92,7 +90,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                 for sample_rate in sample_rates
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = 1e-3, ϵr = 1e-3, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -198,7 +196,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                                 if !guide
                                     plot!(axes(Obj_Hists_epochs, 1), med_obj, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj, std_obj), xaxis = xscale, legend=:outertopright)
                                 else
-                                    if prob_name == mnist-train-ls
+                                    if prob_name == "mnist-train-ls"
                                         plot!(axes(Obj_Hists_epochs, 1), med_obj, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj, std_obj), xaxis = xscale, legend=:outertopright)
                                     else
                                         plot!(axes(Obj_Hists_epochs, 1), med_obj, color=color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), xaxis = xscale, legend=:outertopright)
@@ -249,7 +247,11 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                                 if !guide
                                     plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
                                 else
-                                    plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
+                                    if prob_name == "mnist-train-ls"
+                                        plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
+                                    else
+                                        plot!(sort(med_time), med_obj, color = color_scheme[sample_rate], lw = 1, yaxis = yscale, label = "Sto_LM_guided - $(sample_rate*100)%", title = "$prob_name - $n_exec runs - h = $h_name", ribbon=(std_obj, std_obj), legend=:outertopright)
+                                    end
                                 end
 
                             # cp version #
@@ -267,7 +269,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                 for version in versions
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate0)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -348,11 +350,15 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                                 std_obj_prob[l] = std(filter(!iszero, Obj_Hists_epochs_prob[l, :]))
                             end
                             std_obj_prob *= Confidence[conf]
-                            #display(std_obj)
+                            replace!(std_obj_prob, NaN=>0.0)
                             #std_metric *= Confidence[conf] / sqrt(sample_size)
 
                             if (param == "MSE") || (param == "accuracy") || (param == "objective")
-                                plot!(1:length(med_obj_prob), med_obj_prob, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj_prob, std_obj_prob), xaxis = xscale, legend=:outertopright)
+                                if prob_name == "mnist-train-ls"
+                                    plot!(1:length(med_obj_prob), med_obj_prob, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj_prob, std_obj_prob), xaxis = xscale, legend=:outertopright)
+                                else
+                                    plot!(1:length(med_obj_prob), med_obj_prob, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "$prob_name - $n_exec runs - h = $h_name", ribbon=(std_obj_prob, std_obj_prob), xaxis = xscale, legend=:outertopright)
+                                end
                             elseif param == "metric"
                                 plot!(axes(Metr_Hists_epochs, 1), med_metric, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "Sampled √ξcp/νcp for $prob_name on $n_exec runs - $digits", ribbon=(std_metric, std_metric), xaxis = xscale, legend=:outertopright)
                             end
@@ -387,8 +393,12 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                             std_metric *= Confidence[conf] / sqrt(sample_size)=#
 
                             if (param == "MSE") || (param == "accuracy") || (param == "objective")
-                                plot!(sort(med_time_prob), med_obj_prob, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj_prob, std_obj_prob), legend=:outertopright)
-                            # cp version #
+                                if prob_name == "mnist-train-ls"
+                                    plot!(sort(med_time_prob), med_obj_prob, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "$prob_name - $n_exec runs - $digits - h = $h_name", ribbon=(std_obj_prob, std_obj_prob), legend=:outertopright)
+                                else
+                                    plot!(sort(med_time_prob), med_obj_prob, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "$prob_name - $n_exec runs - h = $h_name", ribbon=(std_obj_prob, std_obj_prob), legend=:outertopright)
+                                end    
+                                # cp version #
                             #plot!(sort(med_time_cp), med_obj_cp, lc = color_scheme[sample_rate], lw = 1, label = "Sto_LM_cp - $(sample_rate*100)%", title = "Exact f + h for $prob_name on $n_exec runs", xaxis=:log10, yaxis=:log10, ribbon=(std_obj_cp, std_obj_cp), ls = :dot)
                             elseif param == "metric"
                                 plot!(axes(Metr_Hists, 1), med_metric, color = version, lw = 1, yaxis = yscale, label = "PLM - $(prob_versions_names[version])", title = "Sampled √ξcp/νcp for $prob_name on $n_exec runs - $digits", ribbon=(std_metric, std_metric), ls = :dot, legend=:outertopright)
