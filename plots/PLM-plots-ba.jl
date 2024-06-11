@@ -1,4 +1,4 @@
-function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, name_list::AbstractVector, selected_hs::AbstractVector; abscissa = "CPU time", n_exec = 10, smooth::Bool = false, sample_rate0::Float64 = .05, param::String = "MSE", compare::Bool = false, guide::Bool = false, MaxEpochs::Int = 1000, MaxTime = 3600.0, precision = 1e-4)
+function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, name_list::AbstractVector, selected_hs::AbstractVector; abscissa = "CPU time", n_exec = 10, smooth::Bool = false, sample_rate0::Float64 = .05, param::String = "objective", compare::Bool = false, guide::Bool = false, MaxEpochs::Int = 1000, MaxTime = 3600.0, precision = 1e-4)
     compound = 1
     color_scheme = Dict([(1.0, 4), (.2, 5), (.1, 6), (.05, 7), (.01, 8)])
     prob_versions_names = Dict([(1, "nondec"), (2, "arbitrary"), (3, "each-it"), (4, "hybrid")])
@@ -18,8 +18,8 @@ function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, 
                     sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
                     subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = 300)
 
-                    λ = .1
                     if !smooth
+                        λ = .1
                         if selected_h == "l0"
                             h = NormL0(λ)
                         elseif selected_h == "l1"
@@ -27,34 +27,49 @@ function plot_Sto_LM_BA(sample_rates::AbstractVector, versions::AbstractVector, 
                         elseif selected_h == "l1/2"
                             h = RootNormLhalf(λ)
                         end
+
+                        x0 = ones(bam_nls_full.meta.nvar)
+                        m = bam_nls_full.nls_meta.nequ
+                        #l_bound = prob.meta.lvar
+                        #u_bound = prob.meta.uvar
+
+                        xk_R2, k_R2, R2_out = R2(prob.f, prob.∇f!, h, sampled_options_full, x0)
+                        LM_out = LM(bam_nls_full, h, sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                        if (h == NormL0(λ)) || (h == RootNormLhalf(λ))
+                            LMTR_out = RegularizedOptimization.LMTR(bam_nls_full, h, NormLinf(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                        elseif h == NormL1(λ)
+                            LMTR_out = RegularizedOptimization.LMTR(bam_nls_full, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                        elseif h == NormL1(0.0)
+                            LMTR_out = RegularizedOptimization.LMTR(bam_nls_full, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
+                        end
+
+                        if param == "MSE"
+                            plot!(1:k_R2, 0.5*(R2_out[:Fhist] + R2_out[:Hhist])/m, label = "R2", lc = :red, ls = :dashdot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                            plot!(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                            plot!(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, label = "LMTR", lc = :black, ls=:dash, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                        #elseif param == "accuracy"
+                        elseif param == "objective"
+                            plot!(1:k_R2, R2_out[:Fhist] + R2_out[:Hhist], label = "R2", lc = :red, ls = :dashdot, yaxis = yscale)
+                            plot!(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
+                            plot!(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], yaxis = yscale, label = "LMTR", lc = :black, ls=:dash, legend=:outertopright)
+                        end
                     else
-                        h = NormL1(0.0)
-                    end
-
-                    x0 = ones(bam_nls_full.meta.nvar)
-                    m = bam_nls_full.nls_meta.nequ
-                    #l_bound = prob.meta.lvar
-                    #u_bound = prob.meta.uvar
-
-                    xk_R2, k_R2, R2_out = R2(prob.f, prob.∇f!, h, sampled_options_full, x0)
-                    LM_out = LM(bam_nls_full, h, sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
-                    if (h == NormL0(λ)) || (h == RootNormLhalf(λ))
-                        LMTR_out = RegularizedOptimization.LMTR(bam_nls_full, h, NormLinf(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
-                    elseif h == NormL1(λ)
-                        LMTR_out = RegularizedOptimization.LMTR(bam_nls_full, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
-                    elseif h == NormL1(0.0)
-                        LMTR_out = RegularizedOptimization.LMTR(bam_nls_full, h, NormL2(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
-                    end
-
-                    if param == "MSE"
-                        plot!(1:k_R2, 0.5*(R2_out[:Fhist] + R2_out[:Hhist])/m, label = "R2", lc = :red, ls = :dashdot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
-                        plot!(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
-                        plot!(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, label = "LMTR", lc = :black, ls=:dash, xaxis = xscale, yaxis = yscale, legend=:outertopright)
-                    #elseif param == "accuracy"
-                    elseif param == "objective"
-                        plot!(1:k_R2, R2_out[:Fhist] + R2_out[:Hhist], label = "R2", lc = :red, ls = :dashdot, yaxis = yscale)
-                        plot!(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
-                        plot!(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], yaxis = yscale, label = "LMTR", lc = :black, ls=:dash, legend=:outertopright)
+                        # smooth solvers #
+                        #R2_out = JSOSolvers.R2(bam_nls_full) #FIXME
+                        reset!(bam_nls_full)
+                        LM_out = levenberg_marquardt(bam_nls_full; max_iter = 20, in_itmax = 300)
+                        reset!(bam_nls_full)
+                        LMTR_out = levenberg_marquardt(bam_nls_full, TR = true; max_iter = 20, in_itmax = 300)
+                        if param == "MSE"
+                            #plot!(1:length(R2_out.solver_specific[:Fhist]), 0.5*(R2_out.solver_specific[:Fhist] + R2_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                            plot!(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                            plot!(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, label = "LMTR", lc = :black, ls=:dash, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                        #elseif param == "accuracy"
+                        elseif param == "objective"
+                            #plot!(1:length(R2_out.solver_specific[:Fhist]), R2_out.solver_specific[:Fhist] + R2_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
+                            plot!(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
+                            plot!(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], yaxis = yscale, label = "LMTR", lc = :black, ls=:dash, legend=:outertopright)
+                        end
                     end
                 end
 

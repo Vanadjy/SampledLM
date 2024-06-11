@@ -47,7 +47,7 @@ function Prob_LM(
   options::ROSolverOptions;
   x0::AbstractVector = nls.meta.x0,
   subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
-  subsolver = R2,
+  subsolver = RegularizedOptimization.R2,
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
   selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
   sample_rate0::Float64 = .05,
@@ -274,7 +274,7 @@ function Prob_LM(
     subsolver_options.ν = ν_subsolver
     subsolver_options.ϵa = ϵa_subsolver
 
-    Complex_hist[k] = iter
+    Complex_hist[k] = Int(ceil(100 * (nls.sample_rate * iter)))
     # additionnal condition on step s
     if norm(s) > β * norm(scp)
       println("cauchy step used")
@@ -445,7 +445,7 @@ function Prob_LM(
       μmax = opnorm(Jk)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
 
-      Complex_hist[k] += 1
+      Complex_hist[k] += Int(ceil(100 * (nls.sample_rate)))
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
       μk = λ * μk

@@ -5,7 +5,7 @@ using LinearAlgebra, Logging, Printf
 using ProximalOperators, TSVD
 
 # dependencies from us
-using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, LevenbergMarquardt, JSOSolvers
+using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, JSOSolvers
 
 using LinearAlgebra: length
 using Random, Test, OnlineStats, Distributions, Noise
@@ -22,6 +22,7 @@ include("utils.jl")
 include("input_struct_sto.jl")
 #include("input_struct_prob.jl")
 include("Problems/Sto_LM_Problems.jl")
+include(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages\LevenbergMarquardt.jl\src\LevenbergMarquardt.jl")
 #include("OldCodes/LM_alg.jl")
 include("Sto_LM_alg.jl")
 include("Sto_LM_algv3.jl")

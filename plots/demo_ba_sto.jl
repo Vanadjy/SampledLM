@@ -9,8 +9,10 @@ using PlotlyJS
 
 # Random.seed!(1234)
 
-function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs = 1, MaxEpochs = 20, MaxTime = 3600.0, version = 4, suffix = "plm-h1")
+function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 4, suffix::String = "dubrovnik-h1", compare::Bool = false, smooth::Bool = false)
     temp_PLM = []
+    temp_LM = []
+    temp_LMTR = []
     for name in name_list
         nls = BundleAdjustmentModel(name)
         sampled_nls = BAmodel_sto(name; sample_rate = sample_rate)
@@ -20,6 +22,65 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs = 1, M
         # h = RootNormLhalf(λ)
         h = NormL1(λ)
         χ = NormLinf(1.0)
+
+        if compare
+            if smooth
+                @info " using LM to solve"
+                reset!(nls)
+                LM_out = levenberg_marquardt(nls; max_iter = 20, in_itmax = 300)
+                nlm = neval_residual(nls)
+                nglm = neval_jtprod_residual(nls) + neval_jprod_residual(nls)
+
+                sol = LM_out.solution
+                x = [sol[3*i+1] for i in 0:(nls.npnts-1)]
+                y = [sol[3*i+2] for i in 0:(nls.npnts-1)]
+                z = [sol[3*i] for i in 1:nls.npnts]
+                plt3d = PlotlyJS.plot(PlotlyJS.scatter(
+                    x=x,
+                    y=y,
+                    z=z,
+                    mode="markers",
+                    marker=attr(
+                        size=1,
+                        opacity=0.8
+                    ),
+                    type="scatter3d"
+                ), Layout(margin=attr(l=0, r=0, b=0, t=0)))
+                display(plt3d)
+                
+
+                @info " using LMTR to solve with" χ
+                reset!(nls)
+                LMTR_out = levenberg_marquardt(nls, TR = true; max_iter = 20, in_itmax = 300)
+                nlmtr = neval_residual(nls)
+                nglmtr = neval_jtprod_residual(nls) + neval_jprod_residual(nls)
+
+                sol = LMTR_out.solution
+                x = [sol[3*i+1] for i in 0:(nls.npnts-1)]
+                y = [sol[3*i+2] for i in 0:(nls.npnts-1)]
+                z = [sol[3*i] for i in 1:nls.npnts]
+                plt3d = PlotlyJS.plot(PlotlyJS.scatter(
+                    x=x,
+                    y=y,
+                    z=z,
+                    mode="markers",
+                    marker=attr(
+                        size=1,
+                        opacity=0.8
+                    ),
+                    type="scatter3d"
+                ), Layout(margin=attr(l=0, r=0, b=0, t=0)))
+                display(plt3d)
+
+                if name == name_list[1]
+                    temp_LM = [0.5 * LM_out.rNorm^2, nlm, nglm, LM_out.elapsed_time]
+                    temp_LMTR = [0.5 * LMTR_out.rNorm^2, nlmtr, nglmtr, LMTR_out.elapsed_time]
+                else
+                    temp_LM = hcat(temp_LM, [0.5 * LM_out.rNorm^2, nlm, nglm, LM_out.elapsed_time])
+                    temp_LMTR = hcat(temp_LMTR, [0.5 * LMTR_out.rNorm^2, nlmtr, nglmtr, LMTR_out.elapsed_time])
+                end
+            end
+        end
 
         # demo_solver_ba(nls, sampled_nls, h, χ, "l0-linf-$name"; n_runs = n_runs) #
 
@@ -85,6 +146,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs = 1, M
         end
 
     end
+
     temp = temp_PLM'
     df = DataFrame(temp, [:f, :h, :fh, :n, :g, :p, :s])
     #df[!, :Alg] = ["R2", "LMTR", "Prob_LM"]
@@ -94,7 +156,6 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs = 1, M
         :f => "%10.2f",
         :h => "%10.2f",
         :fh => "%10.2f",
-        :x => "%10.2f, %10.2f",
         :n => "%i",
         :g => "%i",
         :p => "%i",
@@ -103,12 +164,53 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs = 1, M
         :f => "\$ f \$",
         :h => "\$ h \$",
         :fh => "\$ f+h \$",
-        :x => "(Train, Test)",
         :n => "\\# \$f\$",
         :g => "\\# \$ \\nabla f \$",
         :p => "\\# \$ \\prox{}\$",
         :s => "\$t \$ (s)")
-    open("BA-$suffix.tex", "w") do io
+    open("BA-plm-$suffix.tex", "w") do io
+        SolverBenchmark.pretty_latex_stats(io, df,
+            col_formatters=fmt_override,
+            hdr_override=hdr_override)
+    end
+    
+    temp = temp_LM'
+    df = DataFrame(temp, [:fh, :n, :g, :s])
+    #df[!, :Alg] = ["R2", "LMTR", "Prob_LM"]
+    df[!, :Alg] = name_list
+    select!(df, :Alg, Not(:Alg), :)
+    fmt_override = Dict(:Alg => "%s",
+        :fh => "%10.2f",
+        :n => "%i",
+        :g => "%i",
+        :s => "%02.2f")
+    hdr_override = Dict(:Alg => "Alg",
+        :fh => "\$ f+h \$",
+        :n => "\\# \$f\$",
+        :g => "\\# \$ \\nabla f \$",
+        :s => "\$t \$ (s)")
+    open("BA-lm-$suffix.tex", "w") do io
+        SolverBenchmark.pretty_latex_stats(io, df,
+            col_formatters=fmt_override,
+            hdr_override=hdr_override)
+    end
+
+    temp = temp_LMTR'
+    df = DataFrame(temp, [:fh, :n, :g, :s])
+    #df[!, :Alg] = ["R2", "LMTR", "Prob_LM"]
+    df[!, :Alg] = name_list
+    select!(df, :Alg, Not(:Alg), :)
+    fmt_override = Dict(:Alg => "%s",
+        :fh => "%10.2f",
+        :n => "%i",
+        :g => "%i",
+        :s => "%02.2f")
+    hdr_override = Dict(:Alg => "Alg",
+        :fh => "\$ f+h \$",
+        :n => "\\# \$f\$",
+        :g => "\\# \$ \\nabla f \$",
+        :s => "\$t \$ (s)")
+    open("BA-lmtr-$suffix.tex", "w") do io
         SolverBenchmark.pretty_latex_stats(io, df,
             col_formatters=fmt_override,
             hdr_override=hdr_override)

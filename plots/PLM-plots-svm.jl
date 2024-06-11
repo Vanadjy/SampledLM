@@ -47,7 +47,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                             h = RootNormLhalf(λ)
                         end
 
-                        xk_R2, k_R2, R2_out = R2(prob.f, prob.∇f!, h, sampled_options_full, x0)
+                        xk_R2, k_R2, R2_out = RegularizedOptimization.R2(prob.f, prob.∇f!, h, sampled_options_full, x0)
                         LM_out = LM(prob_nls, h, sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
                         if (h == NormL0(λ)) || (h == RootNormLhalf(λ))
                             LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormLinf(1.0), sampled_options_full; x0 = x0, subsolver_options = subsolver_options)
@@ -70,7 +70,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                     else
                         # smooth solvers #
                         R2_out = JSOSolvers.R2(prob_nls)
-                        LM_out = levenberg_marquardt(prob_nls)
+                        LM_out = levenberg_marquardt(prob_nls) #FIXME
                         LMTR_out = levenberg_marquardt(prob_nls, TR = true)
                         if param == "MSE"
                             plot!(1:length(R2_out.solver_specific[:Fhist]), 0.5*(R2_out.solver_specific[:Fhist] + R2_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)

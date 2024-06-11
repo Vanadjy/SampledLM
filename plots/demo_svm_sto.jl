@@ -8,7 +8,7 @@ using SolverBenchmark
 
 include("plot-utils-svm-sto.jl")
 
-# Random.seed!(1234)
+Random.seed!(1234)
 
 function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test, sampled_nls_test, sol_test, h, χ, suffix="l0-linf"; n_runs::Int = 1, MaxEpochs::Int = 100, MaxTime = 3600.0, version::Int = 4, precision = 1e-4)
     options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
@@ -37,7 +37,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     @show acc(lmtrtrain), acc(lmtrtest)
     lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-$(suffix)")
 
-    #=@info " using LM to solve with" h
+    @info " using LM to solve with" h
     reset!(nls_tr)
     LM_out = LM(nls_tr, h, options, x0=nls_tr.meta.x0, subsolver_options = suboptions)
     lmtrain = residual(nls_tr, LM_out.solution)
@@ -45,7 +45,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     nlm = neval_residual(nls_tr)
     nglm = neval_jtprod_residual(nls_tr) + neval_jprod_residual(nls_tr)
     @show acc(lmtrain), acc(lmtest)
-    lmdec = plot_svm(LM_out, LM_out.solution, "lm-$(suffix)")=#
+    lmdec = plot_svm(LM_out, LM_out.solution, "lm-$(suffix)")
 
     #=@info " using Sto_LM to solve with" h
     reset!(sampled_nls_tr)
