@@ -10,7 +10,7 @@ Random.seed!(seed)
 
 # ---------------- Hyperbolic SVM Models ---------------- #
 
-n_exec = 20
+n_exec = 3
 selected_probs = ["mnist"]
 
 if selected_probs == ["ijcnn1"]
@@ -18,12 +18,14 @@ if selected_probs == ["ijcnn1"]
     sample_rates = []
     selected_digits = [(1,7)] # let only one pair of random digits
     versions = [1, 2, 4]
+    version = versions[end]
     selected_hs = ["l0", "l1", "l1/2"]
 elseif selected_probs == ["mnist"]
     sample_rate0 = .1
     sample_rates = []
-    selected_digits = [(5,6)] # LM crash for (5, 6) and (0, 8)
+    selected_digits = [(1,7)] # LM crash for (5, 6) and (0, 8)
     versions = [4]
+    version = versions[end]
     selected_hs = ["l1/2"]
 end
 
@@ -36,7 +38,7 @@ param = plot_parameter[3]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 100
+    MaxEpochs = 20
     MaxTime = 3600.0
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
@@ -50,26 +52,26 @@ end
 
 Random.seed!(seed)
 #=for digits in selected_digits
-    demo_svm_sto(;sample_rate = sample_rate0, n_runs = n_exec, digits = digits)
+    demo_svm_sto(;sample_rate = sample_rate0, n_runs = n_exec, digits = digits, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version)
 end=#
 
 # ---------------- Bundle Adjustment Models ---------------- #
 
 Random.seed!(seed)
 
-n_exec = 10
+n_exec = 3
 versions = [1, 2, 4]
 version = versions[end]
-df = problems_df()
 
+df = problems_df()
 filter_name = "dubrovnik"
 filter_df = df[ df.group .== filter_name, :]
 sample_rate0 = .1
 #name1 = filter_df[1, :name]
-name_list = [filter_df[i, :name] for i in 1:3]
+name_list = [filter_df[i, :name] for i in [16]]
+
 selected_hs = ["l1"]
 sample_rate0 = .1
-
 plot_parameter = ["objective", "metric", "MSE", "accuracy"]
 param = plot_parameter[1]
 

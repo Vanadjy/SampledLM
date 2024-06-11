@@ -19,7 +19,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
 
     @info "using R2 to solve with" h
     reset!(nlp_tr)
-    R2_out = R2(nlp_tr, h, options, x0=nlp_tr.meta.x0)
+    R2_out = RegularizedOptimization.R2(nlp_tr, h, options, x0=nlp_tr.meta.x0)
     nr2 = neval_obj(nlp_tr)
     ngr2 = neval_grad(nlp_tr)
     r2train = residual(nls_tr, R2_out.solution) #||e - tanh(b * <A, x>)||^2, b ∈ {-1,1}^n
@@ -151,7 +151,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     end
 end
 
-function demo_svm_sto(;sample_rate = .05, n_runs = 1, digits = (1, 7))
+function demo_svm_sto(;sample_rate = .05, n_runs = 1, digits = (1, 7), MaxEpochs::Int = 100, MaxTime = 3600.0, version::Int = 4, precision = 1e-4)
     ## load phishing data from libsvm
     # A = readdlm("data_matrix.txt")
     # b = readdlm("label_vector.txt")
@@ -175,5 +175,5 @@ function demo_svm_sto(;sample_rate = .05, n_runs = 1, digits = (1, 7))
     # h = NormL0(λ)
     χ = NormLinf(1.0)
 
-    demo_solver(nlp_train, nls_train, nls_train_sto, sol_train, nlp_test, nls_test, nls_test_sto, sol_test, h, χ, "lhalf-linf-$digits"; n_runs = n_runs)
+    demo_solver(nlp_train, nls_train, nls_train_sto, sol_train, nlp_test, nls_test, nls_test_sto, sol_test, h, χ, "lhalf-linf-$digits"; n_runs = n_runs, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, precision = precision)
 end
