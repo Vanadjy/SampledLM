@@ -16,7 +16,7 @@ using Plots, LaTeXStrings
 using MLDatasets
 using DataFrames, BundleAdjustmentModels
 
-seed = 0
+seed = 1234
 
 include("utils.jl")
 include("input_struct_sto.jl")

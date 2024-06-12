@@ -283,7 +283,7 @@ function Prob_LM(
 
     xkn .= xk .+ s
 
-    residual!(nls, xkn, Fkn)
+    Fkn = residual(nls, xkn)
     fkn = dot(Fkn, Fkn) / 2
     hkn = h(xkn[selected])
     hkn == -Inf && error("nonsmooth term is not proper")
@@ -406,57 +406,44 @@ function Prob_LM(
     #changes sample with new sample rate
     nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
 
+    if change_sample_rate
+      # mandatory updates whenever the sample_rate chages #
+      Fk = residual(nls, xk)
+      Fkn = similar(Fk)
+      JdFk = similar(Fk)
+      fk = dot(Fk, Fk) / 2
+
+      Jk = jac_op_residual(nls, xk)
+      jtprod_residual!(nls, xk, Fk, ∇fk)
+      μmax = opnorm(Jk)
+      νcpInv = (1 + θ) * (μmax^2 + μmin)
+
+      change_sample_rate = false
+    end
+
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
 
       if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
         μk = max(μk / λ, μmin)
       end
+      Fk = residual(nls, xk)
+      Fkn = similar(Fk)
+      JdFk = similar(Fk)
+      fk = dot(Fk, Fk) / 2
+      hk = hkn
 
-      if !change_sample_rate
-        Fk .= Fkn
-        fk = dot(Fk, Fk) / 2
-        hk = hkn
+      # update gradient & Hessian
+      shift!(ψ, xk)
+      Jk = jac_op_residual(nls, xk)
+      jtprod_residual!(nls, xk, Fk, ∇fk)
 
-        # update gradient & Hessian
-        shift!(ψ, xk)
-        Jk = jac_op_residual(nls, xk)
-        jtprod_residual!(nls, xk, Fk, ∇fk)
-
-        μmax = opnorm(Jk)
-        νcpInv = (1 + θ) * (μmax^2 + μmin)
-      else
-        # mandatory updates whenever the sample_rate chages #
-        Fk = residual(nls, xk)
-        Fkn = similar(Fk)
-        JdFk = similar(Fk)
-        fk = dot(Fk, Fk) / 2
-  
-        Jk = jac_op_residual(nls, xk)
-        jtprod_residual!(nls, xk, Fk, ∇fk)
-        μmax = opnorm(Jk)
-        νcpInv = (1 + θ) * (μmax^2 + μmin)
-
-        change_sample_rate = false
-      end
+      μmax = opnorm(Jk)
+      νcpInv = (1 + θ) * (μmax^2 + μmin)
 
       Complex_hist[k] += Int(ceil(100 * (nls.sample_rate)))
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
-      if change_sample_rate
-        # mandatory updates whenever the sample_rate chages #
-        Fk = residual(nls, xk)
-        Fkn = similar(Fk)
-        JdFk = similar(Fk)
-        fk = dot(Fk, Fk) / 2
-  
-        Jk = jac_op_residual(nls, xk)
-        jtprod_residual!(nls, xk, Fk, ∇fk)
-        μmax = opnorm(Jk)
-        νcpInv = (1 + θ) * (μmax^2 + μmin)
-
-        change_sample_rate = false
-      end
       μk = λ * μk
     end
 
