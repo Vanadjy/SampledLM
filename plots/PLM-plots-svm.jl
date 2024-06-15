@@ -32,7 +32,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                         prob_nls = mnist_nls_full
                     end
 
-                    x0 = ones(prob.meta.nvar)
+                    x0 = digits[1] * ones(prob.meta.nvar)
                     m = prob_nls.nls_meta.nequ
                     l_bound = prob.meta.lvar
                     u_bound = prob.meta.uvar
@@ -123,7 +123,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                         end
                         for k in 1:n_exec
                             # executes n_exec times Sto_LM with the same inputs
-                            x0 = ones(prob.meta.nvar)
+                            x0 = digits[1] * ones(prob.meta.nvar)
                             #p = randperm(prob.meta.nvar)[1:nz]
                             #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
                             reset!(prob)
@@ -301,7 +301,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                         end
                         for k in 1:n_exec
                             # executes n_exec times Sto_LM with the same inputs
-                            x0 = ones(prob.meta.nvar)
+                            x0 = digits[1] * ones(prob.meta.nvar)
                             #p = randperm(prob.meta.nvar)[1:nz]
                             #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
                             reset!(prob)

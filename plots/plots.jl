@@ -46,14 +46,14 @@ elseif abscissa == "CPU time"
 end
 
 
-#plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = false, sample_rate0 = sample_rate0, param = param, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
+plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = false, sample_rate0 = sample_rate0, param = param, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
 
 # -- Plots for MNIST grey map -- #
 
 Random.seed!(seed)
-for digits in selected_digits
+#=for digits in selected_digits
     demo_svm_sto(;sample_rate = sample_rate0, n_runs = n_exec, digits = digits, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version)
-end
+end=#
 
 # ---------------- Bundle Adjustment Models ---------------- #
 
