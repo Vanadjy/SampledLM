@@ -10,7 +10,7 @@ include("plot-utils-svm-sto.jl")
 
 Random.seed!(1234)
 
-function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test, sampled_nls_test, sol_test, h, χ, suffix="l0-linf"; n_runs::Int = 1, MaxEpochs::Int = 100, MaxTime = 3600.0, version::Int = 4, precision = 1e-4)
+function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test, sampled_nls_test, sol_test, h, χ, suffix="l0-linf"; n_runs::Int = 1, MaxEpochs::Int = 100, MaxTime = 3600.0, version::Int = 4, precision = 1e-4, digits = (1, 7))
     options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
     suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 100)
 
@@ -19,9 +19,9 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
 
     @info "using R2 to solve with" h
     reset!(nlp_tr)
-    R2_out = RegularizedOptimization.R2(nlp_tr, h, options, x0=nlp_tr.meta.x0)
-    nr2 = neval_obj(nlp_tr)
-    ngr2 = neval_grad(nlp_tr)
+    R2_out = RegularizedOptimization.R2(nlp_tr, h, options, x0= digits[1] * nlp_tr.meta.x0)
+    nr2 = NLPModels.neval_obj(nlp_tr)
+    ngr2 = NLPModels.neval_grad(nlp_tr)
     r2train = residual(nls_tr, R2_out.solution) #||e - tanh(b * <A, x>)||^2, b ∈ {-1,1}^n
     r2test = residual(nls_test, R2_out.solution)
     @show acc(r2train), acc(r2test)
@@ -29,21 +29,21 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
 
     @info " using LMTR to solve with" h χ
     reset!(nls_tr)
-    LMTR_out = LMTR(nls_tr, h, χ, options, x0=nls_tr.meta.x0, subsolver_options = suboptions)
+    LMTR_out = LMTR(nls_tr, h, χ, options, x0= digits[1] * nls_tr.meta.x0, subsolver_options = suboptions)
     lmtrtrain = residual(nls_tr, LMTR_out.solution)
     lmtrtest = residual(nls_test, LMTR_out.solution)
-    nlmtr = neval_residual(nls_tr)
-    nglmtr = neval_jtprod_residual(nls_tr) + neval_jprod_residual(nls_tr)
+    nlmtr = NLPModels.neval_residual(nls_tr)
+    nglmtr = NLPModels.neval_jtprod_residual(nls_tr) + NLPModels.neval_jprod_residual(nls_tr)
     @show acc(lmtrtrain), acc(lmtrtest)
     lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-$(suffix)")
 
     @info " using LM to solve with" h
     reset!(nls_tr)
-    LM_out = LM(nls_tr, h, options, x0=nls_tr.meta.x0, subsolver_options = suboptions)
+    LM_out = LM(nls_tr, h, options, x0= digits[1] * nls_tr.meta.x0, subsolver_options = suboptions)
     lmtrain = residual(nls_tr, LM_out.solution)
     lmtest = residual(nls_test, LM_out.solution)
-    nlm = neval_residual(nls_tr)
-    nglm = neval_jtprod_residual(nls_tr) + neval_jprod_residual(nls_tr)
+    nlm = NLPModels.neval_residual(nls_tr)
+    nglm = NLPModels.neval_jtprod_residual(nls_tr) + NLPModels.neval_jprod_residual(nls_tr)
     @show acc(lmtrain), acc(lmtest)
     lmdec = plot_svm(LM_out, LM_out.solution, "lm-$(suffix)")
 
@@ -91,8 +91,8 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
 
     plmtrain = residual(sampled_nls_tr, Prob_LM_out.solution)
     plmtest = residual(sampled_nls_test, Prob_LM_out.solution)
-    nplm = neval_residual(sampled_nls_tr) / 100
-    ngplm = (neval_jtprod_residual(sampled_nls_tr) + neval_jprod_residual(sampled_nls_tr)) / 100
+    nplm = neval_residual(sampled_nls_tr)
+    ngplm = (neval_jtprod_residual(sampled_nls_tr) + neval_jprod_residual(sampled_nls_tr))
     @show acc(plmtrain), acc(plmtest)
     plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-$(suffix)")
 
@@ -112,10 +112,10 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     PGFPlots.save("svm-objdec.tikz", c)=#
 
     temp = hcat([R2_out.solver_specific[:Fhist][end], R2_out.solver_specific[:Hhist][end],R2_out.objective, acc(r2train), acc(r2test), nr2, ngr2, sum(R2_out.solver_specific[:SubsolverCounter]), R2_out.elapsed_time],
-        #[LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
+        [LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
         [LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
         #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
-        [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]) / 100, Prob_LM_out.elapsed_time])'
+        [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])'
 
     df = DataFrame(temp, [:f, :h, :fh, :x,:xt, :n, :g, :p, :s])
     T = []
@@ -124,16 +124,16 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     end
     select!(df, Not(:xt))
     df[!, :x] = T
-    df[!, :Alg] = ["R2", "LMTR", "Prob_LM"]
+    df[!, :Alg] = ["R2", "LM", "LMTR", "PLM"]
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
         :f => "%10.2f",
         :h => "%10.2f",
         :fh => "%10.2f",
         :x => "%10.2f, %10.2f",
-        :n => "%i",
-        :g => "%i",
-        :p => "%i",
+        :n => "%10.2f",
+        :g => "%10.2f",
+        :p => "%10.2f",
         :s => "%02.2f")
     hdr_override = Dict(:Alg => "Alg",
         :f => "\$ f \$",
@@ -175,5 +175,5 @@ function demo_svm_sto(;sample_rate = .05, n_runs = 1, digits = (1, 7), MaxEpochs
     # h = NormL0(λ)
     χ = NormLinf(1.0)
 
-    demo_solver(nlp_train, nls_train, nls_train_sto, sol_train, nlp_test, nls_test, nls_test_sto, sol_test, h, χ, "lhalf-linf-$digits"; n_runs = n_runs, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, precision = precision)
+    demo_solver(nlp_train, nls_train, nls_train_sto, sol_train, nlp_test, nls_test, nls_test_sto, sol_test, h, χ, "lhalf-linf-$digits"; n_runs = n_runs, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, precision = precision, digits = digits)
 end

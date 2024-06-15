@@ -104,10 +104,54 @@ end
 
 ROSolverOptions(args...; kwargs...) = ROSolverOptions{Float64}(args...; kwargs...)
 
+# ------------------------------------------------------------------------------------------------ #
+# ------------------------------ NEW COUNTERS STRUCTURE ------------------------------------------ #
+# ------------------------------------------------------------------------------------------------ #
+
+mutable struct NLSGeneralCounters
+  counters::Counters
+  neval_residual::Float64
+  neval_jac_residual::Float64
+  neval_jprod_residual::Float64
+  neval_jtprod_residual::Float64
+  neval_hess_residual::Float64
+  neval_jhess_residual::Float64
+  neval_hprod_residual::Float64
+
+  function NLSGeneralCounters()
+    return new(Counters(), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  end
+end
+
+function Base.getproperty(c::NLSGeneralCounters, f::Symbol)
+    if f in fieldnames(Counters)
+      getfield(c.counters, f)
+    else
+      getfield(c, f)
+    end
+end
+  
+function Base.setproperty!(c::NLSGeneralCounters, f::Symbol, x)
+    if f in fieldnames(Counters)
+      setfield!(c.counters, f, x)
+    else
+      setfield!(c, f, x)
+    end
+end
+  
+function NLPModels.sum_counters(c::NLSGeneralCounters)
+    s = sum_counters(c.counters)
+    for field in fieldnames(NLSGeneralCounters)
+      field == :counters && continue
+      s += getfield(c, field)
+    end
+    return s
+end
+
 mutable struct SampledNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
   meta::NLPModelMeta{T, S}
   nls_meta::NLSMeta{T, S}
-  counters::NLSCounters
+  counters::NLSGeneralCounters
 
   resid!::R
   jprod_resid!::J
@@ -136,7 +180,7 @@ mutable struct SampledNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
     nls_meta = NLSMeta{T, S}(nequ, nvar, x0 = x)
     epoch_counter = Int[1]
     opt_counter = Int[]
-    return new{T, S, R, J, Jt}(meta, nls_meta, NLSCounters(), r, jv, jtv, sample, data_mem, sample_rate, epoch_counter, opt_counter)
+    return new{T, S, R, J, Jt}(meta, nls_meta, NLSGeneralCounters(), r, jv, jtv, sample, data_mem, sample_rate, epoch_counter, opt_counter)
   end
 end
 
@@ -153,6 +197,61 @@ SampledNLSModel{eltype(S), S, typeof(r), typeof(jv), typeof(jtv)}(
     kwargs...,
   )
 
+  """
+      increment!(nls, s)
+  
+  Increment counter `s` of problem `nls`.
+  """
+  @inline function increment!(nls::SampledNLSModel, s::Symbol)
+    increment!(nls, Val(s))
+  end
+  
+  for fun in fieldnames(NLSGeneralCounters)
+    fun == :counters && continue
+    @eval increment!(nls::SampledNLSModel, ::Val{$(Meta.quot(fun))}) = nls.counters.$fun += nls.sample_rate
+  end
+  
+  for fun in fieldnames(NLSGeneralCounters)
+    @eval $NLPModels.increment!(nls::SampledNLSModel, ::Val{$(Meta.quot(fun))}) =
+      nls.counters.counters.$fun += nls.sample_rate
+  end
+
+  sum_counters(nls::SampledNLSModel) = NLPModels.sum_counters(nls.counters)
+
+for counter in fieldnames(NLSGeneralCounters)
+    counter == :counters && continue
+    @eval begin
+      """
+      $($counter)(nlp)
+  
+      Get the number of `$(split("$($counter)", "_")[2])` evaluations.
+      """
+      $counter(nls::SampledNLSModel) = nls.counters.$counter
+      export $counter
+    end
+  end
+  
+  for counter in fieldnames(NLSGeneralCounters)
+    @eval begin
+      $counter(nls::AbstractNLSModel) = nls.counters.counters.$counter
+      export $counter
+    end
+end
+  
+  function LinearOperators.reset!(nls::SampledNLSModel)
+    reset!(nls.counters)
+    return nls
+  end
+  
+  function LinearOperators.reset!(nls_counters::NLSGeneralCounters)
+    for f in fieldnames(NLSGeneralCounters)
+      f == :counters && continue
+      setfield!(nls_counters, f, 0.0)
+    end
+    NLPModels.reset!(nls_counters.counters)
+    return nls_counters
+  end
+
 function NLPModels.residual!(
     nls::SampledNLSModel, 
     x::AbstractVector, 
@@ -161,8 +260,8 @@ function NLPModels.residual!(
   NLPModels.@lencheck nls.meta.nvar x
   NLPModels.@lencheck length(nls.sample) Fx
   # increment the relative cost for a specified sample_rate
-  nls.counters.:neval_residual += Int(floor(100 * nls.sample_rate))
-  #increment!(nls, :neval_residual)
+  #nls.counters.:neval_residual += Int(floor(100 * nls.sample_rate))
+  increment!(nls, :neval_residual)
   #returns the sampled function Fx whose indexes are stored in sample without computing the other lines
   nls.resid!(Fx, x; sample = nls.sample)
   Fx
@@ -182,8 +281,8 @@ function NLPModels.jprod_residual!(
 )
   NLPModels.@lencheck nls.meta.nvar x v
   NLPModels.@lencheck length(nls.sample) Jv
-  nls.counters.:neval_jprod_residual += Int(floor(100 * nls.sample_rate))
-  #increment!(nls, :neval_jprod_residual)
+  #nls.counters.:neval_jprod_residual += Int(floor(100 * nls.sample_rate))
+  increment!(nls, :neval_jprod_residual)
   nls.jprod_resid!(Jv, x, v; sample = nls.sample)
   #@assert Jv == Jv[sort(randperm(nls.nls_meta.nequ)[1:Int(1.0 * nls.nls_meta.nequ)])]
   Jv
@@ -197,8 +296,8 @@ function NLPModels.jtprod_residual!(
 )
   NLPModels.@lencheck nls.meta.nvar x Jtv
   NLPModels.@lencheck length(nls.sample) v
-  nls.counters.:neval_jtprod_residual += Int(floor(100 * nls.sample_rate))
-  #increment!(nls, :neval_jtprod_residual)
+  #nls.counters.:neval_jtprod_residual += Int(floor(100 * nls.sample_rate))
+  increment!(nls, :neval_jtprod_residual)
   nls.jtprod_resid!(Jtv, x, v; sample = nls.sample)
   #@assert Jtv == Jtv[sort(randperm(nls.nls_meta.nequ)[1:Int(1.0 * nls.nls_meta.nequ)])]
   Jtv

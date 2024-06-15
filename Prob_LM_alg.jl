@@ -139,9 +139,9 @@ function Prob_LM(
   Hobj_hist = zeros(maxIter * 100)
   Metric_hist = zeros(maxIter * 100)
   exact_Metric_hist = zeros(maxIter * 100)
-  Complex_hist = zeros(Int, maxIter * 100)
-  Grad_hist = zeros(Int, maxIter * 100)
-  Resid_hist = zeros(Int, maxIter * 100)
+  Complex_hist = zeros(maxIter * 100)
+  Grad_hist = zeros(maxIter * 100)
+  Resid_hist = zeros(maxIter * 100)
   Sample_hist = zeros(maxIter * 100)
 
   #Historic of time
@@ -274,10 +274,10 @@ function Prob_LM(
     subsolver_options.ν = ν_subsolver
     subsolver_options.ϵa = ϵa_subsolver
 
-    Complex_hist[k] = Int(ceil(100 * (nls.sample_rate * iter)))
+    Complex_hist[k] = nls.sample_rate
     # additionnal condition on step s
     if norm(s) > β * norm(scp)
-      println("cauchy step used")
+      @info "cauchy step used"
       s .= scp
     end
 
@@ -405,6 +405,9 @@ function Prob_LM(
 
     #changes sample with new sample rate
     nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
+    if nls.sample_rate == 1.0
+      nls.sample == 1:nls.nls_meta.nequ || error("Sample Error : Sample should be full for 100% sampling")
+    end
 
     if change_sample_rate
       # mandatory updates whenever the sample_rate chages #
@@ -418,7 +421,7 @@ function Prob_LM(
       μmax = opnorm(Jk)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
 
-      change_sample_rate = false
+      #change_sample_rate = false
     end
 
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
@@ -426,10 +429,15 @@ function Prob_LM(
 
       if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
         μk = max(μk / λ, μmin)
+      elseif (nls.sample_rate == 1.0) && (η2 ≤ ρk < Inf)
+        μk = max(μk / λ, μmin)
       end
-      Fk = residual(nls, xk)
-      Fkn = similar(Fk)
-      JdFk = similar(Fk)
+
+      if (!change_sample_rate) && (nls.sample_rate == 1.0)
+        Fk .= Fkn
+      else
+        Fk = residual(nls, xk)
+      end
       fk = dot(Fk, Fk) / 2
       hk = hkn
 
@@ -441,10 +449,14 @@ function Prob_LM(
       μmax = opnorm(Jk)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
 
-      Complex_hist[k] += Int(ceil(100 * (nls.sample_rate)))
+      Complex_hist[k] += nls.sample_rate
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
       μk = λ * μk
+    end
+
+    if change_sample_rate
+      change_sample_rate = false
     end
 
     tired = epoch_count ≥ maxEpoch-1 || elapsed_time > maxTime

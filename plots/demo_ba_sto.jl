@@ -46,6 +46,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
                     ),
                     type="scatter3d"
                 ), Layout(margin=attr(l=0, r=0, b=0, t=0)))
+                relayout!(plt3d, template=:simple_white)
                 display(plt3d)
                 
 
@@ -70,6 +71,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
                     ),
                     type="scatter3d"
                 ), Layout(margin=attr(l=0, r=0, b=0, t=0)))
+                relayout!(plt3d, template=:simple_white)
                 display(plt3d)
 
                 if name == name_list[1]
@@ -132,7 +134,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
                         opacity=0.8
                     ),
                     type="scatter3d"
-                ), Layout(margin=attr(l=0, r=0, b=0, t=0)))
+                ), Layout(margin=attr(l=0, r=0, b=0, t=0))
+                )
+        relayout!(plt3d, template=:simple_white)
         display(plt3d)
 
         nplm = neval_residual(sampled_nls) / 100
@@ -144,7 +148,6 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         else
             temp_PLM = hcat(temp_PLM, [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
         end
-
     end
 
     temp = temp_PLM'

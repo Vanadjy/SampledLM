@@ -33,10 +33,26 @@ end
 
 function MNIST_test_model_sto(sample_rate; digits::Tuple{Int, Int} = (1, 7), switch::Bool = false)
     A, b = tan_data_test(digits, switch)
-    return svm_model_sto(A, b; sample_rate = sample_rate)
+    nlp, nls, labels = svm_model_sto(A, b; sample_rate = sample_rate)
+
+    # change starting point depending on the slected digits to have 50% of misclassified data
+    nlp.meta.x0 .= digits[1] .* nlp.meta.x0
+    nls.meta.x0 .= digits[1] .* nls.meta.x0
+
+    nlp,
+    nls,
+    labels
 end
 
 function MNIST_train_model_sto(sample_rate; digits::Tuple{Int, Int} = (1, 7), switch::Bool = false)
     A, b = tan_data_train(digits, switch)
-    return svm_model_sto(A, b; sample_rate = sample_rate)
+    nlp, nls, labels = svm_model_sto(A, b; sample_rate = sample_rate)
+
+    # change starting point depending on the slected digits to have 50% of misclassified data
+    nlp.meta.x0 .= digits[1] .* nlp.meta.x0
+    nls.meta.x0 .= digits[1] .* nls.meta.x0
+
+    nlp,
+    nls,
+    labels
 end
