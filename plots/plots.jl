@@ -23,7 +23,7 @@ if selected_probs == ["ijcnn1"]
 elseif selected_probs == ["mnist"]
     sample_rate0 = .1
     sample_rates = []
-    selected_digits = [(5, 6)] # LM crash for (5, 6) and (0, 8)
+    selected_digits = [(1, 7)] # LM crash for (5, 6) and (0, 8)
     versions = [4]
     version = versions[end]
     selected_hs = ["l1/2"]
@@ -38,7 +38,7 @@ param = plot_parameter[3]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 5
+    MaxEpochs = 100
     MaxTime = 3600.0
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
@@ -46,14 +46,14 @@ elseif abscissa == "CPU time"
 end
 
 
-plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = false, sample_rate0 = sample_rate0, param = param, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
+#plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
 
 # -- Plots for MNIST grey map -- #
 
 Random.seed!(seed)
-#=for digits in selected_digits
-    demo_svm_sto(;sample_rate = sample_rate0, n_runs = n_exec, digits = digits, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version)
-end=#
+for digits in selected_digits
+    demo_svm_sto(;sample_rate = sample_rate0, n_runs = n_exec, digits = digits, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, smooth = true)
+end
 
 # ---------------- Bundle Adjustment Models ---------------- #
 

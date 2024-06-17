@@ -70,17 +70,17 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                     else
                         # smooth solvers #
                         R2_out = JSOSolvers.R2(prob_nls)
-                        LM_out = levenberg_marquardt(prob_nls) #FIXME
-                        LMTR_out = levenberg_marquardt(prob_nls, TR = true)
+                        #LM_out = levenberg_marquardt(prob_nls) #FIXME
+                        #LMTR_out = levenberg_marquardt(prob_nls, TR = true)
                         if param == "MSE"
-                            plot!(1:length(R2_out.solver_specific[:Fhist]), 0.5*(R2_out.solver_specific[:Fhist] + R2_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
-                            plot!(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
-                            plot!(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, label = "LMTR", lc = :black, ls=:dash, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                            #plot!(1:length(R2_out.solver_specific[:Fhist]), 0.5*(R2_out.solver_specific[:Fhist] + R2_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                            #plot!(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, label = "LM", lc = :orange, ls = :dot, xaxis = xscale, yaxis = yscale, legend=:outertopright)
+                            #plot!(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, label = "LMTR", lc = :black, ls=:dash, xaxis = xscale, yaxis = yscale, legend=:outertopright)
                         #elseif param == "accuracy"
                         elseif param == "objective"
-                            plot!(1:length(R2_out.solver_specific[:Fhist]), R2_out.solver_specific[:Fhist] + R2_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
-                            plot!(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
-                            plot!(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], yaxis = yscale, label = "LMTR", lc = :black, ls=:dash, legend=:outertopright)
+                            #plot!(1:length(R2_out.solver_specific[:Fhist]), R2_out.solver_specific[:Fhist] + R2_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
+                            #plot!(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
+                            #plot!(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], yaxis = yscale, label = "LMTR", lc = :black, ls=:dash, legend=:outertopright)
                         end
                     end
                 end
@@ -306,7 +306,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                             #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
                             reset!(prob)
                             #try
-                            PLM_out = Prob_LM(prob, h, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version)
+                            PLM_out = Prob_LM(prob, h, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version, smooth = smooth)
 
                             push!(Time_Hists_prob, PLM_out.solver_specific[:TimeHist])
                             if param == "objective"

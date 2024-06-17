@@ -428,20 +428,23 @@ function Prob_LM(
       μmax = opnorm(Jk)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
 
-      change_sample_rate = false
+      #change_sample_rate = false
     end
 
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
 
-      if (nls.sample_rate < 1.0) && (metric ≥ η3 / μk)  #very successful step
+      if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
         μk = max(μk / λ, μmin)
-      #else
-        #μk = λ * μk
+      elseif (nls.sample_rate == 1.0) && (η2 ≤ ρk < Inf)
+        μk = max(μk / λ, μmin)
       end
 
-      # update functions #FIXME : obligés de refaire appel à residual! après changement du sampling --> on fait des évaluations du résidus en plus qui pourraient peut-être être évitées...
-      Fk = residual(nls, xk)
+      if (!change_sample_rate) && (nls.sample_rate == 1.0)
+        Fk .= Fkn
+      else
+        Fk = residual(nls, xk)
+      end
       fk = dot(Fk, Fk) / 2
       hk = hkn
 
@@ -457,6 +460,10 @@ function Prob_LM(
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
       μk = λ * μk
+    end
+
+    if change_sample_rate
+      change_sample_rate = false
     end
 
     tired = epoch_count ≥ maxEpoch-1 || elapsed_time > maxTime

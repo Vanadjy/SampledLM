@@ -10,7 +10,7 @@ include("plot-utils-svm-sto.jl")
 
 Random.seed!(1234)
 
-function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test, sampled_nls_test, sol_test, h, χ, suffix="l0-linf"; n_runs::Int = 1, MaxEpochs::Int = 100, MaxTime = 3600.0, version::Int = 4, precision = 1e-4, digits = (1, 7))
+function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test, sampled_nls_test, sol_test, h, χ, suffix="l0-linf"; n_runs::Int = 1, MaxEpochs::Int = 100, MaxTime = 3600.0, version::Int = 4, precision = 1e-4, digits = (1, 7), smooth::Bool = false)
     options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
     suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 100)
 
@@ -60,14 +60,13 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     slmdec = plot_svm(Sto_LM_out, Sto_LM_out.solution, "sto-lm-$(suffix)")=#
 
     @info " using Prob_LM to solve with" h
-
     # routine to select the output with the median accuracy on the training set
     PLM_outs = []
     plm_trains = []
     for k in 1:n_runs
         reset!(sampled_nls_tr)
         sampled_nls_tr.epoch_counter = Int[1]
-        Prob_LM_out_k = Prob_LM(sampled_nls_tr, h, sampled_options, x0=sampled_nls_tr.meta.x0, subsolver_options = suboptions, version = version)
+        Prob_LM_out_k = Prob_LM(sampled_nls_tr, h, sampled_options, x0=sampled_nls_tr.meta.x0, subsolver_options = suboptions, version = version, smooth = smooth)
         push!(PLM_outs, Prob_LM_out_k)
         push!(plm_trains, residual(sampled_nls_tr, Prob_LM_out_k.solution))
     end
@@ -124,7 +123,8 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     end
     select!(df, Not(:xt))
     df[!, :x] = T
-    df[!, :Alg] = ["R2", "LM", "LMTR", "PLM"]
+    name_prob = !smooth ? "PLM" : "smooth PLM"
+    df[!, :Alg] = ["R2", "LM", "LMTR", name_prob]
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
         :f => "%10.2f",
@@ -151,7 +151,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     end
 end
 
-function demo_svm_sto(;sample_rate = .05, n_runs = 1, digits = (1, 7), MaxEpochs::Int = 100, MaxTime = 3600.0, version::Int = 4, precision = 1e-4)
+function demo_svm_sto(;sample_rate = .05, n_runs = 1, digits = (1, 7), MaxEpochs::Int = 100, MaxTime = 3600.0, version::Int = 4, precision = 1e-4, smooth::Bool = false)
     ## load phishing data from libsvm
     # A = readdlm("data_matrix.txt")
     # b = readdlm("label_vector.txt")
@@ -175,5 +175,5 @@ function demo_svm_sto(;sample_rate = .05, n_runs = 1, digits = (1, 7), MaxEpochs
     # h = NormL0(λ)
     χ = NormLinf(1.0)
 
-    demo_solver(nlp_train, nls_train, nls_train_sto, sol_train, nlp_test, nls_test, nls_test_sto, sol_test, h, χ, "lhalf-linf-$digits"; n_runs = n_runs, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, precision = precision, digits = digits)
+    demo_solver(nlp_train, nls_train, nls_train_sto, sol_train, nlp_test, nls_test, nls_test_sto, sol_test, h, χ, "lhalf-linf-$digits"; n_runs = n_runs, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, precision = precision, digits = digits, smooth = smooth)
 end
