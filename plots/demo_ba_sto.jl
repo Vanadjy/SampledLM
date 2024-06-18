@@ -90,6 +90,65 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 300)
 
         sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+        if smooth
+            @info "using smooth Prob_LM to solve"
+
+            PLM_outs = []
+            plm_obj = []
+            for k in 1:n_runs
+                reset!(sampled_nls)
+                sampled_nls.epoch_counter = Int[1]
+                Prob_LM_out_k = Prob_LM(sampled_nls, h, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, version = version, smooth = smooth)
+                push!(PLM_outs, Prob_LM_out_k)
+                push!(plm_obj, Prob_LM_out_k.objective)
+            end
+            if n_runs%2 == 1
+                med_ind = (n_runs ÷ 2) + 1
+            else
+                med_ind = (n_runs ÷ 2)
+            end
+            sorted_obj_vec = sort(plm_obj)
+            ref_value = sorted_obj_vec[med_ind]
+            origin_ind = 0
+            for i in eachindex(PLM_outs)
+                if plm_obj[i] == ref_value
+                    origin_ind = i
+                end
+            end
+
+            # Prob_LM_out is the run associated to the median accuracy on the training set
+            Prob_LM_out = PLM_outs[origin_ind]
+
+            sol = Prob_LM_out.solution
+            x = [sol[3*i+1] for i in 0:(sampled_nls.npnts-1)]
+            y = [sol[3*i+2] for i in 0:(sampled_nls.npnts-1)]
+            z = [sol[3*i] for i in 1:sampled_nls.npnts]
+
+            plt3d = PlotlyJS.plot(PlotlyJS.scatter(
+                        x=x,
+                        y=y,
+                        z=z,
+                        mode="markers",
+                        marker=attr(
+                            size=1,
+                            opacity=0.8
+                        ),
+                        type="scatter3d"
+                    ), Layout(margin=attr(l=0, r=0, b=0, t=0))
+                    )
+            relayout!(plt3d, template=:simple_white)
+            display(plt3d)
+
+            nplm = neval_residual(sampled_nls)
+            ngplm = (neval_jtprod_residual(sampled_nls) + neval_jprod_residual(sampled_nls))
+
+            # Results Table #
+            if name == name_list[1]
+                temp_PLM_smooth = [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time]
+            else
+                temp_PLM_smooth = hcat(temp_PLM, [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+            end
+        end
 
         @info " using Prob_LM to solve with" h
 
@@ -139,14 +198,43 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         relayout!(plt3d, template=:simple_white)
         display(plt3d)
 
-        nplm = neval_residual(sampled_nls) / 100
-        ngplm = (neval_jtprod_residual(sampled_nls) + neval_jprod_residual(sampled_nls)) / 100
+        nplm = neval_residual(sampled_nls)
+        ngplm = (neval_jtprod_residual(sampled_nls) + neval_jprod_residual(sampled_nls))
 
         # Results Table #
         if name == name_list[1]
             temp_PLM = [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time]
         else
             temp_PLM = hcat(temp_PLM, [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+        end
+    end
+
+    if smooth
+        temp = temp_PLM_smooth'
+        df = DataFrame(temp, [:f, :h, :fh, :n, :g, :p, :s])
+        #df[!, :Alg] = ["R2", "LMTR", "Prob_LM"]
+        df[!, :Alg] = name_list
+        select!(df, :Alg, Not(:Alg), :)
+        fmt_override = Dict(:Alg => "%s",
+            :f => "%10.2f",
+            :h => "%10.2f",
+            :fh => "%10.2f",
+            :n => "%i",
+            :g => "%i",
+            :p => "%i",
+            :s => "%02.2f")
+        hdr_override = Dict(:Alg => "Alg",
+            :f => "\$ f \$",
+            :h => "\$ h \$",
+            :fh => "\$ f+h \$",
+            :n => "\\# \$f\$",
+            :g => "\\# \$ \\nabla f \$",
+            :p => "\\# \$ \\prox{}\$",
+            :s => "\$t \$ (s)")
+        open("BA-smooth-plm-$suffix.tex", "w") do io
+            SolverBenchmark.pretty_latex_stats(io, df,
+                col_formatters=fmt_override,
+                hdr_override=hdr_override)
         end
     end
 

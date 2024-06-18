@@ -49,7 +49,8 @@ function Prob_LM(
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
   selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
   sample_rate0::Float64 = .05,
-  version::Int = 1
+  version::Int = 1,
+  smooth::Bool = false
 ) where {H}
 
   # initializes epoch counting and progression
@@ -115,16 +116,20 @@ function Prob_LM(
   σk = max(1 / options.ν, σmin)
   μk = max(1 / options.ν , μmin)
   xk = copy(x0)
-  hk = h(xk[selected])
-  if hk == Inf
-    verbose > 0 && @info "SLM: finding initial guess where nonsmooth term is finite"
-    prox!(xk, h, x0, one(eltype(x0)))
+  if !smooth
     hk = h(xk[selected])
-    hk < Inf || error("prox computation must be erroneous")
-    verbose > 0 && @debug "SLM: found point where h has value" hk
+    if hk == Inf
+      verbose > 0 && @info "SLM: finding initial guess where nonsmooth term is finite"
+      prox!(xk, h, x0, one(eltype(x0)))
+      hk = h(xk[selected])
+      hk < Inf || error("prox computation must be erroneous")
+      verbose > 0 && @debug "SLM: found point where h has value" hk
+    end
+    hk == -Inf && error("nonsmooth term is not proper")
+    ψ = shifted(h, xk)
+  else
+    hk = 0.0
   end
-  hk == -Inf && error("nonsmooth term is not proper")
-  ψ = shifted(h, xk)
 
   xkn = similar(xk)
 
@@ -137,7 +142,7 @@ function Prob_LM(
   Hobj_hist = zeros(maxIter * 100)
   Metric_hist = zeros(maxIter * 100)
   exact_Metric_hist = zeros(maxIter * 100)
-  Complex_hist = zeros(Int, maxIter * 100)
+  Complex_hist = zeros(maxIter * 100)
   Grad_hist = zeros(Int, maxIter * 100)
   Resid_hist = zeros(Int, maxIter * 100)
   Sample_hist = zeros(maxIter * 100)
@@ -147,8 +152,11 @@ function Prob_LM(
 
   if verbose > 0
     #! format: off
-    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "rate"
-    #! format: on
+    if !smooth
+      @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "rate"
+    else
+      @info @sprintf "%6s %8s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
+    end
   end
 
   #creating required objects
@@ -190,7 +198,7 @@ function Prob_LM(
     k = k + 1
     elapsed_time = time() - start_time
     Fobj_hist[k] = fk
-    Hobj_hist[k] = hk
+    !smooth ? (Hobj_hist[k]) = hk : (Hobj_hist[k] = 0.0)
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
     Resid_hist[k] = nls.counters.neval_residual
     Sample_hist[k] = nls.sample_rate
@@ -200,46 +208,48 @@ function Prob_LM(
       push!(TimeHist, elapsed_time)
     end
 
-    # model for the Cauchy-Point decrease
-    φcp(d) = begin
-      jtprod_residual!(nls, rows, cols, vals, Fk, Jt_Fk)
-      dot(Fk, Fk) / 2 + dot(Jt_Fk, d)
-    end
-
-    #submodel to find scp
-    mkcp(d) = φcp(d) + ψ(d) #+ νcpInv * dot(d,d) / 2
-    
-    #computes the Cauchy step
-    νcp = 1 / νcpInv
-    ∇fk .*= -νcp
-    # take first proximal gradient step s1 and see if current xk is nearly stationary
-    # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
-    prox!(scp, ψ, ∇fk, νcp)
-    #replace!(scp, NaN=>0.0)
-    ξcp = fk + hk - mkcp(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
-
-    #ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
-    
-    if ξcp ≤ 0
-      ξcp = - ξcp
-    end
-
-    metric = sqrt(ξcp*νcpInv)
-    Metric_hist[k] = metric
-
-    if ξcp ≥ 0 && k == 1
-      ϵ_increment = ϵr * metric
-      ϵ += ϵ_increment  # make stopping test absolute and relative
-      ϵ_subsolver += ϵ_increment
-    end
-
-    #=if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
-      # the current xk is approximately first-order stationary
-      push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
-      if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
-        optimal = true
+    if !smooth
+      # model for the Cauchy-Point decrease
+      φcp(d) = begin
+        jtprod_residual!(nls, rows, cols, vals, Fk, Jt_Fk)
+        dot(Fk, Fk) / 2 + dot(Jt_Fk, d)
       end
-    end=#
+
+      #submodel to find scp
+      mkcp(d) = φcp(d) + ψ(d) #+ νcpInv * dot(d,d) / 2
+      
+      #computes the Cauchy step
+      νcp = 1 / νcpInv
+      ∇fk .*= -νcp
+      # take first proximal gradient step s1 and see if current xk is nearly stationary
+      # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
+      prox!(scp, ψ, ∇fk, νcp)
+      #replace!(scp, NaN=>0.0)
+      ξcp = fk + hk - mkcp(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
+
+      #ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
+      
+      if ξcp ≤ 0
+        ξcp = - ξcp
+      end
+
+      metric = sqrt(ξcp*νcpInv)
+      Metric_hist[k] = metric
+
+      if ξcp ≥ 0 && k == 1
+        ϵ_increment = ϵr * metric
+        ϵ += ϵ_increment  # make stopping test absolute and relative
+        ϵ_subsolver += ϵ_increment
+      end
+
+      if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
+        # the current xk is approximately first-order stationary
+        push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
+        if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+          optimal = true
+        end
+      end
+    end
 
     subsolver_options.ϵa = (length(nls.epoch_counter) ≤ 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric / 10)))
 
@@ -248,67 +258,84 @@ function Prob_LM(
 
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
+    if !smooth
+      φ(d) = begin
+        jprod_residual!(nls, rows, cols, vals, d, JdFk)
+        JdFk .+= Fk
+        return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
+      end
 
-    φ(d) = begin
-      jprod_residual!(nls, rows, cols, vals, d, JdFk)
-      JdFk .+= Fk
-      return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
-    end
+      ∇φ!(g, d) = begin
+        jprod_residual!(nls, rows, cols, vals, d, JdFk)
+        JdFk .+= Fk
+        jtprod_residual!(nls, rows, cols, vals, JdFk, g)
+        g .+= σk * d
+        return g
+      end
 
-    ∇φ!(g, d) = begin
-      jprod_residual!(nls, rows, cols, vals, d, JdFk)
-      JdFk .+= Fk
-      jtprod_residual!(nls, rows, cols, vals, JdFk, g)
-      g .+= σk * d
-      return g
-    end
+      mk(d) = begin
+        jprod_residual!(nls, rows, cols, vals, d, JdFk)
+        JdFk .+= Fk
+        return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2 + ψ(d)
+      end
+    
+      νInv = (1 + θ) * (μmax^2 + σk) # μmax^2 + σk = ||Jmk||² + σk 
+      ν = 1 / νInv
+      subsolver_options.ν = ν
 
-    mk(d) = begin
-      jprod_residual!(nls, rows, cols, vals, d, JdFk)
-      JdFk .+= Fk
-      return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2 + ψ(d)
-    end
-  
-    νInv = (1 + θ) * (μmax^2 + σk) # μmax^2 + σk = ||Jmk||² + σk 
-    ν = 1 / νInv
-    subsolver_options.ν = ν
+      @debug "setting inner stopping tolerance to" subsolver_options.optTol
+      s, iter, _ = with_logger(subsolver_logger) do
+        subsolver(φ, ∇φ!, ψ, subsolver_options, scp)
+      end
+      # restore initial subsolver_options here so that it is not modified if there is an error
+      subsolver_options.ν = ν_subsolver
+      subsolver_options.ϵa = ϵa_subsolver
 
-    @debug "setting inner stopping tolerance to" subsolver_options.optTol
-    s, iter, _ = with_logger(subsolver_logger) do
-      subsolver(φ, ∇φ!, ψ, subsolver_options, scp)
-    end
-    # restore initial subsolver_options here so that it is not modified if there is an error
-    subsolver_options.ν = ν_subsolver
-    subsolver_options.ϵa = ϵa_subsolver
+      Complex_hist[k] = iter * nls.sample_rate
 
-    Complex_hist[k] = iter
-
-    # additionnal condition on step s
-    if norm(s) > β * norm(scp)
-      println("cauchy step used")
-      s .= scp
+      # additionnal condition on step s
+      if norm(s) > β * norm(scp)
+        println("cauchy step used")
+        s .= scp
+      end
+    else
+      mk_smooth(d) = begin
+        jprod_residual!(nls, rows, cols, vals, d, JdFk)
+        JdFk .+= Fk
+        return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
+      end
+      # TODO: replace lsmr by a sparse factorization from QRMumps
+      s, stats = lsmr(Jk, -Fk; λ = σk)#, atol = subsolver_options.ϵa, rtol = ϵr)
+      Complex_hist[k] = stats.niter * nls.sample_rate
     end
 
     xkn .= xk .+ s
 
     residual!(nls, xkn, Fkn)
     fkn = dot(Fkn, Fkn) / 2
-    hkn = h(xkn[selected])
-    hkn == -Inf && error("nonsmooth term is not proper")
-    mks = mk(s)
-    ξ = fk + hk - mks + max(1, abs(hk)) * 10 * eps()
+    if !smooth
+      hkn = h(xkn[selected])
+      hkn == -Inf && error("nonsmooth term is not proper")
+      mks = mk(s)
+      ξ = fk + hk - mks + max(1, abs(hk)) * 10 * eps()
 
-    #=if (ξ ≤ 0 || isnan(ξ))
-      error("LM: failed to compute a step: ξ = $ξ")
-    end=#
+      #=if (ξ ≤ 0 || isnan(ξ))
+        error("LM: failed to compute a step: ξ = $ξ")
+      end=#
 
-    if ξ ≤ 0
-      ξ = - ξ
+      if ξ ≤ 0
+        ξ = - ξ
+      end
+
+      Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
+      #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
+      ρk = Δobj / ξ
+    else
+      mks = mk_smooth(s)
+      Δobj = fk - fkn
+      ξ = fk - mks
+      ρk = Δobj / ξ
     end
-
-    Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
-    #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
-    ρk = Δobj / ξ
 
     #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
     μ_stat = ρk < η1 ? "↘" : ((metric ≥ η3 / μk) ? "↗" : "↘")
@@ -316,7 +343,11 @@ function Prob_LM(
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat nls.sample_rate
+      if !smooth
+        @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat nls.sample_rate
+      else
+        @info @sprintf "%6d %8d %8.1e %7.4e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k stats.niter fk norm(∇fk) ρk σk μk norm(xk) norm(s) νInv μ_stat nls.sample_rate
+      end
       #! format: off
     end
     
@@ -332,11 +363,13 @@ function Prob_LM(
         dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
       end
 
-      exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
-      exact_metric = sqrt(abs(exact_ξcp * νcpInv))
+      if !smooth
+        exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
+        exact_metric = sqrt(abs(exact_ξcp * νcpInv))
+        exact_Metric_hist[k] = exact_metric
+      end
 
       exact_Fobj_hist[k] = exact_fk
-      exact_Metric_hist[k] = exact_metric
     end
     # -- -- #
     
@@ -446,10 +479,12 @@ function Prob_LM(
         Fk = residual(nls, xk)
       end
       fk = dot(Fk, Fk) / 2
-      hk = hkn
 
-      # update gradient & Hessian
-      shift!(ψ, xk)
+      if !smooth
+        hk = hkn
+        shift!(ψ, xk)
+      end
+
       Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
       jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
 
@@ -471,12 +506,23 @@ function Prob_LM(
 
   if verbose > 0
     if k == 1
-      @info @sprintf "%6d %8s %8.1e %8.1e" k "" fk hk
+      if ! smooth
+        @info @sprintf "%6d %8s %8.1e %8.1e" k "" fk hk
+      else
+        @info @sprintf "%6d %8s %8.1e" k "" fk
+      end
     elseif optimal
-      #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
-      #! format: on
-      @info "SLM: terminating with √ξcp/νcp = $metric"
+      if !smooth
+        #! format: off
+        @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
+        #! format: on
+        @info "SLM: terminating with √ξcp/νcp = $metric"
+      else
+        #! format: off
+        @info @sprintf "%6d %8d %8.1e %7.4e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk norm(∇fk) "" σk μk norm(xk) norm(s)
+        #! format: on
+        @info "SLM: terminating with ‖∇f(x)‖= $(norm(∇fk))"
+      end
     end
   end
   status = if optimal
@@ -493,7 +539,7 @@ function Prob_LM(
   set_status!(stats, status)
   set_solution!(stats, xk)
   set_objective!(stats, fk + hk)
-  set_residuals!(stats, zero(eltype(xk)), ξcp ≥ 0 ? sqrt(ξcp * νcpInv) : ξcp)
+  set_residuals!(stats, zero(eltype(xk)), !smooth ? (ξcp ≥ 0 ? sqrt(ξcp * νcpInv) : ξcp) : norm(∇fk))
   set_iter!(stats, k)
   set_time!(stats, elapsed_time)
   set_solver_specific!(stats, :Fhist, Fobj_hist[1:k])

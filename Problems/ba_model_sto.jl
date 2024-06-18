@@ -11,7 +11,7 @@ mutable struct SampledBAModel{T, S} <: AbstractNLSModel{T, S}
   # nls_meta
   nls_meta::NLSMeta{T, S}
   # Counters of NLPModel
-  counters::NLSCounters
+  counters::NLSGeneralCounters
   # For each observation i, cams_indices[i] gives the index of thecamera used for this observation
   cams_indices::Vector{Int}
   # For each observation i, pnts_indices[i] gives the index of the 3D point observed in this observation
@@ -88,7 +88,7 @@ function BAmodel_sto(name::AbstractString; T::Type = Float64, sample_rate = 1.0)
   return SampledBAModel(
     meta,
     nls_meta,
-    NLSCounters(),
+    NLSGeneralCounters(),
     cams_indices,
     pnts_indices,
     pt2d,
