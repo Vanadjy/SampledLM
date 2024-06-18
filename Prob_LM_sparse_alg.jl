@@ -143,8 +143,8 @@ function Prob_LM(
   Metric_hist = zeros(maxIter * 100)
   exact_Metric_hist = zeros(maxIter * 100)
   Complex_hist = zeros(maxIter * 100)
-  Grad_hist = zeros(Int, maxIter * 100)
-  Resid_hist = zeros(Int, maxIter * 100)
+  Grad_hist = zeros(maxIter * 100)
+  Resid_hist = zeros(maxIter * 100)
   Sample_hist = zeros(maxIter * 100)
 
   #Historic of time
@@ -242,13 +242,13 @@ function Prob_LM(
         ϵ_subsolver += ϵ_increment
       end
 
-      if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
+      #=if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
         # the current xk is approximately first-order stationary
         push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
         if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
           optimal = true
         end
-      end
+      end=#
     end
 
     subsolver_options.ϵa = (length(nls.epoch_counter) ≤ 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric / 10)))

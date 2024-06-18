@@ -69,7 +69,7 @@ function plot_Sto_LM_SVM(sample_rates::AbstractVector, versions::AbstractVector,
                         end
                     else
                         # smooth solvers #
-                        R2_out = JSOSolvers.R2(prob_nls)
+                        #R2_out = JSOSolvers.R2(prob_nls)
                         #LM_out = levenberg_marquardt(prob_nls) #FIXME
                         #LMTR_out = levenberg_marquardt(prob_nls, TR = true)
                         if param == "MSE"

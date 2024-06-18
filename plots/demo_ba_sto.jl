@@ -84,8 +84,6 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             end
         end
 
-        # demo_solver_ba(nls, sampled_nls, h, χ, "l0-linf-$name"; n_runs = n_runs) #
-
         options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
         suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 300)
 
@@ -265,45 +263,47 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             hdr_override=hdr_override)
     end
     
-    temp = temp_LM'
-    df = DataFrame(temp, [:fh, :n, :g, :s])
-    #df[!, :Alg] = ["R2", "LMTR", "Prob_LM"]
-    df[!, :Alg] = name_list
-    select!(df, :Alg, Not(:Alg), :)
-    fmt_override = Dict(:Alg => "%s",
-        :fh => "%10.2f",
-        :n => "%i",
-        :g => "%i",
-        :s => "%02.2f")
-    hdr_override = Dict(:Alg => "Alg",
-        :fh => "\$ f+h \$",
-        :n => "\\# \$f\$",
-        :g => "\\# \$ \\nabla f \$",
-        :s => "\$t \$ (s)")
-    open("BA-lm-$suffix.tex", "w") do io
-        SolverBenchmark.pretty_latex_stats(io, df,
-            col_formatters=fmt_override,
-            hdr_override=hdr_override)
-    end
+    if compare
+        temp = temp_LM'
+        df = DataFrame(temp, [:fh, :n, :g, :s])
+        #df[!, :Alg] = ["R2", "LMTR", "Prob_LM"]
+        df[!, :Alg] = name_list
+        select!(df, :Alg, Not(:Alg), :)
+        fmt_override = Dict(:Alg => "%s",
+            :fh => "%10.2f",
+            :n => "%i",
+            :g => "%i",
+            :s => "%02.2f")
+        hdr_override = Dict(:Alg => "Alg",
+            :fh => "\$ f+h \$",
+            :n => "\\# \$f\$",
+            :g => "\\# \$ \\nabla f \$",
+            :s => "\$t \$ (s)")
+        open("BA-lm-$suffix.tex", "w") do io
+            SolverBenchmark.pretty_latex_stats(io, df,
+                col_formatters=fmt_override,
+                hdr_override=hdr_override)
+        end
 
-    temp = temp_LMTR'
-    df = DataFrame(temp, [:fh, :n, :g, :s])
-    #df[!, :Alg] = ["R2", "LMTR", "Prob_LM"]
-    df[!, :Alg] = name_list
-    select!(df, :Alg, Not(:Alg), :)
-    fmt_override = Dict(:Alg => "%s",
-        :fh => "%10.2f",
-        :n => "%i",
-        :g => "%i",
-        :s => "%02.2f")
-    hdr_override = Dict(:Alg => "Alg",
-        :fh => "\$ f+h \$",
-        :n => "\\# \$f\$",
-        :g => "\\# \$ \\nabla f \$",
-        :s => "\$t \$ (s)")
-    open("BA-lmtr-$suffix.tex", "w") do io
-        SolverBenchmark.pretty_latex_stats(io, df,
-            col_formatters=fmt_override,
-            hdr_override=hdr_override)
+        temp = temp_LMTR'
+        df = DataFrame(temp, [:fh, :n, :g, :s])
+        #df[!, :Alg] = ["R2", "LMTR", "Prob_LM"]
+        df[!, :Alg] = name_list
+        select!(df, :Alg, Not(:Alg), :)
+        fmt_override = Dict(:Alg => "%s",
+            :fh => "%10.2f",
+            :n => "%i",
+            :g => "%i",
+            :s => "%02.2f")
+        hdr_override = Dict(:Alg => "Alg",
+            :fh => "\$ f+h \$",
+            :n => "\\# \$f\$",
+            :g => "\\# \$ \\nabla f \$",
+            :s => "\$t \$ (s)")
+        open("BA-lmtr-$suffix.tex", "w") do io
+            SolverBenchmark.pretty_latex_stats(io, df,
+                col_formatters=fmt_override,
+                hdr_override=hdr_override)
+        end
     end
 end
