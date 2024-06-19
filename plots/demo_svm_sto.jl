@@ -32,7 +32,8 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     LMTR_out = LMTR(nls_tr, h, χ, options, x0= digits[1] * nls_tr.meta.x0, subsolver_options = suboptions)
     lmtrtrain = residual(nls_tr, LMTR_out.solution)
     lmtrtest = residual(nls_test, LMTR_out.solution)
-    nlmtr = NLPModels.neval_residual(nls_tr)
+    #nlmtr = NLPModels.neval_residual(nls_tr)
+    nlmtr = LMTR_out.iter
     nglmtr = NLPModels.neval_jtprod_residual(nls_tr) + NLPModels.neval_jprod_residual(nls_tr)
     @show acc(lmtrtrain), acc(lmtrtest)
     lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-$(suffix)")
@@ -42,7 +43,8 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     LM_out = LM(nls_tr, h, options, x0= digits[1] * nls_tr.meta.x0, subsolver_options = suboptions)
     lmtrain = residual(nls_tr, LM_out.solution)
     lmtest = residual(nls_test, LM_out.solution)
-    nlm = NLPModels.neval_residual(nls_tr)
+    #nlm = NLPModels.neval_residual(nls_tr)
+    nlm = LM_out.iter
     nglm = NLPModels.neval_jtprod_residual(nls_tr) + NLPModels.neval_jprod_residual(nls_tr)
     @show acc(lmtrain), acc(lmtest)
     lmdec = plot_svm(LM_out, LM_out.solution, "lm-$(suffix)")
@@ -90,7 +92,8 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
 
     plmtrain = residual(sampled_nls_tr, Prob_LM_out.solution)
     plmtest = residual(sampled_nls_test, Prob_LM_out.solution)
-    nplm = neval_residual(sampled_nls_tr)
+    #nplm = neval_residual(sampled_nls_tr)
+    nplm = length(sampled_nls_tr.epoch_counter)
     ngplm = (neval_jtprod_residual(sampled_nls_tr) + neval_jprod_residual(sampled_nls_tr))
     @show acc(plmtrain), acc(plmtest)
     plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-$(suffix)")
@@ -128,7 +131,8 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
 
         splmtrain = residual(sampled_nls_tr, SProb_LM_out.solution)
         splmtest = residual(sampled_nls_test, SProb_LM_out.solution)
-        nsplm = neval_residual(sampled_nls_tr)
+        #nsplm = neval_residual(sampled_nls_tr)
+        nsplm = length(sampled_nls_tr.epoch_counter)
         ngsplm = (neval_jtprod_residual(sampled_nls_tr) + neval_jprod_residual(sampled_nls_tr))
         @show acc(plmtrain), acc(plmtest)
         plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-$(suffix)")
@@ -153,13 +157,15 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
         [LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
         [LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
         #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
-        [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])'
+        [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
 
-    #=if smooth
-        temp = hact(temp,
-        [SProb_LM_out.solver_specific[:Fhist][end], SProb_LM_out.solver_specific[:Hhist][end], SProb_LM_out.objective, acc(splmtrain), acc(splmtest), nsplm, ngsplm, sum(SProb_LM_out.solver_specific[:SubsolverCounter]), SProb_LM_out.elapsed_time]
+    if smooth
+        temp = hcat(temp,
+        [SProb_LM_out.objective, 0.0, SProb_LM_out.objective, acc(splmtrain), acc(splmtest), nsplm, ngsplm, sum(SProb_LM_out.solver_specific[:SubsolverCounter]), SProb_LM_out.elapsed_time]
         )
-    end=#
+    end
+
+    temp = temp'
 
     df = DataFrame(temp, [:f, :h, :fh, :x, :xt, :n, :g, :p, :s])
     T = []
@@ -168,7 +174,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     end
     select!(df, Not(:xt))
     df[!, :x] = T
-    df[!, :Alg] = ["R2", "LM", "LMTR", "PLM"]
+    df[!, :Alg] = !smooth ? ["R2", "LM", "LMTR", "PLM"] : ["R2", "LM", "LMTR", "PLM", "smooth PLM"]
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
         :f => "%10.2f",
@@ -184,44 +190,14 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
         :h => "\$ h \$",
         :fh => "\$ f+h \$",
         :x => "(Train, Test)",
-        :n => "\\# \$f\$",
+        :n => "\\# epoch",
         :g => "\\# \$ \\nabla f \$",
-        :p => "\\# \$ \\prox{}\$",
+        :p => "\\# inner",
         :s => "\$t \$ (s)")
     open("svm-$suffix.tex", "w") do io
         SolverBenchmark.pretty_latex_stats(io, df,
             col_formatters=fmt_override,
             hdr_override=hdr_override)
-    end
-
-    if smooth
-        temp = [SProb_LM_out.objective, acc(splmtrain), acc(splmtest), nsplm, ngsplm, SProb_LM_out.elapsed_time]
-        df = DataFrame(temp, [:fh, :x, :xt, :n, :g, :s])
-        T = []
-        for i = 1:nrow(df)
-          push!(T, Tuple(df[i, [:x, :xt]]))
-        end
-        select!(df, Not(:xt))
-        df[!, :x] = T
-        df[!, :Alg] = ["Smooth PLM"]
-        select!(df, :Alg, Not(:Alg), :)
-        fmt_override = Dict(:Alg => "%s",
-            :fh => "%10.2f",
-            :x => "%10.2f, %10.2f",
-            :n => "%i",
-            :g => "%i",
-            :s => "%02.2f")
-        hdr_override = Dict(:Alg => "Alg",
-            :fh => "\$ f+h \$",
-            :x => "(Train, Test)",
-            :n => "\\# \$f\$",
-            :g => "\\# \$ \\nabla f \$",
-            :s => "\$t \$ (s)")
-        open("svm-smooth-$suffix.tex", "w") do io
-            SolverBenchmark.pretty_latex_stats(io, df,
-                col_formatters=fmt_override,
-                hdr_override=hdr_override)
-        end
     end
 end
 

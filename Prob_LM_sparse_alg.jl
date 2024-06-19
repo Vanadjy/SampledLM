@@ -50,7 +50,8 @@ function Prob_LM(
   selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
   sample_rate0::Float64 = .05,
   version::Int = 1,
-  smooth::Bool = false
+  smooth::Bool = false,
+  Jac_lop::Bool = true
 ) where {H}
 
   # initializes epoch counting and progression
@@ -164,19 +165,23 @@ function Prob_LM(
   Fkn = similar(Fk)
   exact_Fk = zeros(1:m)
 
-  meta_nls = nls_meta(nls)
-  rows = Vector{Int}(undef, meta_nls.nnzj)
-  cols = Vector{Int}(undef, meta_nls.nnzj)
-  vals = similar(xk, meta_nls.nnzj)
-  jac_structure_residual!(nls, rows, cols)
-  jac_coord_residual!(nls, nls.meta.x0, vals)
-
   #sampled Jacobian
   ∇fk = similar(xk)
   JdFk = similar(Fk) # temporary storage
   Jt_Fk = similar(∇fk)
 
-  Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+  meta_nls = nls_meta(nls)
+  rows = Vector{Int}(undef, meta_nls.nnzj)
+  cols = Vector{Int}(undef, meta_nls.nnzj)
+  vals = similar(xk, meta_nls.nnzj)
+
+  if Jac_lop
+    jac_structure_residual!(nls, rows, cols)
+    jac_coord_residual!(nls, nls.meta.x0, vals)
+    Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+  else
+    Jk = jac(nls, xk)
+  end
 
   fk = dot(Fk, Fk) / 2 #objective estimated without noise
   jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
@@ -305,8 +310,17 @@ function Prob_LM(
         return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
       end
       # TODO: replace lsmr by a sparse factorization from QRMumps
-      s, stats = lsmr(Jk, -Fk; λ = σk)#, atol = subsolver_options.ϵa, rtol = ϵr)
-      Complex_hist[k] = stats.niter * nls.sample_rate
+      if Jac_lop # Using iterative method as Jk is a LinearOperator
+        s, stats = lsmr(Jk, -Fk; λ = σk)#, atol = subsolver_options.ϵa, rtol = ϵr)
+        Complex_hist[k] = stats.niter * nls.sample_rate
+      else # using a direct method as Jk is a sparse matrix
+        Jk = convert(SparseMatrixCSC, Jk)
+        spmat = qrm_spmat_init(Jk)
+        spfct = qrm_analyse(spmat)
+        qrm_factorize!(spmat, spfct)
+        z = qrm_apply(spfct, -Fk, transp = 't') #TODO include complex compatibility
+        s = qrm_solve(spfct, z, transp = 'n')
+      end
     end
 
     xkn .= xk .+ s
@@ -456,7 +470,12 @@ function Prob_LM(
       JdFk = similar(Fk)
       fk = dot(Fk, Fk) / 2
 
-      Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+      if Jac_lop
+        Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+      else
+        Jk = jac(nls, xk)
+      end
+
       jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
       μmax = opnorm(Jk)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
@@ -485,7 +504,12 @@ function Prob_LM(
         shift!(ψ, xk)
       end
 
-      Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+      if Jac_lop
+        Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+      else
+        Jk = jac(nls, xk)
+      end
+
       jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
 
       μmax = opnorm(Jk)

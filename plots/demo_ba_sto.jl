@@ -5,11 +5,11 @@ using NLPModels, NLPModelsModifiers #ReverseADNLSModels
 using RegularizedOptimization
 using DataFrames
 using SolverBenchmark
-using PlotlyJS
+using PlotlyJS, PlutoPlotly
 
 # Random.seed!(1234)
 
-function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 4, suffix::String = "dubrovnik-h1", compare::Bool = false, smooth::Bool = false)
+function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 4, suffix::String = "dubrovnik-h1", compare::Bool = false, smooth::Bool = false, Jac_lop::Bool = true)
     temp_PLM = []
     temp_PLM_smooth = []
     temp_LM = []
@@ -97,7 +97,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             for k in 1:n_runs
                 reset!(sampled_nls)
                 sampled_nls.epoch_counter = Int[1]
-                Prob_LM_out_k = Prob_LM(sampled_nls, h, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, version = version, smooth = smooth)
+                Prob_LM_out_k = Prob_LM(sampled_nls, h, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, version = version, smooth = smooth, Jac_lop = Jac_lop)
                 push!(PLM_outs, Prob_LM_out_k)
                 push!(plm_obj, Prob_LM_out_k.objective)
             end
@@ -123,29 +123,53 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             y = [sol[3*i+2] for i in 0:(sampled_nls.npnts-1)]
             z = [sol[3*i] for i in 1:sampled_nls.npnts]
 
-            plt3d = PlotlyJS.plot(PlotlyJS.scatter(
-                        x=x,
-                        y=y,
-                        z=z,
-                        mode="markers",
-                        marker=attr(
-                            size=1,
-                            opacity=0.8
-                        ),
-                        type="scatter3d"
-                    ), Layout(margin=attr(l=0, r=0, b=0, t=0))
-                    )
-            relayout!(plt3d, template=:simple_white)
+            plt3d = PlotlyJS.Plot(PlotlyJS.scatter(
+                x=x,
+                y=y,
+                z=z,
+                mode="markers",
+                marker=attr(
+                    size=1,
+                    opacity=0.8
+                ),
+                type="scatter3d"
+            ), Layout(scene = attr(
+                xaxis = attr(
+                     backgroundcolor="rgb(255, 255, 255)",
+                     title_text = "",
+                     gridcolor="white",
+                     showbackground=false,
+                     zerolinecolor="white",
+                     tickfont=attr(size=0, color="white")),
+                yaxis = attr(
+                    backgroundcolor="rgb(255, 255, 255)",
+                    title_text = "",
+                    gridcolor="white",
+                    showbackground=false,
+                    zerolinecolor="white",
+                    tickfont=attr(size=0, color="white")),
+                zaxis = attr(
+                    backgroundcolor="rgb(255, 255, 255)",
+                    title_text = "",
+                    gridcolor="white",
+                    showbackground=false,
+                    zerolinecolor="white",
+                    tickfont=attr(size=0, color="white")),),
+                margin=attr(
+                r=10, l=10,
+                b=10, t=10)
+              ))
             display(plt3d)
 
-            nplm = neval_residual(sampled_nls)
-            ngplm = (neval_jtprod_residual(sampled_nls) + neval_jprod_residual(sampled_nls))
+            #nsplm = neval_residual(sampled_nls)
+            nsplm = length(sampled_nls.epoch_counter)
+            ngsplm = (neval_jtprod_residual(sampled_nls) + neval_jprod_residual(sampled_nls))
 
             # Results Table #
             if name == name_list[1]
-                temp_PLM_smooth = [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time]
+                temp_PLM_smooth = [ Prob_LM_out.objective, 0.0, Prob_LM_out.objective, nsplm, ngsplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time]
             else
-                temp_PLM_smooth = hcat(temp_PLM, [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+                temp_PLM_smooth = hcat(temp_PLM, [Prob_LM_out.objective, 0.0, Prob_LM_out.objective, nsplm, ngsplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
             end
         end
 
@@ -156,7 +180,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         for k in 1:n_runs
             reset!(sampled_nls)
             sampled_nls.epoch_counter = Int[1]
-            Prob_LM_out_k = Prob_LM(sampled_nls, h, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, version = version)
+            Prob_LM_out_k = Prob_LM(sampled_nls, h, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, version = version, Jac_lop = Jac_lop)
             push!(PLM_outs, Prob_LM_out_k)
             push!(plm_obj, Prob_LM_out_k.objective)
         end
@@ -178,26 +202,50 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         Prob_LM_out = PLM_outs[origin_ind]
 
         sol = Prob_LM_out.solution
+
         x = [sol[3*i+1] for i in 0:(sampled_nls.npnts-1)]
         y = [sol[3*i+2] for i in 0:(sampled_nls.npnts-1)]
-        z = [sol[3*i] for i in 1:sampled_nls.npnts]
-
-        plt3d = PlotlyJS.plot(PlotlyJS.scatter(
-                    x=x,
-                    y=y,
-                    z=z,
-                    mode="markers",
-                    marker=attr(
-                        size=1,
-                        opacity=0.8
-                    ),
-                    type="scatter3d"
-                ), Layout(margin=attr(l=0, r=0, b=0, t=0))
-                )
-        relayout!(plt3d, template=:simple_white)
+        z = [sol[3*i] for i in 1:sampled_nls.npnts]       
+        plt3d = PlotlyJS.Plot(PlotlyJS.scatter(
+                x=x,
+                y=y,
+                z=z,
+                mode="markers",
+                marker=attr(
+                    size=1,
+                    opacity=0.8
+                ),
+                type="scatter3d"
+            ), Layout(scene = attr(
+                xaxis = attr(
+                     backgroundcolor="rgb(255, 255, 255)",
+                     title_text = "",
+                     gridcolor="white",
+                     showbackground=false,
+                     zerolinecolor="white",
+                     tickfont=attr(size=0, color="white")),
+                yaxis = attr(
+                    backgroundcolor="rgb(255, 255, 255)",
+                    title_text = "",
+                    gridcolor="white",
+                    showbackground=false,
+                    zerolinecolor="white",
+                    tickfont=attr(size=0, color="white")),
+                zaxis = attr(
+                    backgroundcolor="rgb(255, 255, 255)",
+                    title_text = "",
+                    gridcolor="white",
+                    showbackground=false,
+                    zerolinecolor="white",
+                    tickfont=attr(size=0, color="white")),),
+                margin=attr(
+                r=10, l=10,
+                b=10, t=10)
+              ))
         display(plt3d)
 
-        nplm = neval_residual(sampled_nls)
+        #nplm = neval_residual(sampled_nls)
+        nplm = length(sampled_nls.epoch_counter)
         ngplm = (neval_jtprod_residual(sampled_nls) + neval_jprod_residual(sampled_nls))
 
         # Results Table #
@@ -218,17 +266,17 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             :f => "%10.2f",
             :h => "%10.2f",
             :fh => "%10.2f",
-            :n => "%i",
-            :g => "%i",
-            :p => "%i",
+            :n => "%10.2f",
+            :g => "%10.2f",
+            :p => "%10.2f",
             :s => "%02.2f")
         hdr_override = Dict(:Alg => "Alg",
             :f => "\$ f \$",
             :h => "\$ h \$",
             :fh => "\$ f+h \$",
-            :n => "\\# \$f\$",
+            :n => "\\# epochs",
             :g => "\\# \$ \\nabla f \$",
-            :p => "\\# \$ \\prox{}\$",
+            :p => "\\# inner",
             :s => "\$t \$ (s)")
         open("BA-smooth-plm-$suffix.tex", "w") do io
             SolverBenchmark.pretty_latex_stats(io, df,
@@ -246,17 +294,17 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         :f => "%10.2f",
         :h => "%10.2f",
         :fh => "%10.2f",
-        :n => "%i",
-        :g => "%i",
-        :p => "%i",
+        :n => "%10.2f",
+        :g => "%10.2f",
+        :p => "%10.2f",
         :s => "%02.2f")
     hdr_override = Dict(:Alg => "Alg",
         :f => "\$ f \$",
         :h => "\$ h \$",
         :fh => "\$ f+h \$",
-        :n => "\\# \$f\$",
+        :n => "\\# epochs",
         :g => "\\# \$ \\nabla f \$",
-        :p => "\\# \$ \\prox{}\$",
+        :p => "\\# inner",
         :s => "\$t \$ (s)")
     open("BA-plm-$suffix.tex", "w") do io
         SolverBenchmark.pretty_latex_stats(io, df,
@@ -272,8 +320,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         select!(df, :Alg, Not(:Alg), :)
         fmt_override = Dict(:Alg => "%s",
             :fh => "%10.2f",
-            :n => "%i",
-            :g => "%i",
+            :n => "%10.2f",
+            :g => "%10.2f",
             :s => "%02.2f")
         hdr_override = Dict(:Alg => "Alg",
             :fh => "\$ f+h \$",
@@ -293,8 +341,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         select!(df, :Alg, Not(:Alg), :)
         fmt_override = Dict(:Alg => "%s",
             :fh => "%10.2f",
-            :n => "%i",
-            :g => "%i",
+            :n => "%10.2f",
+            :g => "%10.2f",
             :s => "%02.2f")
         hdr_override = Dict(:Alg => "Alg",
             :fh => "\$ f+h \$",
