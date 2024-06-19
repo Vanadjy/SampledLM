@@ -59,7 +59,7 @@ end=#
 
 Random.seed!(seed)
 
-n_exec = 1
+n_exec = 5
 versions = [1, 2, 4]
 version = versions[end]
 
@@ -68,7 +68,7 @@ filter_name = "dubrovnik"
 filter_df = df[ df.group .== filter_name, :]
 sample_rate0 = .1
 #name1 = filter_df[1, :name]
-name_list = [filter_df[i, :name] for i in [1]]
+name_list = [filter_df[i, :name] for i in [1, 2, 16]]
 
 selected_hs = ["l1"]
 sample_rate0 = .1

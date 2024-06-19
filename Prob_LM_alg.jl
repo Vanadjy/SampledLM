@@ -63,7 +63,7 @@ function Prob_LM(
   Num_mean = 0
   mobile_mean = 0
   unchange_mm_count = 0
-  sample_rates_collec = [.2, .5, .9, .99]
+  sample_rates_collec = [.2, .5, .9, 1.0]
   epoch_limits = [1, 2, 5, 10]
   @assert length(sample_rates_collec) == length(epoch_limits)
   nls.sample_rate = sample_rate0
@@ -239,8 +239,24 @@ function Prob_LM(
       if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
         # the current xk is approximately first-order stationary
         push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
-        if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+        if nls.sample_rate == 1.0
           optimal = true
+        else
+          if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+            optimal = true
+          end
+        end
+      end
+    else
+      if (norm(∇fk) < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
+        # the current xk is approximately first-order stationary
+        push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
+        if nls.sample_rate == 1.0
+          optimal = true
+        else
+          if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+            optimal = true
+          end
         end
       end
     end
@@ -511,7 +527,7 @@ function Prob_LM(
         @info "SLM: terminating with √ξcp/νcp = $metric"
       else
         #! format: off
-        @info @sprintf "%6d %8d %8.1e %7.4e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk norm(∇fk) "" σk μk norm(xk) norm(s)
+        @info @sprintf "%6d %8d %8.1e %7.4e %8s %7.1e %7.1e %7.1e %7.1e" k 1 fk norm(∇fk) "" σk μk norm(xk) norm(s)
         #! format: on
         @info "SLM: terminating with ‖∇f(x)‖= $(norm(∇fk))"
       end

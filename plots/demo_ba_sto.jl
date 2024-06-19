@@ -11,6 +11,7 @@ using PlotlyJS
 
 function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 4, suffix::String = "dubrovnik-h1", compare::Bool = false, smooth::Bool = false)
     temp_PLM = []
+    temp_PLM_smooth = []
     temp_LM = []
     temp_LMTR = []
     for name in name_list

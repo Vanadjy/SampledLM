@@ -5,7 +5,7 @@ using LinearAlgebra, Logging, Printf
 using ProximalOperators, TSVD
 
 # dependencies from us
-using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, JSOSolvers
+using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, JSOSolvers, Krylov
 
 using LinearAlgebra: length
 using Random, Test, OnlineStats, Distributions, Noise
@@ -30,7 +30,7 @@ include("Sto_LM_guided_alg.jl")
 include("Sto_LM_cp.jl")
 include("Prob_LM_alg.jl")
 include("Prob_LM_sparse_alg.jl")
-#=@testset "Stochastic tests" begin
-    include("test/sto_tests.jl")
-end=#
-include("plots/plots.jl")
+@testset "Probabilistic LM tests" begin
+    include("test/runtests.jl")
+end
+#include("plots/plots.jl")

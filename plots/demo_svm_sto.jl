@@ -66,7 +66,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     for k in 1:n_runs
         reset!(sampled_nls_tr)
         sampled_nls_tr.epoch_counter = Int[1]
-        Prob_LM_out_k = Prob_LM(sampled_nls_tr, h, sampled_options, x0=sampled_nls_tr.meta.x0, subsolver_options = suboptions, version = version, smooth = smooth)
+        Prob_LM_out_k = Prob_LM(sampled_nls_tr, h, sampled_options, x0=sampled_nls_tr.meta.x0, subsolver_options = suboptions, version = version, smooth = false)
         push!(PLM_outs, Prob_LM_out_k)
         push!(plm_trains, residual(sampled_nls_tr, Prob_LM_out_k.solution))
     end
@@ -95,6 +95,45 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     @show acc(plmtrain), acc(plmtest)
     plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-$(suffix)")
 
+
+    if smooth
+        @info " using Prob_LM to solve with" h
+        # routine to select the output with the median accuracy on the training set
+        PLM_outs_smooth = []
+        plm_trains_smooth = []
+        for k in 1:n_runs
+            reset!(sampled_nls_tr)
+            sampled_nls_tr.epoch_counter = Int[1]
+            Prob_LM_out_k_smooth = Prob_LM(sampled_nls_tr, h, sampled_options, x0=sampled_nls_tr.meta.x0, subsolver_options = suboptions, version = version, smooth = true)
+            push!(PLM_outs_smooth, Prob_LM_out_k_smooth)
+            push!(plm_trains_smooth, residual(sampled_nls_tr, Prob_LM_out_k_smooth.solution))
+        end
+        if n_runs%2 == 1
+            med_ind = (n_runs ÷ 2) + 1
+        else
+            med_ind = (n_runs ÷ 2)
+        end
+        acc_vec = acc.(plm_trains)
+        sorted_acc_vec = sort(acc_vec)
+        ref_value = sorted_acc_vec[med_ind]
+        origin_ind = 0
+        for i in eachindex(PLM_outs_smooth)
+            if acc_vec[i] == ref_value
+                origin_ind = i
+            end
+        end
+
+        # Prob_LM_out is the run associated to the median accuracy on the training set
+        SProb_LM_out = PLM_outs_smooth[origin_ind]
+
+        splmtrain = residual(sampled_nls_tr, SProb_LM_out.solution)
+        splmtest = residual(sampled_nls_test, SProb_LM_out.solution)
+        nsplm = neval_residual(sampled_nls_tr)
+        ngsplm = (neval_jtprod_residual(sampled_nls_tr) + neval_jprod_residual(sampled_nls_tr))
+        @show acc(plmtrain), acc(plmtest)
+        plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-$(suffix)")
+    end
+
     #=c = PGFPlots.Axis(
         [
             PGFPlots.Plots.Linear(1:length(r2dec), r2dec, mark="none", style="black, dotted", legendentry="R2"),
@@ -116,15 +155,20 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
         #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
         [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])'
 
-    df = DataFrame(temp, [:f, :h, :fh, :x,:xt, :n, :g, :p, :s])
+    #=if smooth
+        temp = hact(temp,
+        [SProb_LM_out.solver_specific[:Fhist][end], SProb_LM_out.solver_specific[:Hhist][end], SProb_LM_out.objective, acc(splmtrain), acc(splmtest), nsplm, ngsplm, sum(SProb_LM_out.solver_specific[:SubsolverCounter]), SProb_LM_out.elapsed_time]
+        )
+    end=#
+
+    df = DataFrame(temp, [:f, :h, :fh, :x, :xt, :n, :g, :p, :s])
     T = []
     for i = 1:nrow(df)
       push!(T, Tuple(df[i, [:x, :xt]]))
     end
     select!(df, Not(:xt))
     df[!, :x] = T
-    name_prob = !smooth ? "PLM" : "smooth PLM"
-    df[!, :Alg] = ["R2", "LM", "LMTR", name_prob]
+    df[!, :Alg] = ["R2", "LM", "LMTR", "PLM"]
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
         :f => "%10.2f",
@@ -148,6 +192,36 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
         SolverBenchmark.pretty_latex_stats(io, df,
             col_formatters=fmt_override,
             hdr_override=hdr_override)
+    end
+
+    if smooth
+        temp = [SProb_LM_out.objective, acc(splmtrain), acc(splmtest), nsplm, ngsplm, SProb_LM_out.elapsed_time]
+        df = DataFrame(temp, [:fh, :x, :xt, :n, :g, :s])
+        T = []
+        for i = 1:nrow(df)
+          push!(T, Tuple(df[i, [:x, :xt]]))
+        end
+        select!(df, Not(:xt))
+        df[!, :x] = T
+        df[!, :Alg] = ["Smooth PLM"]
+        select!(df, :Alg, Not(:Alg), :)
+        fmt_override = Dict(:Alg => "%s",
+            :fh => "%10.2f",
+            :x => "%10.2f, %10.2f",
+            :n => "%i",
+            :g => "%i",
+            :s => "%02.2f")
+        hdr_override = Dict(:Alg => "Alg",
+            :fh => "\$ f+h \$",
+            :x => "(Train, Test)",
+            :n => "\\# \$f\$",
+            :g => "\\# \$ \\nabla f \$",
+            :s => "\$t \$ (s)")
+        open("svm-smooth-$suffix.tex", "w") do io
+            SolverBenchmark.pretty_latex_stats(io, df,
+                col_formatters=fmt_override,
+                hdr_override=hdr_override)
+        end
     end
 end
 
