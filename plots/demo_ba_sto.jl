@@ -14,6 +14,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
     temp_PLM_smooth = []
     temp_LM = []
     temp_LMTR = []
+
+    camera_settings = Dict{"problem-16-22106-pre" => attr(eye=attr(x=0.1, y=0.1, z=1.5))}
     for name in name_list
         nls = BundleAdjustmentModel(name)
         sampled_nls = BAmodel_sto(name; sample_rate = sample_rate)
@@ -158,7 +160,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
                 margin=attr(
                 r=10, l=10,
                 b=10, t=10)
-              ))
+              ), options=Dict(:showLink => true))
             display(plt3d)
 
             #nsplm = neval_residual(sampled_nls)
@@ -167,13 +169,13 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
 
             # Results Table #
             if name == name_list[1]
-                temp_PLM_smooth = [ Prob_LM_out.objective, 0.0, Prob_LM_out.objective, nsplm, ngsplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time]
+                temp_PLM_smooth = [Prob_LM_out.objective, 0.0, Prob_LM_out.objective, nsplm, ngsplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time]
             else
-                temp_PLM_smooth = hcat(temp_PLM, [Prob_LM_out.objective, 0.0, Prob_LM_out.objective, nsplm, ngsplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+                temp_PLM_smooth = hcat(temp_PLM_smooth, [Prob_LM_out.objective, 0.0, Prob_LM_out.objective, nsplm, ngsplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
             end
         end
 
-        @info " using Prob_LM to solve with" h
+        @info "using Prob_LM to solve with" h
 
         PLM_outs = []
         plm_obj = []
@@ -241,7 +243,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
                 margin=attr(
                 r=10, l=10,
                 b=10, t=10)
-              ))
+              ), options=Dict(:showLink => true))
         display(plt3d)
 
         #nplm = neval_residual(sampled_nls)

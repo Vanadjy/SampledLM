@@ -61,7 +61,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     @show acc(slmtrain), acc(slmtest)
     slmdec = plot_svm(Sto_LM_out, Sto_LM_out.solution, "sto-lm-$(suffix)")=#
 
-    @info " using Prob_LM to solve with" h
+    #=@info " using Prob_LM to solve with" h
     # routine to select the output with the median accuracy on the training set
     PLM_outs = []
     plm_trains = []
@@ -96,11 +96,11 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     nplm = length(sampled_nls_tr.epoch_counter)
     ngplm = (neval_jtprod_residual(sampled_nls_tr) + neval_jprod_residual(sampled_nls_tr))
     @show acc(plmtrain), acc(plmtest)
-    plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-$(suffix)")
+    plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-$(suffix)")=#
 
 
     if smooth
-        @info " using Prob_LM to solve with" h
+        @info " using smooth Prob_LM to solve"
         # routine to select the output with the median accuracy on the training set
         PLM_outs_smooth = []
         plm_trains_smooth = []
@@ -116,7 +116,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
         else
             med_ind = (n_runs ÷ 2)
         end
-        acc_vec = acc.(plm_trains)
+        acc_vec = acc.(plm_trains_smooth)
         sorted_acc_vec = sort(acc_vec)
         ref_value = sorted_acc_vec[med_ind]
         origin_ind = 0
@@ -134,8 +134,8 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
         #nsplm = neval_residual(sampled_nls_tr)
         nsplm = length(sampled_nls_tr.epoch_counter)
         ngsplm = (neval_jtprod_residual(sampled_nls_tr) + neval_jprod_residual(sampled_nls_tr))
-        @show acc(plmtrain), acc(plmtest)
-        plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-$(suffix)")
+        @show acc(splmtrain), acc(splmtest)
+        plmdec = plot_svm(SProb_LM_out, SProb_LM_out.solution, "smooth-prob-lm-$version-$(suffix)")
     end
 
     #=c = PGFPlots.Axis(
@@ -153,7 +153,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
     )
     PGFPlots.save("svm-objdec.tikz", c)=#
 
-    temp = hcat([R2_out.solver_specific[:Fhist][end], R2_out.solver_specific[:Hhist][end],R2_out.objective, acc(r2train), acc(r2test), nr2, ngr2, sum(R2_out.solver_specific[:SubsolverCounter]), R2_out.elapsed_time],
+    #=temp = hcat([R2_out.solver_specific[:Fhist][end], R2_out.solver_specific[:Hhist][end],R2_out.objective, acc(r2train), acc(r2test), nr2, ngr2, sum(R2_out.solver_specific[:SubsolverCounter]), R2_out.elapsed_time],
         [LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
         [LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
         #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
@@ -198,7 +198,7 @@ function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test,
         SolverBenchmark.pretty_latex_stats(io, df,
             col_formatters=fmt_override,
             hdr_override=hdr_override)
-    end
+    end=#
 end
 
 function demo_svm_sto(;sample_rate = .05, n_runs = 1, digits = (1, 7), MaxEpochs::Int = 100, MaxTime = 3600.0, version::Int = 4, precision = 1e-4, smooth::Bool = false)

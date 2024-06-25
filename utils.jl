@@ -33,7 +33,7 @@ function uniform_sample(length, sample_rate)
     sample
 end
 
-function basic_change_sample_rate(epoch_count::Int)
+#=function basic_change_sample_rate(epoch_count::Int)
     if (epoch_count >= 0) && (epoch_count <= 1)
         return .05
       elseif (epoch_count > 1) && (epoch_count <= 2)
@@ -43,13 +43,13 @@ function basic_change_sample_rate(epoch_count::Int)
       elseif (epoch_count > 4)
         return 1.0
       end
-end
+end=#
 
-function basic_warn_sample_update(epoch_count::Int)
+#=function basic_warn_sample_update(epoch_count::Int)
     if epoch_count ∈ [6, 11, 16]
         return true
     end
-end
+end=#
 
 function get_filename(name::AbstractString)
     if name[(end - 2):end] == "bz2"
@@ -66,3 +66,13 @@ function get_filename(name::AbstractString)
   
     return filename
   end
+
+function sp_sample(rows::AbstractVector{T}, sample::AbstractVector{<:Integer}) where {T}
+  sp_sample = Int[]
+  for i in eachindex(rows)
+    if rows[i] in sample
+      push!(sp_sample, i)
+    end
+  end
+  return sp_sample
+end

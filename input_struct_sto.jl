@@ -551,6 +551,26 @@ function NLPModels.jac_op_residual(nls::SampledNLSModel{T, S, R, J, Jt}, x::Abst
   return NLPModels.jac_op_residual!(nls, x, Jv, Jtv)
 end
 
+#function NLPModels.jac_structure_residual! end
+
+#sp_sample must be a sample adapted to the sparse structure of the Jacobian, obtained with sp_sample(rows::AbstractVector{T}, sample::AbstractVector{<:Integer}) where {T} function
+function NLPModels.jac_structure_residual(nls::SampledNLSModel{T, S, R, J, Jt}, sp_sample::AbstractVector{<:Integer}) where {T, S, R, J, Jt}
+  rows = Vector{Int}(undef, nls.nls_meta.nnzj)
+  cols = Vector{Int}(undef, nls.nls_meta.nnzj)
+  jac_structure_residual!(nls, rows, cols)
+  rows[sp_sample], cols[sp_sample]
+end
+
+#function NLPModels.jac_coord_residual! end
+
+function jac_coord_residual(nls::SampledNLSModel{T, S, R, J, Jt}, sp_sample::AbstractVector{<:Integer}) where {T, S, R, J, Jt}
+  @lencheck nls.meta.nvar x
+  vals = S(undef, nls.nls_meta.nnzj)
+  jac_coord_residual!(nls, x, vals)
+  vals[sp_sample]
+end
+## API for SampledBAModel ##
+
 function NLPModels.jac_structure_residual!(
   nls::SampledBAModel,
   rows::AbstractVector{<:Integer},

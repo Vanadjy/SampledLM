@@ -47,7 +47,7 @@ function Sto_LM(
   options::ROSolverOptions;
   x0::AbstractVector = nls.meta.x0,
   subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
-  subsolver = R2,
+  subsolver = RegularizedOptimization.R2,
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
   selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar)
 ) where {H}
@@ -67,8 +67,10 @@ function Sto_LM(
   η3 = options.η3
   θ = options.θ
   λ = options.λ
+  β = options.β
   νcp = options.νcp
   σmin = options.σmin
+  σmax = options.σmax
   μmin = options.μmin
   metric = options.metric
 
@@ -118,16 +120,16 @@ function Sto_LM(
   Hobj_hist = zeros(maxIter)
   Metric_hist = zeros(maxIter)
   exact_Metric_hist = zeros(maxIter)
-  Complex_hist = zeros(Int, maxIter)
-  Grad_hist = zeros(Int, maxIter)
-  Resid_hist = zeros(Int, maxIter)
+  Complex_hist = zeros(maxIter)
+  Grad_hist = zeros(maxIter)
+  Resid_hist = zeros(maxIter)
 
   #Historic of time
   TimeHist = []
 
   if verbose > 0
     #! format: off
-    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "count"
+    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg"
     #! format: on
   end
 
@@ -190,7 +192,7 @@ function Sto_LM(
     prox!(scp, ψ, ∇fk, νcp)
     ξcp = fk + hk - φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
 
-    #ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
+    #ξcp > 0 || error("Sto_LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
     
     if ξcp ≤ 0
       ξcp = - ξcp
@@ -208,14 +210,18 @@ function Sto_LM(
     if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
       # the current xk is approximately first-order stationary
       push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
-      #=if length(nls.opt_counter) == 200
+      if nls.sample_rate == 1.0
         optimal = true
-      end=#
+      else
+        if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+          optimal = true
+        end
+      end
     end
 
     subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, ξcp / 10))
     #update of σk
-    σk = min(μk * metric, σmax)
+    σk = min(max(μk * metric, σmin), σmax)
 
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
@@ -245,17 +251,17 @@ function Sto_LM(
 
     @debug "setting inner stopping tolerance to" subsolver_options.optTol
     s, iter, _ = with_logger(subsolver_logger) do
-      subsolver(φ, ∇φ!, ψ, subsolver_options, s)
+      subsolver(φ, ∇φ!, ψ, subsolver_options, scp)
     end
     # restore initial subsolver_options here so that it is not modified if there is an error
     subsolver_options.ν = ν_subsolver
     subsolver_options.ϵa = ϵa_subsolver
 
-    Complex_hist[k] = iter
+    Complex_hist[k] = iter * nls.sample_rate
     # additionnal condition on step s
-    if norm(s) > 2 / μk
-      println("cauchy step used")
-      s .= scp # Cauchy step allows a minimum decrease
+    if norm(s) > β * norm(scp)
+      @info "cauchy step used"
+      s .= scp
     end
 
     xkn .= xk .+ s
@@ -268,7 +274,7 @@ function Sto_LM(
     ξ = fk + hk - mks + max(1, abs(hk)) * 10 * eps()
 
     #=if (ξ ≤ 0 || isnan(ξ))
-      error("LM: failed to compute a step: ξ = $ξ")
+      error("Sto_LM: failed to compute a step: ξ = $ξ")
     end=#
 
     if ξ ≤ 0
@@ -277,6 +283,7 @@ function Sto_LM(
 
     Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
     #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
+    Δobj = (Δobj < 0 ? - Δobj : Δobj)
     ρk = Δobj / ξ
 
     μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
@@ -284,7 +291,7 @@ function Sto_LM(
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6d" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat length(nls.opt_counter)
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat
       #! format: off
     end
 
@@ -317,11 +324,16 @@ function Sto_LM(
 
     if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
       xk .= xkn
-      μk = max(μk / λ, μmin)
+
+      if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
+        μk = max(μk / λ, μmin)
+      elseif (nls.sample_rate == 1.0) && (η2 ≤ ρk < Inf)
+        μk = max(μk / λ, μmin)
+      end
 
       # update functions #FIXME : obligés de refaire appel à residual! après changement du sampling --> on fait des évaluations du résidus en plus qui pourraient peut-être être évitées...
-      residual!(nls, xk, Fk)
-      fk = dot(Fk, Fk) / 2
+      Fk .= Fkn
+      fk = fkn
       hk = hkn
 
       # update gradient & Hessian
