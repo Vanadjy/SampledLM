@@ -36,8 +36,8 @@ function MNIST_test_model_sto(sample_rate; digits::Tuple{Int, Int} = (1, 7), swi
     nlp, nls, labels = svm_model_sto(A, b; sample_rate = sample_rate)
 
     # change starting point depending on the slected digits to have 50% of misclassified data
-    nlp.meta.x0 .= digits[1] .* nlp.meta.x0
-    nls.meta.x0 .= digits[1] .* nls.meta.x0
+    nlp.meta.x0 .= nlp.meta.x0
+    nls.meta.x0 .= nls.meta.x0
 
     nlp,
     nls,
@@ -49,8 +49,8 @@ function MNIST_train_model_sto(sample_rate; digits::Tuple{Int, Int} = (1, 7), sw
     nlp, nls, labels = svm_model_sto(A, b; sample_rate = sample_rate)
 
     # change starting point depending on the slected digits to have 50% of misclassified data
-    nlp.meta.x0 .= digits[1] .* nlp.meta.x0
-    nls.meta.x0 .= digits[1] .* nls.meta.x0
+    nlp.meta.x0 .= nlp.meta.x0
+    nls.meta.x0 .= nls.meta.x0
 
     nlp,
     nls,
