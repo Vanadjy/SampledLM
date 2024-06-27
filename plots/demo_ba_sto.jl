@@ -15,7 +15,12 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
     temp_LM = []
     temp_LMTR = []
 
-    camera_settings = Dict{"problem-16-22106-pre" => attr(eye=attr(x=0.1, y=0.1, z=1.5))}
+    camera_settings = Dict(
+        "problem-16-22106-pre" => attr(center = attr(x = 0.2072211130691765, y = -0.10068338752805728, z = -0.048807925112545746), eye = attr(x = 0.16748022386771697, y = -0.3957357535725894, z = 0.5547492387721914), up = attr(x = 0, y = 0, z = 1)),
+        "problem-88-64298-pre" => attr(center = attr(x = -0.0021615530883736145, y = -0.030543602186994832, z = -0.028300153803163062), eye = attr(x = 0.6199398252619821, y = -0.4431229879708768, z = 0.3694699626625795), up = attr(x = -0.13087330856114893, y = 0.5787247595812629, z = 0.8049533090520641)),
+        "problem-52-64053-pre" => attr(center = attr(x = 0.2060347573851926, y = -0.22421275022169654, z = -0.05597905955228791), eye = attr(x = 0.2065816892336426, y = -0.3978440066064094, z = 0.6414786827075296), up = attr(x = 0, y = 0, z = 1)),
+        "problem-89-110973-pre" => attr(center = attr(x = -0.1674117968407976, y = -0.1429803633607516, z = 0.01606765828188431), eye = attr(x = 0.1427370965379074, y = -0.19278139431870447, z = 0.7245395074933954), up = attr(x = 0.02575289497167061, y = 0.9979331596959415, z = 0.05887441872199366))
+    )
     for name in name_list
         nls = BundleAdjustmentModel(name)
         sampled_nls = BAmodel_sto(name; sample_rate = sample_rate)
@@ -208,43 +213,56 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         x = [sol[3*i+1] for i in 0:(sampled_nls.npnts-1)]
         y = [sol[3*i+2] for i in 0:(sampled_nls.npnts-1)]
         z = [sol[3*i] for i in 1:sampled_nls.npnts]       
-        plt3d = PlotlyJS.Plot(PlotlyJS.scatter(
-                x=x,
-                y=y,
-                z=z,
-                mode="markers",
-                marker=attr(
-                    size=1,
-                    opacity=0.8
-                ),
-                type="scatter3d"
-            ), Layout(scene = attr(
-                xaxis = attr(
-                     backgroundcolor="rgb(255, 255, 255)",
-                     title_text = "",
-                     gridcolor="white",
-                     showbackground=false,
-                     zerolinecolor="white",
-                     tickfont=attr(size=0, color="white")),
-                yaxis = attr(
-                    backgroundcolor="rgb(255, 255, 255)",
-                    title_text = "",
-                    gridcolor="white",
-                    showbackground=false,
-                    zerolinecolor="white",
-                    tickfont=attr(size=0, color="white")),
-                zaxis = attr(
-                    backgroundcolor="rgb(255, 255, 255)",
-                    title_text = "",
-                    gridcolor="white",
-                    showbackground=false,
-                    zerolinecolor="white",
-                    tickfont=attr(size=0, color="white")),),
+        plt3d = PlotlyJS.scatter(
+            x=x,
+            y=y,
+            z=z,
+            mode="markers",
+            marker=attr(
+                size=1,
+                opacity=0.8
+            ),
+            type="scatter3d",
+            options=Dict(:showLink => true)
+        )
+        
+        layout = Layout(scene = attr(
+            xaxis = attr(
+                 backgroundcolor="rgb(255, 255, 255)",
+                 title_text = "",
+                 gridcolor="white",
+                 showbackground=false,
+                 zerolinecolor="white",
+                 tickfont=attr(size=0, color="white")),
+            yaxis = attr(
+                backgroundcolor="rgb(255, 255, 255)",
+                title_text = "",
+                gridcolor="white",
+                showbackground=false,
+                zerolinecolor="white",
+                tickfont=attr(size=0, color="white")),
+            zaxis = attr(
+                backgroundcolor="rgb(255, 255, 255)",
+                title_text = "",
+                gridcolor="white",
+                showbackground=false,
+                zerolinecolor="white",
+                tickfont=attr(size=0, color="white")),
                 margin=attr(
-                r=10, l=10,
-                b=10, t=10)
-              ), options=Dict(:showLink => true))
-        display(plt3d)
+                    r=10, l=10,
+                    b=10, t=10),
+                aspectmode = "manual",
+                showlegend = false
+                ),
+                scene_camera = camera_settings[name]
+          )
+        
+        #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showlink = true)
+        fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
+        display(fig_ba)
+
+        #println("Press enter")
+        #n = readline()
 
         #nplm = neval_residual(sampled_nls)
         nplm = length(sampled_nls.epoch_counter)

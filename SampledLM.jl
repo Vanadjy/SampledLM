@@ -8,13 +8,14 @@ using ProximalOperators, TSVD
 using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov #JSOSolvers, 
 
 using LinearAlgebra: length
-using Random, Test, OnlineStats, Distributions, Noise
+using Random, Test, Statistics, OnlineStats, Distributions, Noise
 using RegularizedProblems, RegularizedOptimization
 using NLSProblems, NLPModels
 using FastClosures
 using Plots, LaTeXStrings
 using MLDatasets
 using DataFrames, BundleAdjustmentModels
+using JSON
 
 seed = 1234
 

@@ -213,7 +213,7 @@ function Sto_LM(
       if nls.sample_rate == 1.0
         optimal = true
       else
-        if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+        if (length(nls.opt_counter) ≥ 5) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
           optimal = true
         end
       end

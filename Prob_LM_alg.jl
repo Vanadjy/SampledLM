@@ -177,7 +177,7 @@ function Prob_LM(
   scp = similar(s)
 
   optimal = false
-  tired = epoch_count ≥ maxEpoch-1 || elapsed_time > maxTime
+  tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
   #tired = elapsed_time > maxTime
 
   while !(optimal || tired)
@@ -232,7 +232,7 @@ function Prob_LM(
       if nls.sample_rate == 1.0
         optimal = true
       else
-        if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+        if (length(nls.opt_counter) ≥ 5) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
           optimal = true
         end
       end
@@ -463,7 +463,7 @@ function Prob_LM(
       change_sample_rate = false
     end
 
-    tired = epoch_count ≥ maxEpoch-1 || elapsed_time > maxTime
+    tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
   end
 
   if verbose > 0
@@ -473,7 +473,7 @@ function Prob_LM(
       #! format: off
       @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
       #! format: on
-      @info "SLM: terminating with √ξcp/νcp = $metric"
+      @info "PLM: terminating with √ξcp/νcp = $metric"
     end
   end
   status = if optimal
