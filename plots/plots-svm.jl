@@ -47,7 +47,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         h = NormL0(λ)
                     elseif selected_h == "l1"
                         h = NormL1(λ)
-                    elseif selected_h == "l1/2"
+                    elseif selected_h == "lhalf"
                         h = RootNormLhalf(λ)
                     end
 
@@ -143,9 +143,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         elseif selected_h == "l1"
                             h = NormL1(λ)
                             h_name = "l1-norm"
-                        elseif selected_h == "l1/2"
+                        elseif selected_h == "lhalf"
                             h = RootNormLhalf(λ)
-                            h_name = "l1/2-norm"
+                            h_name = "lhalf-norm"
                         end
                         for k in 1:n_exec
                             # executes n_exec times Sto_LM with the same inputs
@@ -334,9 +334,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         elseif selected_h == "l1"
                             h = NormL1(λ)
                             h_name = "l1-norm"
-                        elseif selected_h == "l1/2"
+                        elseif selected_h == "lhalf"
                             h = RootNormLhalf(λ)
-                            h_name = "l1/2-norm"
+                            h_name = "lhalf-norm"
                         end
                         for k in 1:n_exec
                             # executes n_exec times Sto_LM with the same inputs
@@ -525,10 +525,6 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                 plt_obj = PlotlyJS.plot(data_obj, layout_obj)
                 plt_metr = PlotlyJS.plot(data_metr, layout_metr)
                 plt_mse = PlotlyJS.plot(data_mse, layout_mse)
-
-                if selected_h == "l1/2"
-                    selected_h = "lhalf"
-                end
 
                 if selected_prob == "ijcnn1"
                     PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth"; format = "png")

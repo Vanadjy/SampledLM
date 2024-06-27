@@ -20,14 +20,14 @@ if selected_probs == ["ijcnn1"]
     selected_digits = [(1, 7)] # let only one pair of random digits
     versions = [1, 2, 4]
     version = versions[end]
-    selected_hs = ["l0", "l1", "l1/2"]
+    selected_hs = ["l0", "l1", "lhalf"]
 elseif selected_probs == ["mnist"]
     sample_rate0 = .1
     sample_rates = []
     selected_digits = [(1, 7)]
     versions = [4]
     version = versions[end]
-    selected_hs = ["l1/2"]
+    selected_hs = ["lhalf"]
 end
 
 abscissas = ["epoch", "CPU time"]
@@ -39,7 +39,7 @@ param = plot_parameter[3]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 200
+    MaxEpochs = 100
     MaxTime = 3600.0
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
@@ -49,7 +49,7 @@ end
 ϵ = 1e-16
 
 #plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
-#plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
+plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
 
 # -- Plots for MNIST grey map -- #
 
@@ -90,4 +90,4 @@ end
 
 #plot_Sto_LM_BA(sample_rates, versions, name_list, selected_hs; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
 Random.seed!(seed)
-demo_ba_sto(name_list; sample_rate = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-h1", compare = false, smooth = false, Jac_lop = true)
+#demo_ba_sto(name_list; sample_rate = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-h1", compare = false, smooth = false, Jac_lop = true)

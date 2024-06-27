@@ -333,6 +333,9 @@ function Prob_LM(
 
       exact_Fobj_hist[k] = exact_fk
       exact_Metric_hist[k] = exact_metric
+    elseif nls.sample_rate == 1.0
+      exact_Fobj_hist[k] = fk
+      exact_Metric_hist[k] = metric
     end
     # -- -- #
 

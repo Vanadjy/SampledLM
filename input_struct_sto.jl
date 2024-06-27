@@ -475,6 +475,8 @@ function NLPModels.residual(nls::SampledNLSModel{T, S, R, J, Jt}, x::AbstractVec
   residual!(nls, x, Fx)
 end
 
+include("api-sampled-Jacobian.jl")
+
 ## API for SampledBAModel ##
 
 function NLPModels.jac_structure_residual!(
