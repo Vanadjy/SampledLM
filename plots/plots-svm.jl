@@ -612,7 +612,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                                 :g => "\\# \$ \\nabla f \$",
                                 :p => "\\# inner",
                                 :s => "\$t \$ (s)")
-                            open("svm-lhalf-$digits.tex", "w") do io
+                            open("svm-lhalf-$version-$digits.tex", "w") do io
                                 SolverBenchmark.pretty_latex_stats(io, df,
                                     col_formatters=fmt_override,
                                     hdr_override=hdr_override)
@@ -661,9 +661,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                     PlotlyJS.savefig(plt_metr, "$selected_prob-metric-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.png"; format = "png")
                     PlotlyJS.savefig(plt_mse, "$selected_prob-MSE-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.png"; format = "png")
                 elseif selected_prob == "mnist"
-                    PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.png"; format = "png")
-                    PlotlyJS.savefig(plt_metr, "$selected_prob-metric-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.png"; format = "png")
-                    PlotlyJS.savefig(plt_mse, "$selected_prob-MSE-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.png"; format = "png")
+                    PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).png"; format = "png")
+                    PlotlyJS.savefig(plt_metr, "$selected_prob-metric-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).png"; format = "png")
+                    PlotlyJS.savefig(plt_mse, "$selected_prob-MSE-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).png"; format = "png")
                 end
             end
         end
