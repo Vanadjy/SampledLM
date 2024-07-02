@@ -11,16 +11,16 @@ Random.seed!(seed)
 
 # ---------------- Hyperbolic SVM Models ---------------- #
 
-n_exec = 10
+n_exec = 2
 selected_probs = ["mnist"]
 
 if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
-    sample_rates = [1.0, .2, .1, .05]
+    sample_rates = [.05]
     selected_digits = [(1, 7)] # let only one pair of random digits
-    versions = [1, 2, 4]
+    versions = [2]
     version = versions[end]
-    selected_hs = ["l0", "l1", "lhalf"]
+    selected_hs = ["l1"]
 elseif selected_probs == ["mnist"]
     sample_rate0 = .1
     sample_rates = []
@@ -39,7 +39,7 @@ param = plot_parameter[3]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 1000
+    MaxEpochs = 30
     MaxTime = 3600.0
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
@@ -49,7 +49,7 @@ end
 ϵ = 1e-4
 
 #plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
-plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = false, sample_rate0 = sample_rate0, param = param, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
+plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
 
 # -- Plots for MNIST grey map -- #
 
@@ -62,7 +62,7 @@ end=#
 
 Random.seed!(seed)
 
-n_exec = 1
+n_exec = 2
 versions = [1, 2, 4]
 version = versions[end]
 
@@ -81,8 +81,8 @@ param = plot_parameter[1]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 10
-    MaxTime = 3600.0
+    MaxEpochs = 10000
+    MaxTime = 2e4
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
     MaxTime = 10.0

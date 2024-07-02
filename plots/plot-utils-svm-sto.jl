@@ -1,8 +1,8 @@
 import PGFPlots
 
 function plot_svm(outstruct, sol, name="sto-lm")
-    Comp_pg = outstruct.solver_specific[:SubsolverCounter]
-    objdec = outstruct.solver_specific[:Fhist] + outstruct.solver_specific[:Hhist]
+    #Comp_pg = outstruct.solver_specific[:SubsolverCounter]
+    #objdec = outstruct.solver_specific[:Fhist] + outstruct.solver_specific[:Hhist]
     x = outstruct.solution
     a = PGFPlots.Axis(
         [
@@ -31,7 +31,7 @@ function plot_svm(outstruct, sol, name="sto-lm")
         ymode="log",
     )
     PGFPlots.save("svm-objdec-$(name).tikz", c)=#
-    return objdec
+    return x
 end
 
 function plot_svm_sto(sol, name="sto-lm")

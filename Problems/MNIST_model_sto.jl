@@ -35,10 +35,6 @@ function MNIST_test_model_sto(sample_rate; digits::Tuple{Int, Int} = (1, 7), swi
     A, b = tan_data_test(digits, switch)
     nlp, nls, labels = svm_model_sto(A, b; sample_rate = sample_rate)
 
-    # change starting point depending on the slected digits to have 50% of misclassified data
-    nlp.meta.x0 .= nlp.meta.x0
-    nls.meta.x0 .= nls.meta.x0
-
     nlp,
     nls,
     labels
@@ -48,11 +44,17 @@ function MNIST_train_model_sto(sample_rate; digits::Tuple{Int, Int} = (1, 7), sw
     A, b = tan_data_train(digits, switch)
     nlp, nls, labels = svm_model_sto(A, b; sample_rate = sample_rate)
 
-    # change starting point depending on the slected digits to have 50% of misclassified data
-    nlp.meta.x0 .= nlp.meta.x0
-    nls.meta.x0 .= nls.meta.x0
-
     nlp,
     nls,
     labels
+end
+
+function NLPModels.jac_residual(nls::SampledNLSModel)
+    increment!(nls, :neval_jac_residual)
+    A, b = MLDatasets.MNIST(split = :train)[:]
+    A, b = generate_data(A, b)
+    Ahat = Diagonal(b) * A'
+    B = tanh.(Ahat * nls.meta.x0)
+    rows, cols, vals = findnz(convert(SparseMatrixCSC, Diagonal(B) * Ahat))
+    return rows, cols, vals
 end

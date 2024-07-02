@@ -10,7 +10,7 @@ include("plot-utils-svm-sto.jl")
 
 Random.seed!(1234)
 
-function demo_solver(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test, sampled_nls_test, sol_test, h, χ, suffix="l0-linf"; n_runs::Int = 1, MaxEpochs::Int = 100, MaxTime = 3600.0, version::Int = 4, precision = 1e-4, digits = (1, 7), smooth::Bool = false)
+function demo_solver_sto(nlp_tr, nls_tr, sampled_nls_tr, sol_tr, nlp_test, nls_test, sampled_nls_test, sol_test, h, χ, suffix="l0-linf"; n_runs::Int = 1, MaxEpochs::Int = 100, MaxTime = 3600.0, version::Int = 4, precision = 1e-4, digits = (1, 7), smooth::Bool = false)
     options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
     suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 100)
 
@@ -225,5 +225,5 @@ function demo_svm_sto(;sample_rate = .05, n_runs = 1, digits = (1, 7), MaxEpochs
     # h = NormL0(λ)
     χ = NormLinf(1.0)
 
-    demo_solver(nlp_train, nls_train, nls_train_sto, sol_train, nlp_test, nls_test, nls_test_sto, sol_test, h, χ, "lhalf-linf-$digits"; n_runs = n_runs, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, precision = precision, digits = digits, smooth = smooth)
+    demo_solver_sto(nlp_train, nls_train, nls_train_sto, sol_train, nlp_test, nls_test, nls_test_sto, sol_test, h, χ, "lhalf-linf-$digits"; n_runs = n_runs, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, precision = precision, digits = digits, smooth = smooth)
 end

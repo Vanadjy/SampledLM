@@ -35,4 +35,5 @@ include("Prob_LM_sparse_alg.jl")
 #=@testset "Probabilistic LM tests" begin
     include("test/runtests.jl")
 end=#
+#include(raw"C:\Users\valen\Downloads\demo_svm.jl")
 include("plots/plots.jl")

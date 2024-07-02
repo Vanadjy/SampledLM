@@ -203,7 +203,7 @@ function Prob_LM(
     k = k + 1
     elapsed_time = time() - start_time
     Fobj_hist[k] = fk
-    !smooth ? (Hobj_hist[k]) = hk : (Hobj_hist[k] = 0.0)
+    Hobj_hist[k] = hk
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
     Resid_hist[k] = nls.counters.neval_residual
     Sample_hist[k] = nls.sample_rate
@@ -384,6 +384,9 @@ function Prob_LM(
       end
 
       exact_Fobj_hist[k] = exact_fk
+    elseif nls.sample_rate == 1.0
+      exact_Fobj_hist[k] = fk
+      exact_Metric_hist[k] = metric
     end
     # -- -- #
     
