@@ -158,7 +158,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                 for sample_rate in sample_rates
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -272,12 +272,12 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             med_metr_sto[l] = mean(filter(!isnan, filter(!iszero, Metr_Hists_epochs_sto[l, :])))
                             std_metr_sto[l] = std(filter(!isnan, filter(!iszero, Metr_Hists_epochs_sto[l, :])))
                         end
-                        std_metr_sto *= Confidence[conf]
+                        #std_metr_sto *= Confidence[conf]
                         replace!(std_metr_sto, NaN=>0.0)
                         
                         # compute mean of MSE #
                         for l in eachindex(med_mse_sto)
-                            med_mse_sto[l] = log.(mean(filter(!isnan, filter(!iszero, MSE_Hists_epochs_sto[l, :]))))
+                            med_mse_sto[l] = mean(filter(!isnan, filter(!iszero, MSE_Hists_epochs_sto[l, :])))
                             std_mse_sto[l] = std(filter(!isnan, filter(!iszero, MSE_Hists_epochs_sto[l, :])))
                         end
                         std_mse_sto *= Confidence[conf]
@@ -304,8 +304,15 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             color = color_scheme[sample_rate], width = 1
                             )
                         )
+                        reverse = reverse!(med_metr_sto - std_metr_sto)
+                        for l in eachindex(reverse)
+                            if reverse[l] < 0
+                                reverse[l] = med_metr_sto[l]
+                            end
+                        end
 
-                        data_std_metr_slm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_sto), length(med_metr_sto):-1:1), y = vcat(med_metr_sto + std_metr_sto, reverse!(med_metr_sto - std_metr_sto)), mode="lines", name = "SLM - $(sample_rate*100)%", fill="tozerox",
+
+                        data_std_metr_slm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_sto), length(med_metr_sto):-1:1), y = vcat(med_metr_sto + std_metr_sto, reverse), mode="lines", name = "SLM - $(sample_rate*100)%", fill="tozerox",
                             fillcolor = color_scheme_std[sample_rate],
                             line_color = "transparent",
                             showlegend = false
@@ -348,7 +355,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                 for version in versions
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate0)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -379,6 +386,181 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             h = RootNormLhalf(λ)
                             h_name = "lhalf-norm"
                         end
+
+                        @info " using Prob_LM to solve with" h
+                        # routine to select the output with the median accuracy on the training set
+                        PLM_outs = []
+                        plm_trains = []
+
+                        for k in 1:n_exec
+                            # executes n_exec times Sto_LM with the same inputs
+                            x0 = ones(prob.meta.nvar)
+                            #p = randperm(prob.meta.nvar)[1:nz]
+                            #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
+                            reset!(prob)
+                            prob.epoch_counter = Int[1]
+                            PLM_out = Prob_LM(prob, h, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version)
+                            push!(PLM_outs, PLM_out)
+                            push!(plm_trains, residual(prob, PLM_out.solution))
+                            #PLM_out = SPLM(prob, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version)
+
+                            #=if param == "objective"
+                                if abscissa == "epoch"
+                                    @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactFhist][prob.epoch_counter]
+                                    @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
+                                elseif abscissa == "CPU time"
+                                    push!(Obj_Hists_time_prob, PLM_out.solver_specific[:ExactFhist] + PLM_out.solver_specific[:Hhist])
+                                end
+                            elseif param == "MSE"
+                                if abscissa == "epoch"
+                                    @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:Fhist][prob.epoch_counter]
+                                    @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
+                                    @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] ./= ceil.(2 * prob.nls_meta.nequ * PLM_out.solver_specific[:SampleRateHist][prob.epoch_counter])
+                                elseif abscissa == "CPU time"
+                                    Obj_Hists_time_prob_vec = PLM_out.solver_specific[:Fhist] + PLM_out.solver_specific[:Hhist]
+                                    Obj_Hists_time_prob_vec ./= ceil.(2 * prob.nls_meta.nequ * PLM_out.solver_specific[:SampleRateHist])
+                                    push!(Obj_Hists_time_prob, Obj_Hists_time_prob_vec)
+                                end
+                            elseif param == "accuracy"
+                                if abscissa == "epoch"
+                                    Obj_Hists_epochs[:, k] = acc.(residual.(prob, PLM_out.solver_specific[:Xhist][prob.epoch_counter]))
+                                elseif abscissa == "CPU time"
+                                    Obj_Hists_time_vec_prob = []
+                                    for i in 1:length(PLM_out.solver_specific[:Xhist])
+                                        push!(Obj_Hists_time_vec_prob, acc(residual(prob, PLM_out.solver_specific[:Xhist][i])))
+                                    end
+                                    push!(Obj_Hists_time_prob, Obj_Hists_time_vec_prob)
+                                end
+                            elseif param == "metric"
+                                @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactMetricHist][prob.epoch_counter]
+                            end=#
+
+                            # get objective value for each run #
+                            @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactFhist][prob.epoch_counter]
+                            @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
+
+                            # get MSE for each run #
+                            @views MSE_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:Fhist][prob.epoch_counter]
+                            @views MSE_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
+                            @views MSE_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] ./= ceil.(2 * prob.nls_meta.nequ * PLM_out.solver_specific[:SampleRateHist][prob.epoch_counter])
+
+                            # get metric for each run #
+                            @views Metr_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactMetricHist][prob.epoch_counter]
+                        end
+
+                        if n_exec%2 == 1
+                            med_ind = (n_exec ÷ 2) + 1
+                        else
+                            med_ind = (n_exec ÷ 2)
+                        end
+                        acc_vec = acc.(plm_trains)
+                        sorted_acc_vec = sort(acc_vec)
+                        ref_value = sorted_acc_vec[med_ind]
+                        origin_ind = 0
+                        for i in eachindex(PLM_outs)
+                            if acc_vec[i] == ref_value
+                                origin_ind = i
+                            end
+                        end
+
+                        Prob_LM_out = PLM_outs[origin_ind]
+                        plmtrain = residual(prob, Prob_LM_out.solution)
+                        if prob_name == "mnist-train-ls"
+                            plmtest = residual(mnist_nls_test_sto, Prob_LM_out.solution)
+                            @show acc(plmtrain), acc(plmtest)
+                        end
+                        #nplm = neval_residual(sampled_nls_tr)
+                        nplm = length(prob.epoch_counter)
+                        ngplm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
+                        if prob_name == "mnist-train-ls"
+                            plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-lhalf-$digits")
+                        end
+
+                        med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
+                        std_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
+
+                        med_metr_prob = zeros(axes(Metr_Hists_epochs_prob, 1))
+                        std_metr_prob = zeros(axes(Metr_Hists_epochs_prob, 1))
+
+                        med_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
+                        std_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
+
+                        # compute mean of objective value #
+                        for l in eachindex(med_obj_prob)
+                            med_obj_prob[l] = mean(filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :])))
+                            std_obj_prob[l] = std(filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :])))
+                        end
+                        std_obj_prob *= Confidence[conf]
+                        replace!(std_obj_prob, NaN=>0.0)
+
+                        # compute mean of metric #
+                        for l in eachindex(med_metr_prob)
+                            med_metr_prob[l] = mean(filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :])))
+                            std_metr_prob[l] = std(filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :])))
+                        end
+                        #println(std_metr_prob)
+                        std_metr_prob *= Confidence[conf]
+                        replace!(std_metr_prob, NaN=>0.0)
+                        
+                        # compute mean of MSE #
+                        for l in eachindex(med_mse_prob)
+                            med_mse_prob[l] = mean(filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :])))
+                            std_mse_prob[l] = std(filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :])))
+                        end
+                        std_mse_prob *= Confidence[conf]
+                        replace!(std_mse_prob, NaN=>0.0)
+
+                        # --------------- OBJECTIVE DATA -------------------- #
+
+                        data_obj_plm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
+                            color = prob_versions_colors[version], width = 1
+                            )
+                        )
+
+                        data_std_obj_plm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
+                            fillcolor = prob_versions_colors_std[version],
+                            line_color = "transparent",
+                            showlegend = false
+                        )
+
+                        push!(data_obj, data_obj_plm, data_std_obj_plm)
+
+                        # --------------- METRIC DATA -------------------- #
+
+                        data_metr_plm = PlotlyJS.scatter(; x = 1:length(med_metr_prob), y = med_metr_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
+                            color = prob_versions_colors[version], width = 1
+                            )
+                        )
+
+                        reverse = reverse!(med_metr_prob - std_metr_prob)
+                        for l in eachindex(reverse)
+                            if reverse[l] < 0
+                                reverse[l] = med_metr_prob[l]
+                            end
+                        end
+
+                        data_std_metr_plm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
+                            fillcolor = prob_versions_colors_std[version],
+                            line_color = "transparent",
+                            showlegend = false
+                        )
+
+                        push!(data_metr, data_metr_plm, data_std_metr_plm)
+                        
+                        # --------------- MSE DATA -------------------- #
+
+                        data_mse_plm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
+                            color = prob_versions_colors[version], width = 1
+                            )
+                        )
+
+                        data_std_mse_plm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
+                            fillcolor = prob_versions_colors_std[version],
+                            line_color = "transparent",
+                            showlegend = false
+                        )
+
+                        push!(data_mse, data_mse_plm, data_std_mse_plm)
 
                         if smooth
                             @info " using SPLM to solve"
@@ -523,7 +705,14 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                                 )
                             )
 
-                            data_std_metr_splm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse!(med_metr_prob - std_metr_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
+                            reverse = reverse!(med_metr_prob - std_metr_prob)
+                            for l in eachindex(reverse)
+                                if reverse[l] < 0
+                                    reverse[l] = med_metr_prob[l]
+                                end
+                            end
+
+                            data_std_metr_splm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
                                 fillcolor = smooth_versions_colors_std[version],
                                 line_color = "transparent",
                                 showlegend = false
@@ -546,173 +735,6 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
 
                             push!(data_mse, data_mse_splm, data_std_mse_splm)
                         end
-
-                        @info " using Prob_LM to solve with" h
-                        # routine to select the output with the median accuracy on the training set
-                        PLM_outs = []
-                        plm_trains = []
-
-                        for k in 1:n_exec
-                            # executes n_exec times Sto_LM with the same inputs
-                            x0 = ones(prob.meta.nvar)
-                            #p = randperm(prob.meta.nvar)[1:nz]
-                            #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
-                            reset!(prob)
-                            prob.epoch_counter = Int[1]
-                            PLM_out = Prob_LM(prob, h, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version)
-                            push!(PLM_outs, PLM_out)
-                            push!(plm_trains, residual(prob, PLM_out.solution))
-                            #PLM_out = SPLM(prob, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version)
-
-                            #=if param == "objective"
-                                if abscissa == "epoch"
-                                    @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactFhist][prob.epoch_counter]
-                                    @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
-                                elseif abscissa == "CPU time"
-                                    push!(Obj_Hists_time_prob, PLM_out.solver_specific[:ExactFhist] + PLM_out.solver_specific[:Hhist])
-                                end
-                            elseif param == "MSE"
-                                if abscissa == "epoch"
-                                    @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:Fhist][prob.epoch_counter]
-                                    @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
-                                    @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] ./= ceil.(2 * prob.nls_meta.nequ * PLM_out.solver_specific[:SampleRateHist][prob.epoch_counter])
-                                elseif abscissa == "CPU time"
-                                    Obj_Hists_time_prob_vec = PLM_out.solver_specific[:Fhist] + PLM_out.solver_specific[:Hhist]
-                                    Obj_Hists_time_prob_vec ./= ceil.(2 * prob.nls_meta.nequ * PLM_out.solver_specific[:SampleRateHist])
-                                    push!(Obj_Hists_time_prob, Obj_Hists_time_prob_vec)
-                                end
-                            elseif param == "accuracy"
-                                if abscissa == "epoch"
-                                    Obj_Hists_epochs[:, k] = acc.(residual.(prob, PLM_out.solver_specific[:Xhist][prob.epoch_counter]))
-                                elseif abscissa == "CPU time"
-                                    Obj_Hists_time_vec_prob = []
-                                    for i in 1:length(PLM_out.solver_specific[:Xhist])
-                                        push!(Obj_Hists_time_vec_prob, acc(residual(prob, PLM_out.solver_specific[:Xhist][i])))
-                                    end
-                                    push!(Obj_Hists_time_prob, Obj_Hists_time_vec_prob)
-                                end
-                            elseif param == "metric"
-                                @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactMetricHist][prob.epoch_counter]
-                            end=#
-
-                            # get objective value for each run #
-                            @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactFhist][prob.epoch_counter]
-                            @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
-
-                            # get MSE for each run #
-                            @views MSE_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:Fhist][prob.epoch_counter]
-                            @views MSE_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
-                            @views MSE_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] ./= ceil.(2 * prob.nls_meta.nequ * PLM_out.solver_specific[:SampleRateHist][prob.epoch_counter])
-
-                            # get metric for each run #
-                            @views Metr_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactMetricHist][prob.epoch_counter]
-                        end
-
-                        if n_exec%2 == 1
-                            med_ind = (n_exec ÷ 2) + 1
-                        else
-                            med_ind = (n_exec ÷ 2)
-                        end
-                        acc_vec = acc.(plm_trains)
-                        sorted_acc_vec = sort(acc_vec)
-                        ref_value = sorted_acc_vec[med_ind]
-                        origin_ind = 0
-                        for i in eachindex(PLM_outs)
-                            if acc_vec[i] == ref_value
-                                origin_ind = i
-                            end
-                        end
-
-                        Prob_LM_out = PLM_outs[origin_ind]
-                        plmtrain = residual(prob, Prob_LM_out.solution)
-                        if prob_name == "mnist-train-ls"
-                            plmtest = residual(mnist_nls_test_sto, Prob_LM_out.solution)
-                            @show acc(plmtrain), acc(plmtest)
-                        end
-                        #nplm = neval_residual(sampled_nls_tr)
-                        nplm = length(prob.epoch_counter)
-                        ngplm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
-                        if prob_name == "mnist-train-ls"
-                            plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-lhalf-$digits")
-                        end
-
-                        med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
-                        std_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
-
-                        med_metr_prob = zeros(axes(Metr_Hists_epochs_prob, 1))
-                        std_metr_prob = zeros(axes(Metr_Hists_epochs_prob, 1))
-
-                        med_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
-                        std_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
-
-                        # compute mean of objective value #
-                        for l in eachindex(med_obj_prob)
-                            med_obj_prob[l] = mean(filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :])))
-                            std_obj_prob[l] = std(filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :])))
-                        end
-                        std_obj_prob *= Confidence[conf]
-                        replace!(std_obj_prob, NaN=>0.0)
-
-                        # compute mean of metric #
-                        for l in eachindex(med_metr_prob)
-                            med_metr_prob[l] = mean(filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :])))
-                            std_metr_prob[l] = std(filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :])))
-                        end
-                        std_metr_prob *= Confidence[conf]
-                        replace!(std_metr_prob, NaN=>0.0)
-                        
-                        # compute mean of MSE #
-                        for l in eachindex(med_mse_prob)
-                            med_mse_prob[l] = mean(filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :])))
-                            std_mse_prob[l] = std(filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :])))
-                        end
-                        std_mse_prob *= Confidence[conf]
-                        replace!(std_mse_prob, NaN=>0.0)
-
-                        # --------------- OBJECTIVE DATA -------------------- #
-
-                        data_obj_plm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-                            color = prob_versions_colors[version], width = 1
-                            )
-                        )
-
-                        data_std_obj_plm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-                            fillcolor = prob_versions_colors_std[version],
-                            line_color = "transparent",
-                            showlegend = false
-                        )
-
-                        push!(data_obj, data_obj_plm, data_std_obj_plm)
-
-                        # --------------- METRIC DATA -------------------- #
-
-                        data_metr_plm = PlotlyJS.scatter(; x = 1:length(med_metr_prob), y = med_metr_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-                            color = prob_versions_colors[version], width = 1
-                            )
-                        )
-
-                        data_std_metr_plm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse!(med_metr_prob - std_metr_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-                            fillcolor = prob_versions_colors_std[version],
-                            line_color = "transparent",
-                            showlegend = false
-                        )
-
-                        push!(data_metr, data_metr_plm, data_std_metr_plm)
-                        
-                        # --------------- MSE DATA -------------------- #
-
-                        data_mse_plm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-                            color = prob_versions_colors[version], width = 1
-                            )
-                        )
-
-                        data_std_mse_plm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-                            fillcolor = prob_versions_colors_std[version],
-                            line_color = "transparent",
-                            showlegend = false
-                        )
-
-                        push!(data_mse, data_mse_plm, data_std_mse_plm)
                         
                         #=med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
                         std_obj_prob = similar(med_obj_prob)
