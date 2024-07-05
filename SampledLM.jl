@@ -31,6 +31,7 @@ include("Sto_LM_guided_alg.jl")
 include("Sto_LM_cp.jl")
 include("Prob_LM_alg.jl")
 include("smooth_PLM.jl")
+include("sp_smooth_PLM.jl")
 include("Prob_LM_sparse_alg.jl")
 #=@testset "Probabilistic LM tests" begin
     include("test/runtests.jl")

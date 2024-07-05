@@ -118,7 +118,6 @@ function SPLM(
     vals = similar(xk, meta_nls.nnzj)
     jac_structure_residual!(nls, rows, cols)
     jac_coord_residual!(nls, nls.meta.x0, vals)
-    rows, cols, vals = jac_residual(nls)
     jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
   
     if Jac_lop
@@ -152,14 +151,15 @@ function SPLM(
         push!(TimeHist, elapsed_time)
       end
       
+      metric = norm(∇fk)
       
-      if (norm(∇fk) < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
+      if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
         # the current xk is approximately first-order stationary
         push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
         if nls.sample_rate == 1.0
           optimal = true
         else
-          if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+          if (length(nls.opt_counter) ≥ 5) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
             optimal = true
           end
         end
@@ -182,16 +182,9 @@ function SPLM(
       if Jac_lop
         # LSMR strategy for LinearOperators #
         s, stats = lsmr(Jk, -Fk; λ = σk)#, atol = subsolver_options.ϵa, rtol = ϵr)
-  
-        # QRMumps use for direct sresolution #
-        #=Jk_mat = convert(SparseMatrixCSC, Matrix(Jk))
-        spmat = qrm_spmat_init(Jk_mat)
-        spfct = qrm_analyse(spmat)
-        qrm_factorize!(spmat, spfct)
-        z = qrm_apply(spfct, -Fk, transp = 't') #TODO include complex compatibility
-        s = qrm_solve(spfct, z, transp = 'n')=#
       else
-        spmat = qrm_spmat_init(length(nls.sample), meta_nls.nvar, rows[sparse_sample], cols[sparse_sample], vals[sparse_sample])
+        qrm_init()
+        spmat = qrm_spmat_init(meta_nls.nequ, meta_nls.nvar, rows, cols, vals)
         spfct = qrm_analyse(spmat)
         qrm_factorize!(spmat, spfct)
         z = qrm_apply(spfct, -Fk, transp = 't') #TODO include complex compatibility
@@ -219,10 +212,9 @@ function SPLM(
         #! format: off
       end
       
-      #=
       #-- to compute exact quantities --#
-      if nls.sample_rate < 1.0
-        nls.sample = 1:m
+      #=if nls.sample_rate < 1.0
+        nls.sample = 1:nls.nobs
         residual!(nls, xk, exact_Fk)
         exact_fk = dot(exact_Fk, exact_Fk) / 2
   
@@ -236,9 +228,11 @@ function SPLM(
   
         exact_Fobj_hist[k] = exact_fk
         exact_Metric_hist[k] = exact_metric
-      end
+      elseif nls.sample_rate == 1.0
+        exact_Fobj_hist[k] = fk
+        exact_Metric_hist[k] = metric
+      end=#
       # -- -- #
-      =#
   
       #updating the indexes of the sampling
       epoch_progress += nls.sample_rate
@@ -311,10 +305,10 @@ function SPLM(
       end
   
       #changes sample with new sample rate
-      nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
+      nls.sample = sort(randperm(nls.nrows)[1:Int(ceil(nls.sample_rate * nls.nrows))])
       sparse_sample = sp_sample(rows, nls.sample)
       if nls.sample_rate == 1.0
-        nls.sample == 1:nls.nls_meta.nequ || error("Sample Error : Sample should be full for 100% sampling")
+        nls.sample == 1:nls.nrows || error("Sample Error : Sample should be full for 100% sampling")
       end
   
       if change_sample_rate
@@ -325,9 +319,8 @@ function SPLM(
         fk = dot(Fk, Fk) / 2
   
         #Jk = jac_op_residual(nls, xk)
-        #jtprod_residual!(nls, xk, Fk, ∇fk)
-        #jac_coord_residual!(nls, nls.meta.x0, vals)
-        rows, cols, vals = jac_residual(nls)
+        jtprod_residual!(nls, xk, Fk, ∇fk)
+        jac_coord_residual!(nls, nls.meta.x0, vals)
         μmax = norm(vals)
         νcpInv = (1 + θ) * (μmax^2 + μmin)
   
@@ -352,15 +345,14 @@ function SPLM(
   
         # update gradient & Hessian
         # Jk = jac_op_residual(nls, xk)
-        #jac_coord_residual!(nls, xk, vals)
-        rows, cols, vals = jac_residual(nls)
+        jac_coord_residual!(nls, xk, vals)
         jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
   
         μmax = norm(vals)
         #μmax = opnorm(Jk)
         νcpInv = (1 + θ) * (μmax^2 + μmin)
   
-        Complex_hist[k] += nls.sample_rate
+        #Complex_hist[k] += nls.sample_rate
   
       else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
         μk = λ * μk
@@ -402,7 +394,7 @@ function SPLM(
     set_time!(stats, elapsed_time)
     set_solver_specific!(stats, :Fhist, Fobj_hist[1:k])
     set_solver_specific!(stats, :ExactFhist, exact_Fobj_hist[1:k])
-    #set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
+    set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
     set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
     set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])
     set_solver_specific!(stats, :MetricHist, Metric_hist[1:k])
