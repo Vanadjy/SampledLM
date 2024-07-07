@@ -137,6 +137,7 @@ function Prob_LM(
   local ξcp
   local exact_ξcp
   local ξ
+  local ξ_mem
   k = 0
   Fobj_hist = zeros(maxIter * 100)
   exact_Fobj_hist = zeros(maxIter * 100)
@@ -296,7 +297,7 @@ function Prob_LM(
       subsolver_options.ν = ν_subsolver
       subsolver_options.ϵa = ϵa_subsolver
 
-      Complex_hist[k] = iter * nls.sample_rate
+      Complex_hist[k] = iter
 
       # additionnal condition on step s
       if norm(s) > β * norm(scp)
@@ -312,7 +313,7 @@ function Prob_LM(
       # TODO: replace lsmr by a sparse factorization from QRMumps
       if Jac_lop # Using iterative method as Jk is a LinearOperator
         s, stats = lsmr(Jk, -Fk; λ = σk)#, atol = subsolver_options.ϵa, rtol = ϵr)
-        Complex_hist[k] = stats.niter * nls.sample_rate
+        Complex_hist[k] = stats.niter
       else # using a direct method as Jk is a sparse matrix
         #Jk = convert(SparseMatrixCSC, Jk)
         spmat = qrm_spmat_init(Jk)
@@ -461,6 +462,47 @@ function Prob_LM(
       end
     end
 
+    # Version 5: change sample rate when gain factor 10 accuracy #
+    if version == 5
+      if k == 1
+        ξ_mem = Metric_hist[1]
+      end
+      if nls.sample_rate < sample_rates_collec[end]
+        #@views mobile_mean = mean(Fobj_hist[(k - Num_mean + 1):k] + Hobj_hist[(k - Num_mean + 1):k])
+        if metric/ξ_mem ≤ 1e-1 #if the current metric is a factor 10 lower than the previously stored ξ_mem
+          nls.sample_rate = sample_rates_collec[sample_counter]
+          sample_counter += 1
+          ξ_mem *= 1e-1
+          change_sample_rate = true
+        end
+      end
+    end
+
+    # Version 6: Double sample_size after a fixed number of epochs or a metric decrease #
+    if version == 6
+      if k == 1
+        ξ_mem = Metric_hist[1]
+      end
+      # Change sample rate
+      #nls.sample_rate = basic_change_sample_rate(epoch_count)
+      if nls.sample_rate < 1.0
+        if metric/ξ_mem ≤ 1e-1 #if the mean on the Num_mean last iterations is near the current objective value
+          nls.sample_rate = sample_rates_collec[sample_counter]
+          sample_counter += 1
+          ξ_mem *= 1e-1
+          change_sample_rate = true
+          unchange_mm_count = 0
+        else # don't get more accurate ξ
+          unchange_mm_count += nls.sample_rate
+          if unchange_mm_count ≥ 3 # force to change sample rate after 3 epochs of unchanged sample rate using mobile mean criterion
+            nls.sample_rate = sample_rates_collec[sample_counter]
+            sample_counter += 1
+            change_sample_rate = true
+            unchange_mm_count = 0
+          end
+        end
+      end
+    end
 
     #changes sample with new sample rate
     nls.sample = sort(randperm(nls.nobs)[1:Int(ceil(nls.sample_rate * nls.nobs))])

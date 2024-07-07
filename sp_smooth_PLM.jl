@@ -305,10 +305,10 @@ function SPLM(
       end
   
       #changes sample with new sample rate
-      nls.sample = sort(randperm(nls.nrows)[1:Int(ceil(nls.sample_rate * nls.nrows))])
+      nls.sample = sort(randperm(nls.nobs)[1:Int(ceil(nls.sample_rate * nls.nobs))])
       sparse_sample = sp_sample(rows, nls.sample)
       if nls.sample_rate == 1.0
-        nls.sample == 1:nls.nrows || error("Sample Error : Sample should be full for 100% sampling")
+        nls.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
       end
   
       if change_sample_rate

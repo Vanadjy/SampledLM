@@ -3,9 +3,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
     color_scheme = Dict([(1.0, "rgb(255,105,180)"), (.2, "rgb(176,196,222)"), (.1, "rgb(205,133,63)"), (.05, "rgb(154,205,50)"), (.01, 8)])
     color_scheme_std = Dict([(1.0, "rgba(255,105,180, .2)"), (.2, "rgba(176,196,222, 0.2)"), (.1, "rgba(205,133,63, 0.2)"), (.05, "rgba(154,205,50, 0.2)"), (.01, 8)])
 
-    prob_versions_names = Dict([(1, "mobmean"), (2, "nondec"), (3, "each-it"), (4, "hybrid")])
-    prob_versions_colors = Dict([(1, "rgb(30,144,255)"), (2, "rgb(255,140,0)"), (3, "rgb(50,205,50)"), (4, "rgb(123,104,238)")])
-    prob_versions_colors_std = Dict([(1, "rgba(30,144,255, 0.2)"), (2, "rgba(255,140,0, 0.2)"), (3, "rgba(50,205,50, 0.2)"), (4, "rgba(123,104,238, 0.2)")])
+    prob_versions_names = Dict([(1, "mobmean"), (2, "nondec"), (3, "each-it"), (4, "hybrid"), (5, "acc"), (6, "hybrid-acc")])
+    prob_versions_colors = Dict([(1, "rgb(30,144,255)"), (2, "rgb(255,140,0)"), (3, "rgb(50,205,50)"), (4, "rgb(123,104,238)"), (5, "rgb(218,165,32)"), (6, "rgb(148,0,211)")])
+    prob_versions_colors_std = Dict([(1, "rgba(30,144,255, 0.2)"), (2, "rgba(255,140,0, 0.2)"), (3, "rgba(50,205,50, 0.2)"), (4, "rgba(123,104,238, 0.2)"), (5, "rgba(218,165,32, .2)"), (6, "rgba(148,0,211, .2)")])
 
     smooth_versions_colors = Dict([(1, "rgb(65,105,225)"), (2, "rgb(255,215,0)"), (3, "rgb(34,139,34)"), (4, "rgb(75,0,130)")])
     smooth_versions_colors_std = Dict([(1, "rgba(65,105,225, 0.2)"), (2, "rgba(255,215,0, 0.2)"), (3, "rgba(34,139,34, 0.2)"), (4, "rgba(75,0,130, 0.2)")])
@@ -259,25 +259,25 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         med_mse_sto = zeros(axes(MSE_Hists_epochs_sto, 1))
                         std_mse_sto = zeros(axes(MSE_Hists_epochs_sto, 1))
 
-                        # compute mean of objective value #
+                        # compute median of objective value #
                         for l in eachindex(med_obj_sto)
-                            med_obj_sto[l] = mean(filter(!isnan, filter(!iszero, Obj_Hists_epochs_sto[l, :])))
+                            med_obj_sto[l] = (median(filter(!isnan, filter(!iszero, Obj_Hists_epochs_sto[l, :]))))
                             std_obj_sto[l] = std(filter(!isnan, filter(!iszero, Obj_Hists_epochs_sto[l, :])))
                         end
                         std_obj_sto *= Confidence[conf]
                         replace!(std_obj_sto, NaN=>0.0)
 
-                        # compute mean of metric #
+                        # compute median of metric #
                         for l in eachindex(med_metr_sto)
-                            med_metr_sto[l] = mean(filter(!isnan, filter(!iszero, Metr_Hists_epochs_sto[l, :])))
+                            med_metr_sto[l] = median(filter(!isnan, filter(!iszero, Metr_Hists_epochs_sto[l, :])))
                             std_metr_sto[l] = std(filter(!isnan, filter(!iszero, Metr_Hists_epochs_sto[l, :])))
                         end
                         #std_metr_sto *= Confidence[conf]
                         replace!(std_metr_sto, NaN=>0.0)
                         
-                        # compute mean of MSE #
+                        # compute median of MSE #
                         for l in eachindex(med_mse_sto)
-                            med_mse_sto[l] = mean(filter(!isnan, filter(!iszero, MSE_Hists_epochs_sto[l, :])))
+                            med_mse_sto[l] = (median(filter(!isnan, filter(!iszero, MSE_Hists_epochs_sto[l, :]))))
                             std_mse_sto[l] = std(filter(!isnan, filter(!iszero, MSE_Hists_epochs_sto[l, :])))
                         end
                         std_mse_sto *= Confidence[conf]
@@ -318,7 +318,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             showlegend = false
                         )
 
-                        push!(data_metr, data_metr_slm, data_std_metr_slm)
+                        push!(data_metr, data_metr_slm)#, data_std_metr_slm)
                         
                         # --------------- MSE DATA -------------------- #
 
@@ -485,26 +485,26 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         med_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
                         std_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
 
-                        # compute mean of objective value #
+                        # compute median of objective value #
                         for l in eachindex(med_obj_prob)
-                            med_obj_prob[l] = mean(filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :])))
+                            med_obj_prob[l] = (median(filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :]))))
                             std_obj_prob[l] = std(filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :])))
                         end
                         std_obj_prob *= Confidence[conf]
                         replace!(std_obj_prob, NaN=>0.0)
 
-                        # compute mean of metric #
+                        # compute median of metric #
                         for l in eachindex(med_metr_prob)
-                            med_metr_prob[l] = mean(filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :])))
+                            med_metr_prob[l] = median(filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :])))
                             std_metr_prob[l] = std(filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :])))
                         end
                         #println(std_metr_prob)
                         std_metr_prob *= Confidence[conf]
                         replace!(std_metr_prob, NaN=>0.0)
                         
-                        # compute mean of MSE #
+                        # compute median of MSE #
                         for l in eachindex(med_mse_prob)
-                            med_mse_prob[l] = mean(filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :])))
+                            med_mse_prob[l] = (median(filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :]))))
                             std_mse_prob[l] = std(filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :])))
                         end
                         std_mse_prob *= Confidence[conf]
@@ -545,7 +545,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             showlegend = false
                         )
 
-                        push!(data_metr, data_metr_plm, data_std_metr_plm)
+                        push!(data_metr, data_metr_plm)#, data_std_metr_plm)
                         
                         # --------------- MSE DATA -------------------- #
 
@@ -561,6 +561,10 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         )
 
                         push!(data_mse, data_mse_plm, data_std_mse_plm)
+
+                        ## -------------------------------------------------------------------------------------------- ##
+                        ## ---------------------------------- SMOOTH VERSION ------------------------------------------ ##
+                        ## -------------------------------------------------------------------------------------------- ##
 
                         if smooth
                             @info " using SPLM to solve"
@@ -659,25 +663,25 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             med_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
                             std_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
 
-                            # compute mean of objective value #
+                            # compute median of objective value #
                             for l in eachindex(med_obj_prob)
-                                med_obj_prob[l] = mean(filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :])))
+                                med_obj_prob[l] = median(filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :])))
                                 std_obj_prob[l] = std(filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :])))
                             end
                             std_obj_prob *= Confidence[conf]
                             replace!(std_obj_prob, NaN=>0.0)
 
-                            # compute mean of metric #
+                            # compute median of metric #
                             for l in eachindex(med_metr_prob)
-                                med_metr_prob[l] = mean(filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :])))
+                                med_metr_prob[l] = median(filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :])))
                                 std_metr_prob[l] = std(filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :])))
                             end
                             std_metr_prob *= Confidence[conf]
                             replace!(std_metr_prob, NaN=>0.0)
                             
-                            # compute mean of MSE #
+                            # compute median of MSE #
                             for l in eachindex(med_mse_prob)
-                                med_mse_prob[l] = mean(filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :])))
+                                med_mse_prob[l] = median(filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :])))
                                 std_mse_prob[l] = std(filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :])))
                             end
                             std_mse_prob *= Confidence[conf]
@@ -817,23 +821,56 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                 layout_obj = Layout(title="$prob_name - $n_exec runs - h = $selected_h-norm",
                         xaxis_title="epoch",
                         xaxis_type="log",
+                        yaxis =attr(
+                                showexponent = "all",
+                                exponentformat = "e"
+                            ),
                         yaxis_type="log",
                         yaxis_title="Exact f+h",
-                        template="simple_white")
+                        template="simple_white",
+                        legend = attr(x=1,
+                            y=1.02,
+                            yanchor="bottom",
+                            xanchor="right",
+                            orientation="h"
+                        ),
+                        font=attr(size=14))
                 
                 layout_metr = Layout(title="$prob_name - $n_exec runs - h = $selected_h-norm",
                         xaxis_title="epoch",
                         xaxis_type="log",
+                        yaxis =attr(
+                            showexponent = "all",
+                            exponentformat = "e"
+                        ),
                         yaxis_type="log",
                         yaxis_title="√ξcp/ν",
-                        template="simple_white")
+                        template="simple_white",
+                        legend = attr(x=1,
+                            y=1.02,
+                            yanchor="bottom",
+                            xanchor="right",
+                            orientation="h"
+                        ),
+                        font=attr(size=14))
 
                 layout_mse = Layout(title="$prob_name - $n_exec runs - h = $selected_h-norm",
                         xaxis_title="epoch",
                         xaxis_type="log",
+                        yaxis =attr(
+                            showexponent = "all",
+                            exponentformat = "e"
+                        ),
                         yaxis_type="log",
                         yaxis_title="MSE",
-                        template="simple_white")
+                        template="simple_white",
+                        legend = attr(x=1,
+                            y=1.02,
+                            yanchor="bottom",
+                            xanchor="right",
+                            orientation="h"
+                        ),
+                        font=attr(size=14))
                 
                 plt_obj = PlotlyJS.plot(data_obj, layout_obj)
                 plt_metr = PlotlyJS.plot(data_metr, layout_metr)
@@ -844,13 +881,13 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                 display(plt_mse)
 
                 if selected_prob == "ijcnn1"
-                    PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.png"; format = "png")
-                    PlotlyJS.savefig(plt_metr, "$selected_prob-metric-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.png"; format = "png")
-                    PlotlyJS.savefig(plt_mse, "$selected_prob-MSE-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.png"; format = "png")
+                    PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.pdf"; format = "pdf")
+                    PlotlyJS.savefig(plt_metr, "$selected_prob-metric-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.pdf"; format = "pdf")
+                    PlotlyJS.savefig(plt_mse, "$selected_prob-MSE-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.pdf"; format = "pdf")
                 elseif selected_prob == "mnist"
-                    PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).png"; format = "png")
-                    PlotlyJS.savefig(plt_metr, "$selected_prob-metric-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).png"; format = "png")
-                    PlotlyJS.savefig(plt_mse, "$selected_prob-MSE-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).png"; format = "png")
+                    PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).pdf"; format = "pdf")
+                    PlotlyJS.savefig(plt_metr, "$selected_prob-metric-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).pdf"; format = "pdf")
+                    PlotlyJS.savefig(plt_mse, "$selected_prob-MSE-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).pdf"; format = "pdf")
                 end
             end
         end

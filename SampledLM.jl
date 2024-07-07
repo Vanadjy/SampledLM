@@ -2,18 +2,18 @@
 using LinearAlgebra, Logging, Printf
 
 # external dependencies
-using ProximalOperators, TSVD
+using ProximalOperators#, TSVD
 
 # dependencies from us
 using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov #JSOSolvers, 
 
-using LinearAlgebra: length
+#using LinearAlgebra: length
 using Random, Test, Statistics, OnlineStats, Distributions, Noise
 using RegularizedProblems, RegularizedOptimization
 using NLSProblems, NLPModels
 using FastClosures
-using Plots, LaTeXStrings
-using MLDatasets
+using Plots
+using MLDatasets:MNIST
 using DataFrames, BundleAdjustmentModels
 using JSON
 

@@ -123,6 +123,7 @@ function SPLM(
   local ξcp
   local exact_ξcp
   local ξ
+  local ξ_mem
   k = 0
   Fobj_hist = zeros(maxIter * 100)
   exact_Fobj_hist = zeros(maxIter * 100)
@@ -220,7 +221,7 @@ function SPLM(
     if Jac_lop
       # LSMR strategy for LinearOperators #
       s, stats = lsmr(Jk, -Fk; λ = σk)#, atol = subsolver_options.ϵa, rtol = ϵr)
-      Complex_hist[k] = stats.niter * nls.sample_rate
+      Complex_hist[k] = stats.niter
     else
       spmat = qrm_spmat_init(length(nls.sample), meta_nls.nvar, rows[sparse_sample], cols[sparse_sample], vals[sparse_sample])
       spfct = qrm_analyse(spmat)
@@ -228,8 +229,6 @@ function SPLM(
       z = qrm_apply(spfct, -Fk, transp = 't') #TODO include complex compatibility
       s = qrm_solve(spfct, z, transp = 'n')
     end
-  
-    #Complex_hist[k] = stats.niter * nls.sample_rate
 
     xkn .= xk .+ s
 
@@ -337,6 +336,47 @@ function SPLM(
       end
     end
 
+    # Version 5: change sample rate when gain factor 10 accuracy #
+    if version == 5
+      if k == 1
+        ξ_mem = Metric_hist[1]
+      end
+      if nls.sample_rate < sample_rates_collec[end]
+        #@views mobile_mean = mean(Fobj_hist[(k - Num_mean + 1):k] + Hobj_hist[(k - Num_mean + 1):k])
+        if metric/ξ_mem ≤ 1e-1 #if the current metric is a factor 10 lower than the previously stored ξ_mem
+          nls.sample_rate = sample_rates_collec[sample_counter]
+          sample_counter += 1
+          ξ_mem *= 1e-1
+          change_sample_rate = true
+        end
+      end
+    end
+
+    # Version 6: Double sample_size after a fixed number of epochs or a metric decrease #
+    if version == 6
+      if k == 1
+        ξ_mem = Metric_hist[1]
+      end
+      # Change sample rate
+      #nls.sample_rate = basic_change_sample_rate(epoch_count)
+      if nls.sample_rate < 1.0
+        if metric/ξ_mem ≤ 1e-1 #if the mean on the Num_mean last iterations is near the current objective value
+          nls.sample_rate = sample_rates_collec[sample_counter]
+          sample_counter += 1
+          ξ_mem *= 1e-1
+          change_sample_rate = true
+          unchange_mm_count = 0
+        else # don't get more accurate ξ
+          unchange_mm_count += nls.sample_rate
+          if unchange_mm_count ≥ 3 # force to change sample rate after 3 epochs of unchanged sample rate using mobile mean criterion
+            nls.sample_rate = min(1.0, 2 * nls.sample_rate)
+            change_sample_rate = true
+            unchange_mm_count = 0
+          end
+        end
+      end
+    end
+
     #changes sample with new sample rate
     nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
     #sparse_sample = sp_sample(rows, nls.sample)
@@ -390,7 +430,7 @@ function SPLM(
       #μmax = opnorm(Jk)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
 
-      Complex_hist[k] += nls.sample_rate
+      Complex_hist[k] += 1
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
       μk = λ * μk
