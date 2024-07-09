@@ -369,7 +369,8 @@ function SPLM(
         else # don't get more accurate ξ
           unchange_mm_count += nls.sample_rate
           if unchange_mm_count ≥ 3 # force to change sample rate after 3 epochs of unchanged sample rate using mobile mean criterion
-            nls.sample_rate = min(1.0, 2 * nls.sample_rate)
+            nls.sample_rate = sample_rates_collec[sample_counter]
+            sample_counter += 1
             change_sample_rate = true
             unchange_mm_count = 0
           end

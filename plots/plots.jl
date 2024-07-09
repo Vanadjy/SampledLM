@@ -11,8 +11,8 @@ Random.seed!(seed)
 
 # ---------------- Hyperbolic SVM Models ---------------- #
 
-n_exec = 10
-selected_probs = ["ijcnn1"]
+n_exec = 2
+selected_probs = ["mnist"]
 
 if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
@@ -20,12 +20,12 @@ if selected_probs == ["ijcnn1"]
     selected_digits = [(1, 7)] # let only one pair of random digits
     versions = [2, 5, 6]
     version = versions[end]
-    selected_hs = ["l0", "l1", "lhalf"]
+    selected_hs = ["l1", "lhalf"]
 elseif selected_probs == ["mnist"]
     sample_rate0 = .1
     sample_rates = []
     selected_digits = [(1, 7)]
-    versions = [4]
+    versions = [6]
     version = versions[end]
     selected_hs = ["lhalf"]
 end
@@ -39,14 +39,14 @@ param = plot_parameter[3]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 100
+    MaxEpochs = 40
     MaxTime = 3600.0
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
     MaxTime = 10.0
 end
 
-ϵ = 1e-16
+ϵ = 1e-4
 
 #plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
 plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = false, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)

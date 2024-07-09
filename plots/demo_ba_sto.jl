@@ -567,9 +567,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         df[!, :Alg] = name_list
         select!(df, :Alg, Not(:Alg), :)
         fmt_override = Dict(:Alg => "%s",
-            :f => "%10.2f",
-            :h => "%10.2f",
-            :fh => "%10.2f",
+            :f => "%10.2e",
+            :h => "%10.2e",
+            :fh => "%10.2e",
             :n => "%10.2f",
             :g => "%10.2f",
             :p => "%10.2f",
@@ -595,9 +595,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
     df[!, :Alg] = name_list
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
-        :f => "%10.2f",
-        :h => "%10.2f",
-        :fh => "%10.2f",
+        :f => "%10.2e",
+        :h => "%10.2e",
+        :fh => "%10.2e",
         :n => "%10.2f",
         :g => "%10.2f",
         :p => "%10.2f",
@@ -623,7 +623,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         df[!, :Alg] = name_list
         select!(df, :Alg, Not(:Alg), :)
         fmt_override = Dict(:Alg => "%s",
-            :fh => "%10.2f",
+            :fh => "%10.2e",
             :n => "%10.2f",
             :g => "%10.2f",
             :s => "%02.2f")
@@ -644,7 +644,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         df[!, :Alg] = name_list
         select!(df, :Alg, Not(:Alg), :)
         fmt_override = Dict(:Alg => "%s",
-            :fh => "%10.2f",
+            :fh => "%10.2e",
             :n => "%10.2f",
             :g => "%10.2f",
             :s => "%02.2f")
