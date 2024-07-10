@@ -139,7 +139,7 @@ function SPLM(
 
   if verbose > 0
     #! format: off
-    @info @sprintf "%6s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "f(x)" "‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
+    @info @printf "%6s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "f(x)" "‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
     #! format: on
   end
 
