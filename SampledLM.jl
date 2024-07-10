@@ -10,7 +10,6 @@ using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, 
 #using LinearAlgebra: length
 using Random, Test, Statistics, OnlineStats, Distributions, Noise
 using RegularizedProblems, RegularizedOptimization
-using NLSProblems, NLPModels
 using FastClosures
 using Plots
 using MLDatasets:MNIST

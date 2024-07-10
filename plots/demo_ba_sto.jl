@@ -19,15 +19,20 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         "problem-16-22106-pre" => attr(center = attr(x = 0.2072211130691765, y = -0.10068338752805728, z = -0.048807925112545746), eye = attr(x = 0.16748022386771697, y = -0.3957357535725894, z = 0.5547492387721914), up = attr(x = 0, y = 0, z = 1)),
         "problem-88-64298-pre" => attr(center = attr(x = -0.0021615530883736145, y = -0.030543602186994832, z = -0.028300153803163062), eye = attr(x = 0.6199398252619821, y = -0.4431229879708768, z = 0.3694699626625795), up = attr(x = -0.13087330856114893, y = 0.5787247595812629, z = 0.8049533090520641)),
         "problem-52-64053-pre" => attr(center = attr(x = 0.2060347573851926, y = -0.22421275022169654, z = -0.05597905955228791), eye = attr(x = 0.2065816892336426, y = -0.3978440066064094, z = 0.6414786827075296), up = attr(x = 0, y = 0, z = 1)),
-        "problem-89-110973-pre" => attr(center = attr(x = -0.1674117968407976, y = -0.1429803633607516, z = 0.01606765828188431), eye = attr(x = 0.1427370965379074, y = -0.19278139431870447, z = 0.7245395074933954), up = attr(x = 0.02575289497167061, y = 0.9979331596959415, z = 0.05887441872199366))
+        "problem-89-110973-pre" => attr(center = attr(x = -0.1674117968407976, y = -0.1429803633607516, z = 0.01606765828188431), eye = attr(x = 0.1427370965379074, y = -0.19278139431870447, z = 0.7245395074933954), up = attr(x = 0.02575289497167061, y = 0.9979331596959415, z = 0.05887441872199366)),
+        "problem-21-11315-pre" => attr(center = attr(x = 0, y = 0, z = 1), eye = attr(x = 1.25, y = 1.25, z = 1.2), up = attr(x = 0, y = 0, z = 0)),
+        "problem-49-7776-pre" => attr(center = attr(x = 0.12011665286185144, y = 0.2437548728183421, z = 0.6340730201867651), eye = attr(x = 0.14156235059481262, y = 0.49561706850854814, z = 0.48335380789220556), up = attr(x = 0.9853593274726773, y = 0.01757909714618111, z = 0.169581753458674))
     )
 
     color_scheme = Dict([(1.0, "rgb(255,105,180)"), (.2, "rgb(176,196,222)"), (.1, "rgb(205,133,63)"), (.05, "rgb(154,205,50)"), (.01, 8)])
     color_scheme_std = Dict([(1.0, "rgba(255,105,180, .2)"), (.2, "rgba(176,196,222, 0.2)"), (.1, "rgba(205,133,63, 0.2)"), (.05, "rgba(154,205,50, 0.2)"), (.01, 8)])
 
-    prob_versions_names = Dict([(1, "mobmean"), (2, "nondec"), (3, "each-it"), (4, "hybrid")])
-    prob_versions_colors = Dict([(1, "rgb(30,144,255)"), (2, "rgb(255,140,0)"), (3, "rgb(50,205,50)"), (4, "rgb(123,104,238)")])
-    prob_versions_colors_std = Dict([(1, "rgba(30,144,255, 0.2)"), (2, "rgba(255,140,0, 0.2)"), (3, "rgba(50,205,50, 0.2)"), (4, "rgba(123,104,238, 0.2)")])
+    prob_versions_names = Dict([(1, "mobmean"), (2, "nondec"), (3, "each-it"), (4, "hybrid"), (5, "acc"), (6, "hybrid-acc")])
+    prob_versions_colors = Dict([(1, "rgb(30,144,255)"), (2, "rgb(255,140,0)"), (3, "rgb(50,205,50)"), (4, "rgb(123,104,238)"), (5, "rgb(218,165,32)"), (6, "rgb(148,0,211)")])
+    prob_versions_colors_std = Dict([(1, "rgba(30,144,255, 0.2)"), (2, "rgba(255,140,0, 0.2)"), (3, "rgba(50,205,50, 0.2)"), (4, "rgba(123,104,238, 0.2)"), (5, "rgba(218,165,32, .2)"), (6, "rgba(148,0,211, .2)")])
+
+    smooth_versions_colors = Dict([(1, "rgb(65,105,225)"), (2, "rgb(255,215,0)"), (3, "rgb(34,139,34)"), (4, "rgb(75,0,130)"), (5, "rgb(218,165,32)"), (6, "rgb(148,0,211)")])
+    smooth_versions_colors_std = Dict([(1, "rgba(65,105,225, 0.2)"), (2, "rgba(255,215,0, 0.2)"), (3, "rgba(34,139,34, 0.2)"), (4, "rgba(75,0,130, 0.2)"), (5, "rgba(218,165,32, .2)"), (6, "rgba(148,0,211, .2)")])
 
     Confidence = Dict([("95%", 1.96), ("99%", 2.58)])
     conf = "95%"
@@ -208,7 +213,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showlink = true)
             fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
             display(fig_ba)
-            PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth=$smooth.png"; format = "png")
+            PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
     
             #println("Press enter")
             #n = readline()
@@ -252,12 +257,12 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
     
             # --------------- OBJECTIVE DATA -------------------- #
             data_obj_splm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
-                                color = prob_versions_colors[version], width = 1
+                                color = smooth_versions_colors[version], width = 1
                                 )
                             )
     
             data_std_obj_splm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines", name = "SPLM - $(prob_versions_names[version])", fill="tozerox",
-                fillcolor = prob_versions_colors_std[version],
+                fillcolor = smooth_versions_colors_std[version],
                 line_color = "transparent",
                 showlegend = false
             )
@@ -267,12 +272,12 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             # --------------- METRIC DATA -------------------- #
     
             data_metr_splm = PlotlyJS.scatter(; x = 1:length(med_metr_prob), y = med_metr_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
-                color = prob_versions_colors[version], width = 1
+                color = smooth_versions_colors[version], width = 1
                 )
             )
     
             data_std_metr_splm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse!(med_metr_prob - std_metr_prob)), mode="lines", name = "SPLM - $(prob_versions_names[version])", fill="tozerox",
-                fillcolor = prob_versions_colors_std[version],
+                fillcolor = smooth_versions_colors_std[version],
                 line_color = "transparent",
                 showlegend = false
             )
@@ -282,12 +287,12 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             # --------------- MSE DATA -------------------- #
     
             data_mse_splm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
-                color = prob_versions_colors[version], width = 1
+                color = smooth_versions_colors[version], width = 1
                 )
             )
     
             data_std_mse_splm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines", name = "SPLM - $(prob_versions_names[version])", fill="tozerox",
-                fillcolor = prob_versions_colors_std[version],
+                fillcolor = smooth_versions_colors_std[version],
                 line_color = "transparent",
                 showlegend = false
             )
@@ -296,31 +301,58 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
     
             # Results Table #
             if name == name_list[1]
-                temp_PLM_smooth = [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nsplm, ngsplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time]
+                temp_PLM_smooth = [Prob_LM_out.solver_specific[:Fhist][end], 0.0, Prob_LM_out.objective, nsplm, ngsplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time]
             else
-                temp_PLM_smooth = hcat(temp_PLM_smooth, [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nsplm, ngsplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+                temp_PLM_smooth = hcat(temp_PLM_smooth, [Prob_LM_out.solver_specific[:Fhist][end], 0.0, Prob_LM_out.objective, nsplm, ngsplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
             end
     
-            layout_obj = Layout(title="BA - $name - $n_runs runs - h = $h_name-norm",
-                            xaxis_title="epoch",
-                            xaxis_type="log",
-                            yaxis_type="log",
-                            yaxis_title="Exact f+h",
-                            template="simple_white")
-                    
-            layout_metr = Layout(title="BA - $name - $n_runs runs - h = $h_name-norm",
+            layout_obj = Layout(title="$name - $n_runs runs - $suffix",
+            xaxis_title="epoch",
+            xaxis_type="log",
+            yaxis =attr(
+                    showexponent = "all",
+                    exponentformat = "e"
+                ),
+            yaxis_type="log",
+            yaxis_title="Exact f+h",
+            template="simple_white",
+            legend = attr(
+                xanchor="right",
+                bgcolor="rgba(255,255,255,.4)"
+            ),
+            font=attr(size=13))
+    
+            layout_metr = Layout(title="$name - $n_runs runs - $suffix",
                     xaxis_title="epoch",
                     xaxis_type="log",
+                    yaxis =attr(
+                        showexponent = "all",
+                        exponentformat = "e"
+                    ),
                     yaxis_type="log",
                     yaxis_title="√ξcp/ν",
-                    template="simple_white")
+                    template="simple_white",
+                    legend = attr(
+                        xanchor="right",
+                        bgcolor="rgba(255,255,255,.4)"
+                    ),
+                    font=attr(size=13))
     
-            layout_mse = Layout(title="BA - $name - $n_runs runs - h = $h_name-norm",
+            layout_mse = Layout(title="$name - $n_runs runs - $suffix",
                     xaxis_title="epoch",
                     xaxis_type="log",
+                    yaxis =attr(
+                        showexponent = "all",
+                        exponentformat = "e"
+                    ),
                     yaxis_type="log",
                     yaxis_title="MSE",
-                    template="simple_white")
+                    template="simple_white",
+                    legend = attr(
+                        xanchor="right",
+                        bgcolor="rgba(255,255,255,.4)"
+                    ),
+                    font=attr(size=13))
             
             plt_obj = PlotlyJS.plot(data_obj, layout_obj)
             plt_metr = PlotlyJS.plot(data_metr, layout_metr)
@@ -330,9 +362,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             display(plt_metr)
             display(plt_mse)
     
-            PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth=$smooth.png"; format = "png")
-            PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth=$smooth.png"; format = "png")
-            PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth=$smooth.png"; format = "png")
+            PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
         end
 
         @info "using Prob_LM to solve with" h
@@ -430,10 +462,10 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
                 scene_camera = camera_settings[name]
           )
         
-        #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showlink = true)
+        #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
         fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
         display(fig_ba)
-        PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth=$smooth.png"; format = "png")
+        PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
 
         #println("Press enter")
         #n = readline()
@@ -526,26 +558,53 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             temp_PLM = hcat(temp_PLM, [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
         end
 
-        layout_obj = Layout(title="BA - $name - $n_runs runs - h = $h_name-norm",
-                        xaxis_title="epoch",
-                        xaxis_type="log",
-                        yaxis_type="log",
-                        yaxis_title="Exact f+h",
-                        template="simple_white")
-                
-        layout_metr = Layout(title="BA - $name - $n_runs runs - h = $h_name-norm",
+        layout_obj = Layout(title="$name - $n_runs runs - $suffix",
+        xaxis_title="epoch",
+        xaxis_type="log",
+        yaxis =attr(
+                showexponent = "all",
+                exponentformat = "e"
+            ),
+        yaxis_type="log",
+        yaxis_title="Exact f+h",
+        template="simple_white",
+        legend = attr(
+            xanchor="right",
+            bgcolor="rgba(255,255,255,.4)"
+        ),
+        font=attr(size=13))
+
+        layout_metr = Layout(title="$name - $n_runs runs - $suffix",
                 xaxis_title="epoch",
                 xaxis_type="log",
+                yaxis =attr(
+                    showexponent = "all",
+                    exponentformat = "e"
+                ),
                 yaxis_type="log",
                 yaxis_title="√ξcp/ν",
-                template="simple_white")
+                template="simple_white",
+                legend = attr(
+                    xanchor="right",
+                    bgcolor="rgba(255,255,255,.4)"
+                ),
+                font=attr(size=13))
 
-        layout_mse = Layout(title="BA - $name - $n_runs runs - h = $h_name-norm",
+        layout_mse = Layout(title="$name - $n_runs runs - $suffix",
                 xaxis_title="epoch",
                 xaxis_type="log",
+                yaxis =attr(
+                    showexponent = "all",
+                    exponentformat = "e"
+                ),
                 yaxis_type="log",
                 yaxis_title="MSE",
-                template="simple_white")
+                template="simple_white",
+                legend = attr(
+                    xanchor="right",
+                    bgcolor="rgba(255,255,255,.4)"
+                ),
+                font=attr(size=13))
         
         plt_obj = PlotlyJS.plot(data_obj, layout_obj)
         plt_metr = PlotlyJS.plot(data_metr, layout_metr)
@@ -555,9 +614,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         display(plt_metr)
         display(plt_mse)
 
-        PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth=$smooth.png"; format = "png")
-        PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth=$smooth.png"; format = "png")
-        PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth=$smooth.png"; format = "png")
+        PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
     end
 
     if smooth

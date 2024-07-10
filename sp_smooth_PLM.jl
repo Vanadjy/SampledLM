@@ -80,6 +80,7 @@ function SPLM(
     local ξcp
     local exact_ξcp
     local ξ
+    local ξ_mem
     k = 0
     Fobj_hist = zeros(maxIter * 100)
     exact_Fobj_hist = zeros(maxIter * 100)
@@ -95,7 +96,7 @@ function SPLM(
   
     if verbose > 0
       #! format: off
-      @info @sprintf "%6s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "f(x)" "‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
+      @info @sprintf "%6s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "f(x)" "  ‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
       #! format: on
     end
   
@@ -208,7 +209,7 @@ function SPLM(
   
       if (verbose > 0) && (k % ptf == 0)
         #! format: off
-        @info @sprintf "%6d %8.1e %7.4e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k fk norm(∇fk) ρk σk μk norm(xk) norm(s) νInv μ_stat nls.sample_rate
+        @info @sprintf "%6d %8.1e %7.4e %8.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k fk norm(∇fk) ρk σk μk norm(xk) norm(s) μ_stat nls.sample_rate
         #! format: off
       end
       
@@ -299,6 +300,48 @@ function SPLM(
                 change_sample_rate = true
                 unchange_mm_count = 0
               end
+            end
+          end
+        end
+      end
+
+      # Version 5: change sample rate when gain factor 10 accuracy #
+      if version == 5
+        if k == 1
+          ξ_mem = Metric_hist[1]
+        end
+        if nls.sample_rate < sample_rates_collec[end]
+          #@views mobile_mean = mean(Fobj_hist[(k - Num_mean + 1):k] + Hobj_hist[(k - Num_mean + 1):k])
+          if metric/ξ_mem ≤ 1e-1 #if the current metric is a factor 10 lower than the previously stored ξ_mem
+            nls.sample_rate = sample_rates_collec[sample_counter]
+            sample_counter += 1
+            ξ_mem *= 1e-1
+            change_sample_rate = true
+          end
+        end
+      end
+
+      # Version 6: Double sample_size after a fixed number of epochs or a metric decrease #
+      if version == 6
+        if k == 1
+          ξ_mem = Metric_hist[1]
+        end
+        # Change sample rate
+        #nls.sample_rate = basic_change_sample_rate(epoch_count)
+        if nls.sample_rate < 1.0
+          if metric/ξ_mem ≤ 1e-1 #if the mean on the Num_mean last iterations is near the current objective value
+            nls.sample_rate = sample_rates_collec[sample_counter]
+            sample_counter += 1
+            ξ_mem *= 1e-1
+            change_sample_rate = true
+            unchange_mm_count = 0
+          else # don't get more accurate ξ
+            unchange_mm_count += nls.sample_rate
+            if unchange_mm_count ≥ 3 # force to change sample rate after 3 epochs of unchanged sample rate using mobile mean criterion
+              nls.sample_rate = sample_rates_collec[sample_counter]
+              sample_counter += 1
+              change_sample_rate = true
+              unchange_mm_count = 0
             end
           end
         end
