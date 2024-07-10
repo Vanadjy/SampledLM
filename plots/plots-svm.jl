@@ -417,7 +417,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             h_name = "lhalf-norm"
                         end
 
-                        @info " using Prob_LM to solve with" h
+                        @info "using PLM to solve with" h
                         # routine to select the output with the median accuracy on the training set
                         PLM_outs = []
                         plm_trains = []
@@ -582,7 +582,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             showlegend = false
                         )
 
-                        push!(data_obj, data_obj_plm, data_std_obj_plm)
+                        push!(data_obj, data_obj_plm)#, data_std_obj_plm)
 
                         # --------------- METRIC DATA -------------------- #
 
@@ -619,17 +619,17 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             showlegend = false
                         )
 
-                        push!(data_mse, data_mse_plm, data_std_mse_plm)
+                        push!(data_mse, data_mse_plm)#, data_std_mse_plm)
 
                         ## -------------------------------------------------------------------------------------------- ##
                         ## ---------------------------------- SMOOTH VERSION ------------------------------------------ ##
                         ## -------------------------------------------------------------------------------------------- ##
 
                         if smooth
-                            @info " using SPLM to solve"
+                            @info "using SPLM to solve"
                             # routine to select the output with the median accuracy on the training set
-                            PLM_outs = []
-                            plm_trains = []
+                            SPLM_outs = []
+                            splm_trains = []
 
                             for k in 1:n_exec
                                 # executes n_exec times Sto_LM with the same inputs
@@ -639,8 +639,8 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                                 reset!(prob)
                                 prob.epoch_counter = Int[1]
                                 PLM_out = SPLM(prob, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version, Jac_lop = true)
-                                push!(PLM_outs, PLM_out)
-                                push!(plm_trains, residual(prob, PLM_out.solution))
+                                push!(SPLM_outs, PLM_out)
+                                push!(splm_trains, residual(prob, PLM_out.solution))
                                 #PLM_out = SPLM(prob, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version)
 
                                 #=if param == "objective"
@@ -690,17 +690,17 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             else
                                 med_ind = (n_exec ÷ 2)
                             end
-                            acc_vec = acc.(plm_trains)
+                            acc_vec = acc.(splm_trains)
                             sorted_acc_vec = sort(acc_vec)
                             ref_value = sorted_acc_vec[med_ind]
                             origin_ind = 0
-                            for i in eachindex(PLM_outs)
+                            for i in eachindex(SPLM_outs)
                                 if acc_vec[i] == ref_value
                                     origin_ind = i
                                 end
                             end
 
-                            SProb_LM_out = PLM_outs[origin_ind]
+                            SProb_LM_out = SPLM_outs[origin_ind]
                             splmtrain = residual(prob, SProb_LM_out.solution)
                             if prob_name == "mnist-train-ls"
                                 splmtest = residual(mnist_nls_test_sto, SProb_LM_out.solution)
@@ -789,7 +789,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                                 showlegend = false
                             )
 
-                            push!(data_obj, data_obj_splm, data_std_obj_splm)
+                            push!(data_obj, data_obj_splm)#, data_std_obj_splm)
 
                             # --------------- METRIC DATA -------------------- #
 
@@ -811,7 +811,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                                 showlegend = false
                             )
 
-                            push!(data_metr, data_metr_splm, data_std_metr_splm)
+                            push!(data_metr, data_metr_splm)#, data_std_metr_splm)
                             
                             # --------------- MSE DATA -------------------- #
 
@@ -826,7 +826,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                                 showlegend = false
                             )
 
-                            push!(data_mse, data_mse_splm, data_std_mse_splm)
+                            push!(data_mse, data_mse_splm)#, data_std_mse_splm)
                         end
                         
                         #=med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
@@ -872,7 +872,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             end
                             select!(df, Not(:xt))
                             df[!, :x] = T
-                            df[!, :Alg] = !smooth ? ["R2", "LM", "LMTR", "PLM"] : ["R2", "LM", "LMTR", "PLM", "smooth PLM"]
+                            df[!, :Alg] = !smooth ? ["R2", "LM", "LMTR", "PLM-$(prob_versions_names[version])"] : ["R2", "LM", "LMTR", "PLM-$(prob_versions_names[version])", "SPLM-$(prob_versions_names[version])"]
                             select!(df, :Alg, Not(:Alg), :)
                             fmt_override = Dict(:Alg => "%s",
                                 :f => "%10.2f",
