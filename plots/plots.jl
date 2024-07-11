@@ -93,4 +93,4 @@ end
 
 #plot_Sto_LM_BA(sample_rates, versions, name_list, selected_hs; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
 Random.seed!(seed)
-#demo_ba_sto(name_list; sample_rate = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-h1", compare = false, smooth = true, Jac_lop = false)
+demo_ba_sto(name_list; sample_rate = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-h1", compare = false, smooth = true, Jac_lop = false)
