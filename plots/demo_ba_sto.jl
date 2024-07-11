@@ -212,7 +212,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             
             #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showlink = true)
             fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
-            display(fig_ba)
+            #display(fig_ba)
             PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
     
             #println("Press enter")
@@ -358,9 +358,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             plt_metr = PlotlyJS.plot(data_metr, layout_metr)
             plt_mse = PlotlyJS.plot(data_mse, layout_mse)
     
-            display(plt_obj)
-            display(plt_metr)
-            display(plt_mse)
+            #display(plt_obj)
+            #display(plt_metr)
+            #display(plt_mse)
     
             PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
             PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
@@ -464,7 +464,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         
         #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
         fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
-        display(fig_ba)
+        #display(fig_ba)
         PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
 
         #println("Press enter")
@@ -610,9 +610,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         plt_metr = PlotlyJS.plot(data_metr, layout_metr)
         plt_mse = PlotlyJS.plot(data_mse, layout_mse)
 
-        display(plt_obj)
-        display(plt_metr)
-        display(plt_mse)
+        #display(plt_obj)
+        #display(plt_metr)
+        #display(plt_mse)
 
         PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
         PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
