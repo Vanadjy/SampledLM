@@ -5,7 +5,7 @@ using NLPModels, NLPModelsModifiers #ReverseADNLSModels
 using RegularizedOptimization
 using DataFrames
 using SolverBenchmark
-using PlotlyJS, PlutoPlotly
+using PlotlyJS
 
 # Random.seed!(1234)
 
