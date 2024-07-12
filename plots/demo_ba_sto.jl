@@ -148,7 +148,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             for k in 1:n_runs
                 reset!(sampled_nls)
                 sampled_nls.epoch_counter = Int[1]
-                Prob_LM_out_k = SPLM(sampled_nls, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, sample_rate0 = sample_rate, version = version, Jac_lop = Jac_lop)
+                Prob_LM_out_k = SPLM(sampled_nls, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, sample_rate0 = sample_rate, version = version, Jac_lop = false)
                 push!(PLM_outs, Prob_LM_out_k)
                 push!(plm_obj, Prob_LM_out_k.objective)
     
@@ -387,7 +387,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
         end
 
-        #=@info "using Prob_LM to solve with" h
+        @info "using Prob_LM to solve with" h
 
         PLM_outs = []
         plm_obj = []
@@ -637,7 +637,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
         PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
         PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
-    end=#
+    end
 
     if smooth
         temp = temp_PLM_smooth'
