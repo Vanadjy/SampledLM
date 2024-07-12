@@ -5,7 +5,7 @@ using LinearAlgebra, Logging, Printf
 using ProximalOperators#, TSVD
 
 # dependencies from us
-using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov #JSOSolvers, 
+using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov #JSOSolvers,
 
 #using LinearAlgebra: length
 using Random, Test, Statistics, OnlineStats, Distributions, Noise
