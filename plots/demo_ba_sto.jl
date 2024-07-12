@@ -41,6 +41,24 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         nls = BundleAdjustmentModel(name)
         sampled_nls = BAmodel_sto(name; sample_rate = sample_rate)
 
+        sol0 = sampled_nls.nls_meta.x0
+        x0 = [sol0[3*i+1] for i in 0:(sampled_nls.npnts-1)]
+        y0 = [sol0[3*i+2] for i in 0:(sampled_nls.npnts-1)]
+        z0 = [sol0[3*i] for i in 1:sampled_nls.npnts]       
+        plt3d0 = PlotlyJS.scatter(
+            x=x0,
+            y=y0,
+            z=z0,
+            mode="markers",
+            marker=attr(
+                size=1,
+                opacity=0.8,
+                color = "firebrick"
+            ),
+            type="scatter3d",
+            options=Dict(:showLink => true)
+        )
+
         data_obj = GenericTrace{Dict{Symbol, Any}}[]
         data_metr = GenericTrace{Dict{Symbol, Any}}[]
         data_mse = GenericTrace{Dict{Symbol, Any}}[]
@@ -212,8 +230,10 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             
             #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showlink = true)
             fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
+            fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
             #display(fig_ba)
             PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
     
             #println("Press enter")
             #n = readline()
@@ -367,7 +387,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
         end
 
-        @info "using Prob_LM to solve with" h
+        #=@info "using Prob_LM to solve with" h
 
         PLM_outs = []
         plm_obj = []
@@ -617,7 +637,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
         PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
         PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
         PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
-    end
+    end=#
 
     if smooth
         temp = temp_PLM_smooth'
