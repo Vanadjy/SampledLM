@@ -39,7 +39,7 @@ param = plot_parameter[3]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 100
+    MaxEpochs = 1000
     MaxTime = 3600.0
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
