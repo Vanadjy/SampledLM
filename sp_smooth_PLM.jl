@@ -120,6 +120,7 @@ function SPLM(
     jac_structure_residual!(nls, rows, cols)
     jac_coord_residual!(nls, nls.meta.x0, vals)
     jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
+    qrm_init()
   
     if Jac_lop
       Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
@@ -127,10 +128,6 @@ function SPLM(
     else
       sparse_sample = sp_sample(rows, nls.sample)
       μmax = norm(vals)
-      qrm_init()
-      spmat = qrm_spmat_init(meta_nls.nequ, meta_nls.nvar, rows, cols, vals)
-      spfct = qrm_analyse(spmat)
-      qrm_factorize!(spmat, spfct)
     end
   
     νcpInv = (1 + θ) * (μmax^2 + μmin)
@@ -188,8 +185,11 @@ function SPLM(
         # LSMR strategy for LinearOperators #
         s, stats = lsmr(Jk, -Fk; λ = σk)#, atol = subsolver_options.ϵa, rtol = ϵr)
       else
+        spmat = qrm_spmat_init(meta_nls.nequ, meta_nls.nvar, rows, cols, vals)
+        spfct = qrm_analyse(spmat)
+        qrm_factorize!(spmat, spfct)
         z = qrm_apply(spfct, -Fk, transp = 't') #TODO include complex compatibility
-        s = qrm_solve(spfct, z, transp = 'n')
+        s .= qrm_solve(spfct, z, transp = 'n')
       end
     
       #Complex_hist[k] = stats.niter * nls.sample_rate

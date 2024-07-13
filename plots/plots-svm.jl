@@ -53,6 +53,8 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         h = NormL1(λ)
                     elseif selected_h == "lhalf"
                         h = RootNormLhalf(λ)
+                    elseif selected_h == "smooth"
+                        h = RootNormLhalf(0.0)
                     end
 
                     @info "using R2 to solve with" h
@@ -110,6 +112,11 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         plot!(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], yaxis = yscale, label = "LM", lc = :orange, ls = :dot, legend=:outertopright)
                         plot!(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], yaxis = yscale, label = "LMTR", lc = :black, ls=:dash, legend=:outertopright)
                     end=#
+                    save_object("k_R2-$selected_prob-$selected_h.jld2", k_R2)
+                    save_object("R2_out-$selected_prob-$selected_h.jld2", R2_out)
+                    save_object("R2_stats-$selected_prob-$selected_h.jld2", R2_stats)
+                    save_object("LM_out-$selected_prob-$selected_h.jld2", LM_out)
+                    save_object("LMTR_out-$selected_prob-$selected_h.jld2", LMTR_out)
 
                     # --------------- OBJECTIVE DATA -------------------- #
 
@@ -276,6 +283,8 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         filter!(!isnan, med_obj_sto)
                         std_obj_sto *= Confidence[conf]
                         filter!(!isnan, std_obj_sto)
+                        save_object("med_obj_sto-$(sample_rate*100)-$prob_name-$selected_h.jld2", med_obj_sto)
+                        save_object("std_obj_sto-$(sample_rate*100)-$prob_name-$selected_h.jld2", std_obj_sto)
 
                         # compute median of metric #
                         for l in eachindex(med_metr_sto)
@@ -294,6 +303,8 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         filter!(!isnan, med_metr_sto)
                         std_metr_sto *= Confidence[conf]
                         filter!(!isnan, std_metr_sto)
+                        save_object("med_metr_sto-$(sample_rate*100)-$selected_prob-$selected_h.jld2", med_metr_sto)
+                        save_object("std_metr_sto-$(sample_rate*100)-$selected_prob-$selected_h.jld2", std_metr_sto)
                         
                         # compute median of MSE #
                         for l in eachindex(med_mse_sto)
@@ -312,6 +323,8 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         filter!(!isnan, med_mse_sto)
                         std_mse_sto *= Confidence[conf]
                         filter!(!isnan, std_mse_sto)
+                        save_object("med_mse_sto-$(sample_rate*100)-$selected_prob-$selected_h.jld2", med_mse_sto)
+                        save_object("std_mse_sto-$(sample_rate*100)-$selected_prob-$selected_h.jld2", std_mse_sto)
 
                         # --------------- OBJECTIVE DATA -------------------- #
 
@@ -477,6 +490,8 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             # get metric for each run #
                             @views Metr_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactMetricHist][prob.epoch_counter]
                         end
+                        save_object("PLM_outs-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", PLM_outs)
+                        save_object("plm_trains-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", plm_trains)
 
                         if n_exec%2 == 1
                             med_ind = (n_exec ÷ 2) + 1
@@ -533,6 +548,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         std_obj_prob *= Confidence[conf]
                         filter!(!isnan, std_obj_prob)
 
+                        save_object("med_obj_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_obj_prob)
+                        save_object("std_obj_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_obj_prob)
+
                         # compute median of metric #
                         for l in eachindex(med_metr_prob)
                             cleared_metr_prob = filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :]))
@@ -550,6 +568,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         filter!(!isnan, med_metr_prob)
                         std_metr_prob *= Confidence[conf]
                         filter!(!isnan, std_metr_prob)
+
+                        save_object("med_metr_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_metr_prob)
+                        save_object("std_metr_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_metr_prob)
                         
                         # compute median of MSE #
                         for l in eachindex(med_mse_prob)
@@ -568,6 +589,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         filter!(!isnan, med_mse_prob)
                         std_mse_prob *= Confidence[conf]
                         filter!(!isnan, std_mse_prob)
+
+                        save_object("med_mse_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_mse_prob)
+                        save_object("std_mse_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_mse_prob)
 
                         # --------------- OBJECTIVE DATA -------------------- #
 
@@ -685,6 +709,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                                 @views Metr_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactMetricHist][prob.epoch_counter]
                             end
 
+                            save_object("SPLM_outs-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", SPLM_outs)
+                            save_object("splm_trains-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", splm_trains)
+
                             if n_exec%2 == 1
                                 med_ind = (n_exec ÷ 2) + 1
                             else
@@ -740,6 +767,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             std_obj_prob *= Confidence[conf]
                             filter!(!isnan, std_obj_prob)
 
+                            save_object("med_obj_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_obj_prob)
+                            save_object("std_obj_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_obj_prob)
+
                             # compute median of metric #
                             for l in eachindex(med_metr_prob)
                                 cleared_metr_prob = filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :]))
@@ -757,6 +787,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             filter!(!isnan, med_metr_prob)
                             std_metr_prob *= Confidence[conf]
                             filter!(!isnan, std_metr_prob)
+
+                            save_object("med_metr_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_metr_prob)
+                            save_object("std_metr_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_metr_prob)
                             
                             # compute median of MSE #
                             for l in eachindex(med_mse_prob)
@@ -775,6 +808,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             filter!(!isnan, med_mse_prob)
                             std_mse_prob *= Confidence[conf]
                             filter!(!isnan, std_mse_prob)
+
+                            save_object("med_mse_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_mse_prob)
+                            save_object("std_mse_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_mse_prob)
 
                             # --------------- OBJECTIVE DATA -------------------- #
 

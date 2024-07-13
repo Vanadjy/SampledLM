@@ -12,7 +12,7 @@ Random.seed!(seed)
 # ---------------- Hyperbolic SVM Models ---------------- #
 
 n_exec = 10
-selected_probs = ["mnist"]
+selected_probs = ["ijcnn1"]
 
 if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
@@ -20,7 +20,7 @@ if selected_probs == ["ijcnn1"]
     selected_digits = [(1, 7)] # let only one pair of random digits
     versions = [2, 5, 6]
     version = versions[end]
-    selected_hs = ["l0", "l1", "lhalf"]
+    selected_hs = ["l1", "lhalf", "smooth"]
 elseif selected_probs == ["mnist"]
     sample_rate0 = .1
     sample_rates = [1.0]
@@ -39,17 +39,17 @@ param = plot_parameter[3]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 1000
+    MaxEpochs = 100
     MaxTime = 3600.0
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
     MaxTime = 10.0
 end
 
-ϵ = 1e-4
+ϵ = 1e-16
 
 #plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
-#plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
+plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = false, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
 
 # -- Plots for MNIST grey map -- #
 
@@ -68,13 +68,13 @@ version = versions[end]
 
 df = problems_df()
 filter_name = "dubrovnik"
-filter_df = df[ df.group .== filter_name, :]
-#filter_df = df[df.nequ .<= 150000, :]
 #filter_df = df[ df.group .== filter_name, :]
+#filter_df = df[df.nequ .<= 150000, :]
+filter_df = df[ df.group .== filter_name, :]
 sample_rate0 = .05
 #name1 = filter_df[1, :name]
 name_list = ["problem-49-7776-pre", "problem-16-22106-pre", "problem-52-64053-pre", "problem-21-11315-pre", "problem-88-64298-pre", "problem-89-110973-pre"]
-name_list = [filter_df[i, :name] for i in [1, 2]]
+name_list = [filter_df[i, :name] for i in [1]]
 
 selected_hs = ["l1"]
 sample_rate0 = 1.0
@@ -93,4 +93,4 @@ end
 
 #plot_Sto_LM_BA(sample_rates, versions, name_list, selected_hs; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
 Random.seed!(seed)
-demo_ba_sto(name_list; sample_rate = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-h1", compare = false, smooth = true, Jac_lop = true)
+#demo_ba_sto(name_list; sample_rate = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-h1", compare = false, smooth = false, Jac_lop = true)

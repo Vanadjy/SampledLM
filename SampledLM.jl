@@ -15,6 +15,7 @@ using Plots
 using MLDatasets:MNIST
 using DataFrames, BundleAdjustmentModels
 using JSON
+using JLD2
 
 seed = 1234
 

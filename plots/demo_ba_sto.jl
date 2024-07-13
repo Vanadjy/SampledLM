@@ -180,6 +180,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             Prob_LM_out = PLM_outs[origin_ind]
     
             sol = Prob_LM_out.solution
+            display(norm(sol - sol0))
     
             x = [sol[3*i+1] for i in 0:(sampled_nls.npnts-1)]
             y = [sol[3*i+2] for i in 0:(sampled_nls.npnts-1)]
@@ -231,7 +232,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showlink = true)
             fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
             fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
-            #display(fig_ba)
+            display(fig_ba)
+            display(fig_ba0)
             PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
             PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
     
