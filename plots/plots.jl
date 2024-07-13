@@ -25,7 +25,7 @@ elseif selected_probs == ["mnist"]
     sample_rate0 = .1
     sample_rates = [1.0]
     selected_digits = [(1, 7)]
-    versions = [6]
+    versions = [2]
     version = versions[end]
     selected_hs = ["lhalf"]
 end
