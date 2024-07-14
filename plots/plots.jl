@@ -1,8 +1,13 @@
+include("plot-configuration.jl")
+include("layout.jl")
+
 include("plot-utils-svm-sto.jl")
 include("demo_svm_sto.jl")
 include("plots-svm.jl")
 include("PLM-plots-svm.jl")
 include("PLM-plots-ba.jl")
+include("svm-plot-ijcnn1.jl")
+include("ijcnn1-load.jl")
 include("demo_ba_sto.jl")
 
 # Plots for Objective historic, MSE and accuracy #
@@ -12,15 +17,15 @@ Random.seed!(seed)
 # ---------------- Hyperbolic SVM Models ---------------- #
 
 n_exec = 10
-selected_probs = ["mnist"]
+selected_probs = ["ijcnn1"]
 
 if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
     sample_rates = [1.0, .2, .1, .05]
     selected_digits = [(1, 7)] # let only one pair of random digits
-    versions = [2, 5, 6]
-    version = versions[end]
-    selected_hs = ["l1", "lhalf", "smooth"]
+    versions = []#2, 5, 6]
+    #version = versions[end]
+    selected_hs = ["l1", "lhalf"]#, "smooth"]
 elseif selected_probs == ["mnist"]
     sample_rate0 = .1
     sample_rates = [1.0]
@@ -39,17 +44,17 @@ param = plot_parameter[3]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 1000
+    MaxEpochs = 100
     MaxTime = 3600.0
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
     MaxTime = 10.0
 end
 
-ϵ = 1e-4
+ϵ = 1e-16
 
 #plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
-plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
+plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = false, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
 
 # -- Plots for MNIST grey map -- #
 

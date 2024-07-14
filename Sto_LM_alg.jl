@@ -322,7 +322,7 @@ function Sto_LM(
       push!(nls.epoch_counter, k)
     end
 
-    if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
+    if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
 
       if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
