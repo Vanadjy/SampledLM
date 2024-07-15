@@ -40,9 +40,9 @@ if selected_probs == ["ijcnn1"]
     selected_hs = ["l1", "lhalf"]#, "smooth"]
 elseif selected_probs == ["mnist"]
     sample_rate0 = .1
-    sample_rates = [1.0]
+    sample_rates = []
     selected_digits = [(1, 7)]
-    versions = [2, 6]
+    versions = [6]
     version = versions[end]
     selected_hs = ["lhalf"]
     ϵ = 1e-4
@@ -65,7 +65,7 @@ elseif abscissa == "CPU time"
 end
 
 #plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
-#plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = false, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
+#plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
 
 #=if selected_probs == ["ijcnn1"]
     plot_ijcnn1(sample_rates, versions, selected_hs; n_runs = n_exec)
