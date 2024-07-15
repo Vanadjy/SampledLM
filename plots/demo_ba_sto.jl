@@ -9,7 +9,7 @@ using PlotlyJS
 
 # Random.seed!(1234)
 
-function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 4, suffix::String = "dubrovnik-h1", compare::Bool = false, smooth::Bool = false, Jac_lop::Bool = true)
+function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 4, suffix::String = "dubrovnik-h1", compare::Bool = false, smooth::Bool = false, Jac_lop::Bool = true)
     temp_PLM = []
     temp_PLM_smooth = []
     temp_LM = []
@@ -39,7 +39,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
 
     for name in name_list
         nls = BundleAdjustmentModel(name)
-        sampled_nls = BAmodel_sto(name; sample_rate = sample_rate)
+        sampled_nls = BAmodel_sto(name; sample_rate = sample_rate0)
 
         sol0 = sampled_nls.nls_meta.x0
         x0 = [sol0[3*i+1] for i in 0:(sampled_nls.npnts-1)]
@@ -148,7 +148,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             for k in 1:n_runs
                 reset!(sampled_nls)
                 sampled_nls.epoch_counter = Int[1]
-                Prob_LM_out_k = SPLM(sampled_nls, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, sample_rate0 = sample_rate, version = version, Jac_lop = false)
+                Prob_LM_out_k = SPLM(sampled_nls, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, sample_rate0 = sample_rate0, version = version, Jac_lop = Jac_lop)
                 push!(PLM_outs, Prob_LM_out_k)
                 push!(plm_obj, Prob_LM_out_k.objective)
     
@@ -161,6 +161,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
                 # get metric for each run #
                 @views Metr_Hists_epochs_prob[:, k][1:length(sampled_nls.epoch_counter)] = Prob_LM_out_k.solver_specific[:ExactMetricHist][sampled_nls.epoch_counter]
             end
+
+            save_object("SPLM_outs-SPLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", PLM_outs)
+            save_object("splm_obj-SPLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", plm_obj)
     
             if n_runs%2 == 1
                 med_ind = (n_runs ÷ 2) + 1
@@ -242,7 +245,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
     
             #nplm = neval_residual(sampled_nls)
             nsplm = length(sampled_nls.epoch_counter)
+            save_object("nsplm-SPLM-ba-$name-$version.jld2", nsplm)
             ngsplm = (neval_jtprod_residual(sampled_nls) + neval_jprod_residual(sampled_nls))
+            save_object("ngsplm-SPLM-ba-$name-$version.jld2", ngsplm)
     
             med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
             std_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
@@ -389,6 +394,10 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
         end
 
+        ## ---------------------------------------------------------------------------------------------------##
+        ## ----------------------------------- DYNAMIC SAMPLE RATE -------------------------------------------##
+        ## ---------------------------------------------------------------------------------------------------##
+
         @info "using Prob_LM to solve with" h
 
         PLM_outs = []
@@ -417,6 +426,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
             # get metric for each run #
             @views Metr_Hists_epochs_prob[:, k][1:length(sampled_nls.epoch_counter)] = Prob_LM_out_k.solver_specific[:ExactMetricHist][sampled_nls.epoch_counter]
         end
+
+        save_object("PLM_outs-PLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", PLM_outs)
+        save_object("plm_obj-PLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", plm_obj)
 
         if n_runs%2 == 1
             med_ind = (n_runs ÷ 2) + 1
@@ -494,7 +506,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
 
         #nplm = neval_residual(sampled_nls)
         nplm = length(sampled_nls.epoch_counter)
+        save_object("nplm-PLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", nplm)
         ngplm = (neval_jtprod_residual(sampled_nls) + neval_jprod_residual(sampled_nls))
+        save_object("ngplm-PLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", ngplm)
 
         med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
         std_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
@@ -628,6 +642,191 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, n_runs::Int =
                 ),
                 font=attr(size=13))
         
+        plt_obj = PlotlyJS.plot(data_obj, layout_obj)
+        plt_metr = PlotlyJS.plot(data_metr, layout_metr)
+        plt_mse = PlotlyJS.plot(data_mse, layout_mse)
+
+        #display(plt_obj)
+        #display(plt_metr)
+        #display(plt_mse)
+
+        PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+
+        ## ---------------------------------------------------------------------------------------------------##
+        ## ----------------------------------- CONSTANT SAMPLE RATE -------------------------------------------##
+        ## ---------------------------------------------------------------------------------------------------##
+
+        @info "using SLM to solve with" h
+
+        SLM_outs = []
+        slm_obj = []
+        temp_SLM = []
+
+        Obj_Hists_epochs_sto = zeros(1 + MaxEpochs, n_runs)
+        Metr_Hists_epochs_sto = zero(Obj_Hists_epochs_sto)
+        MSE_Hists_epochs_sto = zero(Obj_Hists_epochs_sto)
+
+        for k in 1:n_runs
+            reset!(sampled_nls)
+            sampled_nls.epoch_counter = Int[1]
+            Prob_LM_out_k = Sto_LM(sampled_nls, h, sampled_options; x0=sampled_nls.meta.x0, subsolver_options = suboptions)
+            push!(SLM_outs, Prob_LM_out_k)
+            push!(slm_obj, Prob_LM_out_k.objective)
+
+            # get objective value for each run #
+            @views Obj_Hists_epochs_sto[:, k][1:length(sampled_nls.epoch_counter)] = Prob_LM_out_k.solver_specific[:ExactFhist][sampled_nls.epoch_counter]
+            @views Obj_Hists_epochs_sto[:, k][1:length(sampled_nls.epoch_counter)] += Prob_LM_out_k.solver_specific[:Hhist][sampled_nls.epoch_counter]
+
+            # get MSE for each run #
+            @views MSE_Hists_epochs_sto[:, k][1:length(sampled_nls.epoch_counter)] = Prob_LM_out_k.solver_specific[:Fhist][sampled_nls.epoch_counter]
+            @views MSE_Hists_epochs_sto[:, k][1:length(sampled_nls.epoch_counter)] += Prob_LM_out_k.solver_specific[:Hhist][sampled_nls.epoch_counter]
+            @views MSE_Hists_epochs_sto[:, k][1:length(sampled_nls.epoch_counter)] ./= ceil.(2 * sampled_nls.nls_meta.nequ * Prob_LM_out_k.solver_specific[:SampleRateHist][sampled_nls.epoch_counter])
+
+            # get metric for each run #
+            @views Metr_Hists_epochs_sto[:, k][1:length(sampled_nls.epoch_counter)] = Prob_LM_out_k.solver_specific[:ExactMetricHist][sampled_nls.epoch_counter]
+        end
+
+        save_object("SLM_outs-SLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", SLM_outs)
+        save_object("slm_obj-SLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", slm_obj)
+
+        if n_runs%2 == 1
+            med_ind = (n_runs ÷ 2) + 1
+        else
+            med_ind = (n_runs ÷ 2)
+        end
+        sorted_obj_vec = sort(slm_obj)
+        ref_value = sorted_obj_vec[med_ind]
+        origin_ind = 0
+        for i in eachindex(SLM_outs)
+            if slm_obj[i] == ref_value
+                origin_ind = i
+            end
+        end
+
+        # Prob_LM_out is the run associated to the median accuracy on the training set
+        Prob_LM_out = SLM_outs[origin_ind]
+
+        sol = Prob_LM_out.solution
+
+        x = [sol[3*i+1] for i in 0:(sampled_nls.npnts-1)]
+        y = [sol[3*i+2] for i in 0:(sampled_nls.npnts-1)]
+        z = [sol[3*i] for i in 1:sampled_nls.npnts]       
+        plt3d = PlotlyJS.scatter(
+            x=x,
+            y=y,
+            z=z,
+            mode="markers",
+            marker=attr(
+                size=1,
+                opacity=0.8
+            ),
+            type="scatter3d",
+            options=Dict(:showLink => true)
+        )
+        
+        layout = layout3d(name)
+        
+        #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
+        fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
+        #display(fig_ba)
+        PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+
+        #println("Press enter")
+        #n = readline()
+
+        #nplm = neval_residual(sampled_nls)
+        nslm = length(sampled_nls.epoch_counter)
+        save_object("nslm-SLM-ba-$name-$(sample_rate).jld2", nslm)
+        ngslm = (neval_jtprod_residual(sampled_nls) + neval_jprod_residual(sampled_nls))
+        save_object("nslm-SLM-ba-$name-$(sample_rate).jld2", ngslm)
+
+        med_obj_sto = zeros(axes(Obj_Hists_epochs_sto, 1))
+        std_obj_sto = zeros(axes(Obj_Hists_epochs_sto, 1))
+
+        med_metr_sto = zeros(axes(Metr_Hists_epochs_sto, 1))
+        std_metr_sto = zeros(axes(Metr_Hists_epochs_sto, 1))
+
+        med_mse_sto = zeros(axes(MSE_Hists_epochs_sto, 1))
+        std_mse_sto = zeros(axes(MSE_Hists_epochs_sto, 1))
+
+        # compute mean of objective value #
+        for l in eachindex(med_obj_sto)
+            med_obj_sto[l] = mean(filter(!iszero, Obj_Hists_epochs_sto[l, :]))
+            std_obj_sto[l] = std(filter(!iszero, Obj_Hists_epochs_sto[l, :]))
+        end
+        std_obj_sto *= Confidence[conf]
+        replace!(std_obj_sto, NaN=>0.0)
+
+        # compute mean of metric #
+        for l in eachindex(med_metr_sto)
+            med_metr_sto[l] = mean(filter(!iszero, Metr_Hists_epochs_sto[l, :]))
+            std_metr_sto[l] = std(filter(!iszero, Metr_Hists_epochs_sto[l, :]))
+        end
+        std_metr_sto *= Confidence[conf]
+        replace!(std_metr_sto, NaN=>0.0)
+        
+        # compute mean of MSE #
+        for l in eachindex(med_mse_sto)
+            med_mse_sto[l] = mean(filter(!iszero, MSE_Hists_epochs_sto[l, :]))
+            std_mse_sto[l] = std(filter(!iszero, MSE_Hists_epochs_sto[l, :]))
+        end
+        std_mse_sto *= Confidence[conf]
+        replace!(std_mse_sto, NaN=>0.0)
+
+        # --------------- OBJECTIVE DATA -------------------- #
+        data_obj_slm = PlotlyJS.scatter(; x = 1:length(med_obj_sto), y = med_obj_sto, mode="lines", name = "SLM - $(prob_versions_names[version])", line=attr(
+                            color = prob_versions_colors[version], width = 1
+                            )
+                        )
+
+        data_std_obj_slm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_sto), length(med_obj_sto):-1:1), y = vcat(med_obj_sto + std_obj_sto, reverse!(med_obj_sto - std_obj_sto)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
+            fillcolor = prob_versions_colors_std[version],
+            line_color = "transparent",
+            showlegend = false
+        )
+
+        push!(data_obj, data_obj_slm, data_std_obj_slm)
+
+        # --------------- METRIC DATA -------------------- #
+
+        data_metr_slm = PlotlyJS.scatter(; x = 1:length(med_metr_sto), y = med_metr_sto, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
+            color = prob_versions_colors[version], width = 1
+            )
+        )
+
+        data_std_metr_slm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_sto), length(med_metr_sto):-1:1), y = vcat(med_metr_sto + std_metr_sto, reverse!(med_metr_sto - std_metr_sto)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
+            fillcolor = prob_versions_colors_std[version],
+            line_color = "transparent",
+            showlegend = false
+        )
+
+        push!(data_metr, data_metr_slm, data_std_metr_slm)
+        
+        # --------------- MSE DATA -------------------- #
+
+        data_mse_slm = PlotlyJS.scatter(; x = 1:length(med_mse_sto), y = med_mse_sto, mode="lines", name = "SLM - $(prob_versions_names[version])", line=attr(
+            color = prob_versions_colors[version], width = 1
+            )
+        )
+
+        data_std_mse_slm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_sto), length(med_mse_sto):-1:1), y = vcat(med_mse_sto + std_mse_sto, reverse!(med_mse_sto - std_mse_sto)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
+            fillcolor = prob_versions_colors_std[version],
+            line_color = "transparent",
+            showlegend = false
+        )
+
+        push!(data_mse, data_mse_slm, data_std_mse_slm)
+
+        # Results Table #
+        if name == name_list[1]
+            temp_SLM = [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time]
+        else
+            temp_SLM = hcat(temp_SLM, [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+        end
+
+        layout_obj, layout_metr, layout_mse = layout(name, n_runs, suffix)
         plt_obj = PlotlyJS.plot(data_obj, layout_obj)
         plt_metr = PlotlyJS.plot(data_metr, layout_metr)
         plt_mse = PlotlyJS.plot(data_mse, layout_mse)

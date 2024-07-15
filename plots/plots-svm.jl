@@ -54,7 +54,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                     elseif selected_h == "lhalf"
                         h = RootNormLhalf(λ)
                     elseif selected_h == "smooth"
-                        h = RootNormLhalf(0.0)
+                        h = NormL1(0.0)
                     end
 
                     @info "using R2 to solve with" h
@@ -195,6 +195,8 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         elseif selected_h == "lhalf"
                             h = RootNormLhalf(λ)
                             h_name = "lhalf-norm"
+                        elseif selected_h == "smooth"
+                            h = NormL1(0.0)
                         end
                         for k in 1:n_exec
                             # executes n_exec times Sto_LM with the same inputs
@@ -428,6 +430,8 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         elseif selected_h == "lhalf"
                             h = RootNormLhalf(λ)
                             h_name = "lhalf-norm"
+                        elseif selected_h == "smooth"
+                            h = NormL1(0.0)
                         end
 
                         @info "using PLM to solve with" h
@@ -436,7 +440,6 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         plm_trains = []
 
                         for k in 1:n_exec
-                            # executes n_exec times Sto_LM with the same inputs
                             x0 = ones(prob.meta.nvar)
                             #p = randperm(prob.meta.nvar)[1:nz]
                             #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
@@ -516,7 +519,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         end
                         #nplm = neval_residual(sampled_nls_tr)
                         nplm = length(prob.epoch_counter)
+                        save_object("nplm-mnist-PLM-$version.jld2", nplm)
                         ngplm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
+                        save_object("ngplm-mnist-PLM-$version.jld2", ngplm)
                         if prob_name == "mnist-train-ls"
                             plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-lhalf-$digits")
                         end
@@ -735,7 +740,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             end
                             #nplm = neval_residual(sampled_nls_tr)
                             nsplm = length(prob.epoch_counter)
+                            save_object("nsplm-mnist-PLM-$version.jld2", nsplm)
                             ngsplm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
+                            save_object("ngsplm-mnist-PLM-$version.jld2", ngsplm)
                             if prob_name == "mnist-train-ls"
                                 plmdec = plot_svm(SProb_LM_out, SProb_LM_out.solution, "smooth-prob-lm-$version-lhalf-$digits")
                             end
