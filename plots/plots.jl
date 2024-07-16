@@ -28,21 +28,21 @@ Random.seed!(seed)
 # ---------------- Hyperbolic SVM Models ---------------- #
 
 n_exec = 10
-selected_probs = ["mnist"]
+selected_probs = ["ijcnn1"]
 
 if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
     sample_rates = [1.0, .2, .1, .05]
     selected_digits = [(1, 7)] # let only one pair of random digits
-    versions = [2, 5, 6]
+    versions = []
     #version = versions[end]
     ϵ = 1e-16
-    selected_hs = ["l1", "lhalf"]#, "smooth"]
+    selected_hs = ["l1", "lhalf" , "smooth"]
 elseif selected_probs == ["mnist"]
     sample_rate0 = .1
-    sample_rates = []
+    sample_rates = [1.0]
     selected_digits = [(1, 7)]
-    versions = [6]
+    versions = [2, 6]
     version = versions[end]
     selected_hs = ["lhalf"]
     ϵ = 1e-4
@@ -57,7 +57,7 @@ param = plot_parameter[3]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 1000
+    MaxEpochs = 100
     MaxTime = 3600.0
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
@@ -87,15 +87,14 @@ end=#
 
 Random.seed!(seed)
 
-n_exec = 10
+n_exec = 1
 sample_rates = []
 versions = [1, 2, 3, 4, 5, 6]
 version = versions[end]
 
 df = problems_df()
 filter_name = "dubrovnik"
-#filter_df = df[ df.group .== filter_name, :]
-#filter_df = df[df.nequ .<= 150000, :]
+
 filter_df = df[ df.group .== filter_name, :]
 sample_rate0 = .05
 #name1 = filter_df[1, :name]
@@ -110,7 +109,7 @@ param = plot_parameter[1]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 200
+    MaxEpochs = 10
     MaxTime = 2e4
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
@@ -119,4 +118,4 @@ end
 
 #plot_Sto_LM_BA(sample_rates, versions, name_list, selected_hs; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
 Random.seed!(seed)
-demo_ba_sto(name_list; sample_rate = 1.0, sample_rate0 = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-h1", compare = false, smooth = false, Jac_lop = true)
+demo_ba_sto(name_list; sample_rate = 1.0, sample_rate0 = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-h1", compare = false, smooth = true, Jac_lop = true)

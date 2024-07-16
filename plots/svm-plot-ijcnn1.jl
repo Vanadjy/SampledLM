@@ -21,7 +21,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             marker = attr(
                     color = color_scheme[sample_rate],
                     symbol = "square",
-                    size = 4
+                    size = 8
                 ),
             showlegend = false
             )
@@ -45,8 +45,9 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             marker = attr(
                     color = color_scheme[sample_rate],
                     symbol = "square",
-                    size = 4
-                )
+                    size = 8
+                ),
+                showlegend = false
             )
             reverse = reverse!(med_metr_sto - std_metr_sto)
             for l in eachindex(reverse)
@@ -74,9 +75,9 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             marker = attr(
                     color = color_scheme[sample_rate],
                     symbol = "square",
-                    size = 4
+                    size = 8
                 ),
-                showlegend = false
+                showlegend = true
             )
 
             data_std_mse_slm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_sto), length(med_mse_sto):-1:1), y = vcat(med_mse_sto + std_mse_sto, reverse!(med_mse_sto - std_mse_sto)), mode="lines+markers", name = "$(sample_rate*100)%-N", fill="tozerox",
@@ -103,7 +104,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             marker = attr(
                     color = prob_versions_colors[version],
                     symbol = "triangle-up",
-                    size = 4
+                    size = 8
                 ),
                 showlegend = false
             )
@@ -127,8 +128,9 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             marker = attr(
                     color = prob_versions_colors[version],
                     symbol = "triangle-up",
-                    size = 4
-                )
+                    size = 8
+                ),
+            showlegend = false
             )
 
             reverse = reverse!(med_metr_prob - std_metr_prob)
@@ -157,9 +159,9 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             marker = attr(
                     color = prob_versions_colors[version],
                     symbol = "triangle-up",
-                    size = 4
+                    size = 8
                 ),
-                showlegend = false
+                showlegend = true
             )
 
             data_std_mse_plm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-N", fill="tozerox",

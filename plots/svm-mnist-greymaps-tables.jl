@@ -50,7 +50,7 @@ function greymaps_tables_mnist(version, sample_rate0; digits = (1, 7), selected_
     local mnist, mnist_nls, mnist_sol = MNIST_train_model_sto(sample_rate0; digits = digits)
     local mnist_nlp_test_sto, mnist_nls_test_sto, mnist_sto_sol_test = MNIST_test_model_sto(sample_rate0; digits = digits)
 
-    med_obj_prob_mnist, med_metr_prob_mnist, med_mse_prob_mnist, std_obj_prob_mnist, std_metr_prob_mnist, std_mse_prob_mnist, PLM_outs, plm_trains = load_mnist_plm(version, selected_h)
+    med_obj_prob_mnist, med_metr_prob_mnist, med_mse_prob_mnist, std_obj_prob_mnist, std_metr_prob_mnist, std_mse_prob_mnist, PLM_outs, plm_trains, nplm, ngplm = load_mnist_plm(version, selected_h)
 
     if n_exec%2 == 1
         med_ind = (n_exec ÷ 2) + 1
@@ -72,15 +72,15 @@ function greymaps_tables_mnist(version, sample_rate0; digits = (1, 7), selected_
     plmtest = residual(mnist_nls_test_sto, Prob_LM_out.solution)
     @show acc(plmtrain), acc(plmtest)
     #nplm = neval_residual(sampled_nls_tr)
-    nplm = length(mnist_nls.epoch_counter)
-    ngplm = (neval_jtprod_residual(mnist_nls) + neval_jprod_residual(mnist_nls))
+    #nplm = length(mnist_nls.epoch_counter)
+    #ngplm = (neval_jtprod_residual(mnist_nls) + neval_jprod_residual(mnist_nls))
 
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps")
     plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-lhalf-$digits")
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
     if smooth
-        med_obj_prob_mnist_smooth, med_metr_prob_mnist_smooth, med_mse_prob_mnist_smooth, std_obj_prob_mnist_smooth, std_metr_prob_mnist_smooth, std_mse_prob_mnist_smooth, SPLM_outs, splm_trains = load_mnist_splm(version, selected_h)
+        med_obj_prob_mnist_smooth, med_metr_prob_mnist_smooth, med_mse_prob_mnist_smooth, std_obj_prob_mnist_smooth, std_metr_prob_mnist_smooth, std_mse_prob_mnist_smooth, SPLM_outs, splm_trains, nsplm, ngsplm = load_mnist_splm(version, selected_h)
 
         @info "using SPLM to solve"
         if n_exec%2 == 1
@@ -103,8 +103,8 @@ function greymaps_tables_mnist(version, sample_rate0; digits = (1, 7), selected_
         splmtest = residual(mnist_nls_test_sto, SProb_LM_out.solution)
         @show acc(splmtrain), acc(splmtest)
         #nplm = neval_residual(sampled_nls_tr)
-        nsplm = length(mnist_nls.epoch_counter)
-        ngsplm = (neval_jtprod_residual(mnist_nls) + neval_jprod_residual(mnist_nls))
+        #nsplm = length(mnist_nls.epoch_counter)
+        #ngsplm = (neval_jtprod_residual(mnist_nls) + neval_jprod_residual(mnist_nls))
 
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps")
         plmdec = plot_svm(SProb_LM_out, SProb_LM_out.solution, "smooth-prob-lm-$version-lhalf-$digits")

@@ -32,9 +32,12 @@ function load_mnist_plm(version, selected_h)
     PLM_outs = load_object("PLM_outs-$(prob_versions_names[version])-mnist-$selected_h.jld2")
     plm_trains = load_object("plm_trains-$(prob_versions_names[version])-mnist-$selected_h.jld2")
 
+    nplm = load_object("nplm-mnist-PLM-$version.jld2")
+    ngplm = load_object("ngplm-mnist-PLM-$version.jld2")
+
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages\SampledLM")
 
-    return med_obj_prob_mnist, med_metr_prob_mnist, med_mse_prob_mnist, std_obj_prob_mnist, std_metr_prob_mnist, std_mse_prob_mnist, PLM_outs, plm_trains
+    return med_obj_prob_mnist, med_metr_prob_mnist, med_mse_prob_mnist, std_obj_prob_mnist, std_metr_prob_mnist, std_mse_prob_mnist, PLM_outs, plm_trains, nplm, ngplm
 end
 
 function load_mnist_splm(version, selected_h)
@@ -51,9 +54,12 @@ function load_mnist_splm(version, selected_h)
     SPLM_outs = load_object("SPLM_outs-$(prob_versions_names[version])-mnist-$selected_h.jld2")
     splm_trains = load_object("splm_trains-$(prob_versions_names[version])-mnist-$selected_h.jld2")
 
+    nsplm = load_object("nsplm-mnist-PLM-$version.jld2")
+    ngsplm = load_object("ngsplm-mnist-PLM-$version.jld2")
+
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages\SampledLM")
 
-    return med_obj_prob_mnist_smooth, med_metr_prob_mnist_smooth, med_mse_prob_mnist_smooth, std_obj_prob_mnist_smooth, std_metr_prob_mnist_smooth, std_mse_prob_mnist_smooth, SPLM_outs, splm_trains
+    return med_obj_prob_mnist_smooth, med_metr_prob_mnist_smooth, med_mse_prob_mnist_smooth, std_obj_prob_mnist_smooth, std_metr_prob_mnist_smooth, std_mse_prob_mnist_smooth, SPLM_outs, splm_trains, nsplm, ngsplm
 end
 
 function load_mnist_sto(sample_rate, selected_h)

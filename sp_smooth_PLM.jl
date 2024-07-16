@@ -183,7 +183,8 @@ function SPLM(
   
       if Jac_lop
         # LSMR strategy for LinearOperators #
-        s, stats = lsmr(Jk, -Fk; λ = σk)#, atol = subsolver_options.ϵa, rtol = ϵr)
+        s, stats = lsmr(Jk, -Fk; λ = sqrt(σk), itmax = 300)#, atol = subsolver_options.ϵa, rtol = ϵr)
+        Complex_hist[k] = stats.niter
       else
         spmat = qrm_spmat_init(meta_nls.nequ, meta_nls.nvar, rows, cols, vals)
         spfct = qrm_analyse(spmat)
@@ -191,8 +192,6 @@ function SPLM(
         z = qrm_apply(spfct, -Fk, transp = 't') #TODO include complex compatibility
         s .= qrm_solve(spfct, z, transp = 'n')
       end
-    
-      #Complex_hist[k] = stats.niter * nls.sample_rate
   
       xkn .= xk .+ s
   
@@ -362,7 +361,7 @@ function SPLM(
         fk = dot(Fk, Fk) / 2
   
         #Jk = jac_op_residual(nls, xk)
-        jtprod_residual!(nls, xk, Fk, ∇fk)
+        jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
         jac_coord_residual!(nls, nls.meta.x0, vals)
         μmax = norm(vals)
         νcpInv = (1 + θ) * (μmax^2 + μmin)

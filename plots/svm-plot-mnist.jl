@@ -155,11 +155,11 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
                 )
             )
 
-            data_std_obj_plm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-N", fill="tozerox",
+            #=data_std_obj_plm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-N", fill="tozerox",
                 fillcolor = prob_versions_colors_std[version],
                 line_color = "transparent",
                 showlegend = false
-            )
+            )=#
 
             push!(data_obj, data_obj_plm)#, data_std_obj_plm)
 
@@ -178,18 +178,18 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
                 )
             )
 
-            reverse = reverse!(med_metr_prob - std_metr_prob)
+            #=reverse = reverse!(med_metr_prob - std_metr_prob)
             for l in eachindex(reverse)
                 if reverse[l] < 0
                     reverse[l] = med_metr_prob[l]
                 end
-            end
+            end=#
 
-            data_std_metr_plm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse), mode="lines+markers", name = "$(prob_versions_names[version])-N", fill="tozerox",
+            #=data_std_metr_plm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse), mode="lines+markers", name = "$(prob_versions_names[version])-N", fill="tozerox",
                 fillcolor = prob_versions_colors_std[version],
                 line_color = "transparent",
                 showlegend = false
-            )
+            )=#
 
             push!(data_metr, data_metr_plm)#, data_std_metr_plm)
             
@@ -209,11 +209,11 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
                 showlegend = false
             )
 
-            data_std_mse_plm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-N", fill="tozerox",
+            #=data_std_mse_plm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-N", fill="tozerox",
                 fillcolor = prob_versions_colors_std[version],
                 line_color = "transparent",
                 showlegend = false
-            )
+            )=#
 
             push!(data_mse, data_mse_plm)#, data_std_mse_plm)
 
@@ -235,11 +235,11 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
                     )
                 )
 
-                data_std_obj_splm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-S", fill="tozerox",
+                #=data_std_obj_splm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-S", fill="tozerox",
                     fillcolor = smooth_versions_colors_std[version],
                     line_color = "transparent",
                     showlegend = false
-                )
+                )=#
 
                 push!(data_obj, data_obj_splm)#, data_std_obj_splm)
 
@@ -265,11 +265,11 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
                     end
                 end
 
-                data_std_metr_splm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse), mode="lines+markers", name = "$(prob_versions_names[version])-S", fill="tozerox",
+                #=data_std_metr_splm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse), mode="lines+markers", name = "$(prob_versions_names[version])-S", fill="tozerox",
                     fillcolor = smooth_versions_colors_std[version],
                     line_color = "transparent",
                     showlegend = false
-                )
+                )=#
 
                 push!(data_metr, data_metr_splm)#, data_std_metr_splm)
                 
@@ -289,11 +289,11 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
                     showlegend = false
                 )
 
-                data_std_mse_splm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-S", fill="tozerox",
+                #=data_std_mse_splm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-S", fill="tozerox",
                     fillcolor = smooth_versions_colors_std[version],
                     line_color = "transparent",
                     showlegend = false
-                )
+                )=#
 
                 push!(data_mse, data_mse_splm)#, data_std_mse_splm)
             end
