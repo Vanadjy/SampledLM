@@ -105,7 +105,7 @@ name_list = ["problem-49-7776-pre", "problem-16-22106-pre", "problem-52-64053-pr
 name_list = [filter_df[i, :name] for i in [1]]
 
 selected_hs = ["l1"]
-sample_rate0 = .05
+sample_rate0 = 0.05
 plot_parameter = ["objective", "metric", "MSE", "accuracy"]
 param = plot_parameter[1]
 
