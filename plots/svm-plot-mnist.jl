@@ -16,17 +16,20 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
 
     data_obj_r2 = PlotlyJS.scatter(; x = 1:k_R2 , y = R2_out[:Fhist] + R2_out[:Hhist], mode="lines", name = "R2", line=attr(
         color="rgb(220,20,60)", dash = "dashdot", width = 1
-        )
+        ),
+        showlegend = false
     )
 
     data_obj_lm = PlotlyJS.scatter(; x = 1:length(LM_out.solver_specific[:Fhist]) , y = LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], mode="lines", name = "LM", line=attr(
         color="rgb(255,165,0)", dash = "dot", width = 1
-        )
+        ),
+        showlegend = false
     )
     
     data_obj_lmtr = PlotlyJS.scatter(; x = 1:length(LMTR_out.solver_specific[:Fhist]) , y = LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], mode="lines", name = "LMTR", line=attr(
             color="black", dash = "dash", width = 1
-            )
+            ),
+            showlegend = false
     )
 
     push!(data_obj, data_obj_r2, data_obj_lm, data_obj_lmtr)
@@ -36,19 +39,19 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
     data_mse_r2 = PlotlyJS.scatter(; x = 1:k_R2 , y = 0.5*(R2_out[:Fhist] + R2_out[:Hhist])/m, mode="lines", name = "R2", line=attr(
         color="rgb(220,20,60)", dash = "dashdot", width = 1
         ),
-        showlegend = false
+        showlegend = true
     )
 
     data_mse_lm = PlotlyJS.scatter(; x = 1:length(LM_out.solver_specific[:Fhist]) , y = 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, mode="lines", name = "LM", line=attr(
         color="rgb(255,165,0)", dash = "dot", width = 1
         ),
-        showlegend = false
+        showlegend = true
     )
     
     data_mse_lmtr = PlotlyJS.scatter(; x = 1:length(LMTR_out.solver_specific[:Fhist]) , y = 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, mode="lines", name = "LMTR", line=attr(
             color="black", dash = "dash", width = 1
             ),
-        showlegend = false
+        showlegend = true
     )
 
     push!(data_mse, data_mse_r2, data_mse_lm, data_mse_lmtr)
@@ -70,8 +73,9 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
             marker = attr(
                     color = color_scheme[sample_rate],
                     symbol = "square",
-                    size = 4
-                )
+                    size = 8
+                ),
+                showlegend = false
             )
 
             data_std_obj_slm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_sto), length(med_obj_sto):-1:1), y = vcat(med_obj_sto + std_obj_sto, reverse!(med_obj_sto - std_obj_sto)), mode="lines+markers", name = "$(sample_rate*100)%-N", fill="tozerox",
@@ -93,8 +97,9 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
             marker = attr(
                     color = color_scheme[sample_rate],
                     symbol = "square",
-                    size = 4
-                )
+                    size = 8
+                ),
+                    showlegend = false
             )
             reverse = reverse!(med_metr_sto - std_metr_sto)
             for l in eachindex(reverse)
@@ -122,9 +127,9 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
             marker = attr(
                     color = color_scheme[sample_rate],
                     symbol = "square",
-                    size = 4
+                    size = 8
                 ),
-                showlegend = false
+                showlegend = true
             )
 
             data_std_mse_slm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_sto), length(med_mse_sto):-1:1), y = vcat(med_mse_sto + std_mse_sto, reverse!(med_mse_sto - std_mse_sto)), mode="lines+markers", name = "$(sample_rate*100)%-N", fill="tozerox",
@@ -151,8 +156,9 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
             marker = attr(
                     color = prob_versions_colors[version],
                     symbol = "triangle-up",
-                    size = 4
-                )
+                    size = 8
+                ),
+                showlegend = false
             )
 
             #=data_std_obj_plm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-N", fill="tozerox",
@@ -174,7 +180,8 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
             marker = attr(
                     color = prob_versions_colors[version],
                     symbol = "triangle-up",
-                    size = 4
+                    size = 8,
+                    showlegend = false
                 )
             )
 
@@ -204,9 +211,9 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
             marker = attr(
                     color = prob_versions_colors[version],
                     symbol = "triangle-up",
-                    size = 4
+                    size = 8
                 ),
-                showlegend = false
+                showlegend = true
             )
 
             #=data_std_mse_plm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-N", fill="tozerox",
@@ -231,8 +238,9 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
                 marker = attr(
                         color = smooth_versions_colors[version],
                         symbol = "circle",
-                        size = 4
-                    )
+                        size = 8
+                    ),
+                    showlegend = false
                 )
 
                 #=data_std_obj_splm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-S", fill="tozerox",
@@ -254,8 +262,9 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
                 marker = attr(
                         color = smooth_versions_colors[version],
                         symbol = "circle",
-                        size = 4
-                    )
+                        size = 8
+                    ),
+                    showlegend = false
                 )
 
                 reverse = reverse!(med_metr_prob - std_metr_prob)
@@ -284,9 +293,9 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
                 marker = attr(
                         color = smooth_versions_colors[version],
                         symbol = "circle",
-                        size = 4
+                        size = 8
                     ),
-                    showlegend = false
+                    showlegend = true
                 )
 
                 #=data_std_mse_splm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-S", fill="tozerox",

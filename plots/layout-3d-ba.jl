@@ -1,4 +1,4 @@
-function layout3d(name)
+function layout3d(name, camera_settings)
     layout = Layout(scene = attr(
                 xaxis = attr(
                      backgroundcolor="rgb(255, 255, 255)",

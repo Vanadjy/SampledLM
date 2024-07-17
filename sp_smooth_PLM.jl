@@ -186,11 +186,16 @@ function SPLM(
         s, stats = lsmr(Jk, -Fk; λ = sqrt(σk), itmax = 300)#, atol = subsolver_options.ϵa, rtol = ϵr)
         Complex_hist[k] = stats.niter
       else
-        spmat = qrm_spmat_init(meta_nls.nequ, meta_nls.nvar, rows, cols, vals)
-        spfct = qrm_analyse(spmat)
+        n = meta_nls.nvar
+        rows_qrm = vcat(rows, (meta_nls.nequ+1):(meta_nls.nequ + n))
+        cols_qrm = vcat(cols, 1:n)
+        vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
+        spmat = qrm_spmat_init(meta_nls.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
+        spfct = qrm_spfct_init(spmat)
+        qrm_analyse!(spmat, spfct)
         qrm_factorize!(spmat, spfct)
-        z = qrm_apply(spfct, -Fk, transp = 't') #TODO include complex compatibility
-        s .= qrm_solve(spfct, z, transp = 'n')
+        z = qrm_apply(spfct, -Fk; transp = 't') #TODO include complex compatibility
+        s = qrm_solve(spfct, z; transp = 'n')
       end
   
       xkn .= xk .+ s

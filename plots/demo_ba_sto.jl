@@ -258,29 +258,68 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
             med_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
             std_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
     
-            # compute mean of objective value #
+            # compute median of objective value #
             for l in eachindex(med_obj_prob)
-                med_obj_prob[l] = mean(filter(!iszero, Obj_Hists_epochs_prob[l, :]))
-                std_obj_prob[l] = std(filter(!iszero, Obj_Hists_epochs_prob[l, :]))
+                cleared_obj_prob = filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :]))
+                if isempty(cleared_obj_prob)
+                    med_obj_prob[l] = NaN
+                    std_obj_prob[l] = NaN
+                elseif length(cleared_obj_prob) == 1
+                    med_obj_prob[l] = median(cleared_obj_prob)
+                    std_obj_prob[l] = 0.0
+                else
+                    med_obj_prob[l] = median(cleared_obj_prob)
+                    std_obj_prob[l] = std(cleared_obj_prob)
+                end
             end
+            filter!(!isnan, med_obj_prob)
             std_obj_prob *= Confidence[conf]
-            replace!(std_obj_prob, NaN=>0.0)
-    
-            # compute mean of metric #
+            filter!(!isnan, std_obj_prob)
+
+            save_object("med_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_obj_prob)
+            save_object("std_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_obj_prob)
+
+            # compute median of metric #
             for l in eachindex(med_metr_prob)
-                med_metr_prob[l] = mean(filter(!iszero, Metr_Hists_epochs_prob[l, :]))
-                std_metr_prob[l] = std(filter(!iszero, Metr_Hists_epochs_prob[l, :]))
+                cleared_metr_prob = filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :]))
+                if isempty(cleared_metr_prob)
+                    med_metr_prob[l] = NaN
+                    std_metr_prob[l] = NaN
+                elseif length(cleared_metr_prob) == 1
+                    med_metr_prob[l] = median(cleared_metr_prob)
+                    std_metr_prob[l] = 0.0
+                else
+                    med_metr_prob[l] = median(cleared_metr_prob)
+                    std_metr_prob[l] = std(cleared_metr_prob)
+                end
             end
+            filter!(!isnan, med_metr_prob)
             std_metr_prob *= Confidence[conf]
-            replace!(std_metr_prob, NaN=>0.0)
+            filter!(!isnan, std_metr_prob)
+
+            save_object("med_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_metr_prob)
+            save_object("std_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_metr_prob)
             
-            # compute mean of MSE #
+            # compute median of MSE #
             for l in eachindex(med_mse_prob)
-                med_mse_prob[l] = mean(filter(!iszero, MSE_Hists_epochs_prob[l, :]))
-                std_mse_prob[l] = std(filter(!iszero, MSE_Hists_epochs_prob[l, :]))
+                cleared_mse_prob = filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :]))
+                if isempty(cleared_mse_prob)
+                    med_mse_prob[l] = NaN
+                    std_mse_prob[l] = NaN
+                elseif length(cleared_mse_prob) == 1
+                    med_mse_prob[l] = median(cleared_mse_prob)
+                    std_mse_prob[l] = 0.0
+                else
+                    med_mse_prob[l] = (median(cleared_mse_prob))
+                    std_mse_prob[l] = std(cleared_mse_prob)
+                end
             end
+            filter!(!isnan, med_mse_prob)
             std_mse_prob *= Confidence[conf]
-            replace!(std_mse_prob, NaN=>0.0)
+            filter!(!isnan, std_mse_prob)
+
+            save_object("med_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_mse_prob)
+            save_object("std_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_mse_prob)
     
             # --------------- OBJECTIVE DATA -------------------- #
             data_obj_splm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
@@ -498,7 +537,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
         
         #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
         fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
-        #display(fig_ba)
+        fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
+        display(fig_ba)
+        display(fig_ba0)
         PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
 
         #println("Press enter")
@@ -519,29 +560,68 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
         med_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
         std_mse_prob = zeros(axes(MSE_Hists_epochs_prob, 1))
 
-        # compute mean of objective value #
+        # compute median of objective value #
         for l in eachindex(med_obj_prob)
-            med_obj_prob[l] = mean(filter(!iszero, Obj_Hists_epochs_prob[l, :]))
-            std_obj_prob[l] = std(filter(!iszero, Obj_Hists_epochs_prob[l, :]))
+            cleared_obj_prob = filter(!isnan, filter(!iszero, Obj_Hists_epochs_prob[l, :]))
+            if isempty(cleared_obj_prob)
+                med_obj_prob[l] = NaN
+                std_obj_prob[l] = NaN
+            elseif length(cleared_obj_prob) == 1
+                med_obj_prob[l] = median(cleared_obj_prob)
+                std_obj_prob[l] = 0.0
+            else
+                med_obj_prob[l] = median(cleared_obj_prob)
+                std_obj_prob[l] = std(cleared_obj_prob)
+            end
         end
+        filter!(!isnan, med_obj_prob)
         std_obj_prob *= Confidence[conf]
-        replace!(std_obj_prob, NaN=>0.0)
+        filter!(!isnan, std_obj_prob)
 
-        # compute mean of metric #
+        save_object("med_obj_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_obj_prob)
+        save_object("std_obj_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_obj_prob)
+
+        # compute median of metric #
         for l in eachindex(med_metr_prob)
-            med_metr_prob[l] = mean(filter(!iszero, Metr_Hists_epochs_prob[l, :]))
-            std_metr_prob[l] = std(filter(!iszero, Metr_Hists_epochs_prob[l, :]))
+            cleared_metr_prob = filter(!isnan, filter(!iszero, Metr_Hists_epochs_prob[l, :]))
+            if isempty(cleared_metr_prob)
+                med_metr_prob[l] = NaN
+                std_metr_prob[l] = NaN
+            elseif length(cleared_metr_prob) == 1
+                med_metr_prob[l] = median(cleared_metr_prob)
+                std_metr_prob[l] = 0.0
+            else
+                med_metr_prob[l] = median(cleared_metr_prob)
+                std_metr_prob[l] = std(cleared_metr_prob)
+            end
         end
+        filter!(!isnan, med_metr_prob)
         std_metr_prob *= Confidence[conf]
-        replace!(std_metr_prob, NaN=>0.0)
+        filter!(!isnan, std_metr_prob)
+
+        save_object("med_metr_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_metr_prob)
+        save_object("std_metr_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_metr_prob)
         
-        # compute mean of MSE #
+        # compute median of MSE #
         for l in eachindex(med_mse_prob)
-            med_mse_prob[l] = mean(filter(!iszero, MSE_Hists_epochs_prob[l, :]))
-            std_mse_prob[l] = std(filter(!iszero, MSE_Hists_epochs_prob[l, :]))
+            cleared_mse_prob = filter(!isnan, filter(!iszero, MSE_Hists_epochs_prob[l, :]))
+            if isempty(cleared_mse_prob)
+                med_mse_prob[l] = NaN
+                std_mse_prob[l] = NaN
+            elseif length(cleared_mse_prob) == 1
+                med_mse_prob[l] = median(cleared_mse_prob)
+                std_mse_prob[l] = 0.0
+            else
+                med_mse_prob[l] = (median(cleared_mse_prob))
+                std_mse_prob[l] = std(cleared_mse_prob)
+            end
         end
+        filter!(!isnan, med_mse_prob)
         std_mse_prob *= Confidence[conf]
-        replace!(std_mse_prob, NaN=>0.0)
+        filter!(!isnan, std_mse_prob)
+
+        save_object("med_mse_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_mse_prob)
+        save_object("std_mse_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_mse_prob)
 
         # --------------- OBJECTIVE DATA -------------------- #
         data_obj_plm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
@@ -682,14 +762,14 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
             # get MSE for each run #
             @views MSE_Hists_epochs_sto[:, k][1:length(sampled_nls.epoch_counter)] = Prob_LM_out_k.solver_specific[:Fhist][sampled_nls.epoch_counter]
             @views MSE_Hists_epochs_sto[:, k][1:length(sampled_nls.epoch_counter)] += Prob_LM_out_k.solver_specific[:Hhist][sampled_nls.epoch_counter]
-            @views MSE_Hists_epochs_sto[:, k][1:length(sampled_nls.epoch_counter)] ./= ceil.(2 * sampled_nls.nls_meta.nequ * Prob_LM_out_k.solver_specific[:SampleRateHist][sampled_nls.epoch_counter])
+            @views MSE_Hists_epochs_sto[:, k][1:length(sampled_nls.epoch_counter)] ./= ceil.(2 * sampled_nls.nls_meta.nequ)
 
             # get metric for each run #
             @views Metr_Hists_epochs_sto[:, k][1:length(sampled_nls.epoch_counter)] = Prob_LM_out_k.solver_specific[:ExactMetricHist][sampled_nls.epoch_counter]
         end
 
-        save_object("SLM_outs-SLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", SLM_outs)
-        save_object("slm_obj-SLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", slm_obj)
+        save_object("SLM_outs-SLM-ba-$name-$(n_runs)runs-$(sample_rate*100).jld2", SLM_outs)
+        save_object("slm_obj-SLM-ba-$name-$(n_runs)runs-$(sample_rate*100).jld2", slm_obj)
 
         if n_runs%2 == 1
             med_ind = (n_runs ÷ 2) + 1
@@ -713,34 +793,35 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
         x = [sol[3*i+1] for i in 0:(sampled_nls.npnts-1)]
         y = [sol[3*i+2] for i in 0:(sampled_nls.npnts-1)]
         z = [sol[3*i] for i in 1:sampled_nls.npnts]       
-        plt3d = PlotlyJS.scatter(
+        plt3d_slm = PlotlyJS.scatter(
             x=x,
             y=y,
             z=z,
             mode="markers",
             marker=attr(
                 size=1,
-                opacity=0.8
+                opacity=0.8,
+                color = "green"
             ),
             type="scatter3d",
             options=Dict(:showLink => true)
         )
         
-        layout = layout3d(name)
+        layout_3d = layout3d(name, camera_settings)
         
         #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
-        fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
-        #display(fig_ba)
-        PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        fig_ba = PlotlyJS.Plot(plt3d_slm, layout_3d)#; config = options)
+        display(fig_ba)
+        PlotlyJS.savefig(fig_ba, "ba-SLM-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
 
         #println("Press enter")
         #n = readline()
 
         #nplm = neval_residual(sampled_nls)
         nslm = length(sampled_nls.epoch_counter)
-        save_object("nslm-SLM-ba-$name-$(sample_rate).jld2", nslm)
+        save_object("nslm-SLM-ba-$name-$(sample_rate*100).jld2", nslm)
         ngslm = (neval_jtprod_residual(sampled_nls) + neval_jprod_residual(sampled_nls))
-        save_object("nslm-SLM-ba-$name-$(sample_rate).jld2", ngslm)
+        save_object("ngslm-SLM-ba-$name-$(sample_rate*100).jld2", ngslm)
 
         med_obj_sto = zeros(axes(Obj_Hists_epochs_sto, 1))
         std_obj_sto = zeros(axes(Obj_Hists_epochs_sto, 1))
@@ -751,29 +832,65 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
         med_mse_sto = zeros(axes(MSE_Hists_epochs_sto, 1))
         std_mse_sto = zeros(axes(MSE_Hists_epochs_sto, 1))
 
-        # compute mean of objective value #
+        # compute median of objective value #
         for l in eachindex(med_obj_sto)
-            med_obj_sto[l] = mean(filter(!iszero, Obj_Hists_epochs_sto[l, :]))
-            std_obj_sto[l] = std(filter(!iszero, Obj_Hists_epochs_sto[l, :]))
+            cleared_obj_sto = filter(!isnan, filter(!iszero, Obj_Hists_epochs_sto[l, :]))
+            if isempty(cleared_obj_sto)
+                med_obj_sto[l] = NaN
+                std_obj_sto[l] = NaN
+            elseif length(cleared_obj_sto) == 1
+                med_obj_sto[l] = median(cleared_obj_sto)
+                std_obj_sto[l] = 0.0
+            else
+                med_obj_sto[l] = median(cleared_obj_sto)
+                std_obj_sto[l] = std(cleared_obj_sto)
+            end
         end
+        filter!(!isnan, med_obj_sto)
         std_obj_sto *= Confidence[conf]
-        replace!(std_obj_sto, NaN=>0.0)
+        filter!(!isnan, std_obj_sto)
+        save_object("med_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", med_obj_sto)
+        save_object("std_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", std_obj_sto)
 
-        # compute mean of metric #
+        # compute median of metric #
         for l in eachindex(med_metr_sto)
-            med_metr_sto[l] = mean(filter(!iszero, Metr_Hists_epochs_sto[l, :]))
-            std_metr_sto[l] = std(filter(!iszero, Metr_Hists_epochs_sto[l, :]))
+            cleared_metr_sto = filter(!isnan, filter(!iszero, Metr_Hists_epochs_sto[l, :]))
+            if isempty(cleared_metr_sto)
+                med_metr_sto[l] = NaN
+                std_metr_sto[l] = NaN
+            elseif length(cleared_metr_sto) == 1
+                med_metr_sto[l] = median(cleared_metr_sto)
+                std_metr_sto[l] = 0.0
+            else
+                med_metr_sto[l] = median(cleared_metr_sto)
+                std_metr_sto[l] = std(cleared_metr_sto)
+            end
         end
+        filter!(!isnan, med_metr_sto)
         std_metr_sto *= Confidence[conf]
-        replace!(std_metr_sto, NaN=>0.0)
+        filter!(!isnan, std_metr_sto)
+        save_object("med_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", med_metr_sto)
+        save_object("std_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", std_metr_sto)
         
-        # compute mean of MSE #
+        # compute median of MSE #
         for l in eachindex(med_mse_sto)
-            med_mse_sto[l] = mean(filter(!iszero, MSE_Hists_epochs_sto[l, :]))
-            std_mse_sto[l] = std(filter(!iszero, MSE_Hists_epochs_sto[l, :]))
+            cleared_mse_sto = filter(!isnan, filter(!iszero, MSE_Hists_epochs_sto[l, :]))
+            if isempty(cleared_mse_sto)
+                med_mse_sto[l] = NaN
+                std_mse_sto[l] = NaN
+            elseif length(cleared_mse_sto) == 1
+                med_mse_sto[l] = median(cleared_mse_sto)
+                std_mse_sto[l] = 0.0
+            else
+                med_mse_sto[l] = (median(cleared_mse_sto))
+                std_mse_sto[l] = std(cleared_mse_sto)
+            end
         end
+        filter!(!isnan, med_mse_sto)
         std_mse_sto *= Confidence[conf]
-        replace!(std_mse_sto, NaN=>0.0)
+        filter!(!isnan, std_mse_sto)
+        save_object("med_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", med_mse_sto)
+        save_object("std_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", std_mse_sto)
 
         # --------------- OBJECTIVE DATA -------------------- #
         data_obj_slm = PlotlyJS.scatter(; x = 1:length(med_obj_sto), y = med_obj_sto, mode="lines", name = "SLM - $(prob_versions_names[version])", line=attr(
@@ -826,7 +943,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
             temp_SLM = hcat(temp_SLM, [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
         end
 
-        layout_obj, layout_metr, layout_mse = layout(name, n_runs, suffix)
+        #layout_obj, layout_metr, layout_mse = layout(name_list[1], n_runs, suffix)
         plt_obj = PlotlyJS.plot(data_obj, layout_obj)
         plt_metr = PlotlyJS.plot(data_metr, layout_metr)
         plt_mse = PlotlyJS.plot(data_mse, layout_mse)
@@ -835,9 +952,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
         #display(plt_metr)
         #display(plt_mse)
 
-        PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
-        PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
-        PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
     end
 
     if smooth

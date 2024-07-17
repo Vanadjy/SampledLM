@@ -42,7 +42,7 @@ the quantities are sampled ones from the original data of the Problem.
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
 function Sto_LM(
-  nls::SampledNLSModel,
+  nls::SampledBAModel,
   h::H,
   options::ROSolverOptions;
   x0::AbstractVector = nls.meta.x0,
@@ -60,7 +60,7 @@ function Sto_LM(
   ϵr = options.ϵr
   verbose = options.verbose
   maxIter = options.maxIter
-  maxIter = Int(ceil(maxIter * (nls.nls_meta.nequ / length(nls.sample)))) #computing the sample rate
+  maxIter = Int(ceil(maxIter * (nls.nobs / length(nls.sample)))) #computing the sample rate
   maxTime = options.maxTime
   η1 = options.η1
   η2 = options.η2
@@ -74,7 +74,7 @@ function Sto_LM(
   μmin = options.μmin
   metric = options.metric
 
-  m = nls.nls_meta.nequ
+  m = nls.nobs
 
   # Initializes epoch_counter
   epoch_count = 0
@@ -138,16 +138,23 @@ function Sto_LM(
   Fkn = similar(Fk)
   exact_Fk = zeros(1:m)
 
-  Jk = jac_op_residual(nls, xk)
+  meta_nls = nls_meta(nls)
+  rows = Vector{Int}(undef, meta_nls.nnzj)
+  cols = Vector{Int}(undef, meta_nls.nnzj)
+  vals = similar(xk, meta_nls.nnzj)
+  jac_structure_residual!(nls, rows, cols)
+  jac_coord_residual!(nls, xk, vals)
 
   fk = dot(Fk, Fk) / 2 #objective estimated without noise
 
   #sampled Jacobian
   ∇fk = similar(xk)
-  jtprod_residual!(nls, xk, Fk, ∇fk)
   JdFk = similar(Fk)   # temporary storage
   Jt_Fk = similar(∇fk)
   exact_Jt_Fk = similar(∇fk)
+
+  jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
+  Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
 
   μmax = opnorm(Jk)
   νcpInv = (1 + θ) * (μmax^2 + μmin)
@@ -177,7 +184,7 @@ function Sto_LM(
 
     # model for the Cauchy-Point decrease
     φcp(d) = begin
-      jtprod_residual!(nls, xk, Fk, Jt_Fk)
+      jtprod_residual!(nls, rows, cols, vals, Fk, Jt_Fk)
       dot(Fk, Fk) / 2 + dot(Jt_Fk, d)
     end
 
@@ -226,21 +233,21 @@ function Sto_LM(
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
     φ(d) = begin
-      jprod_residual!(nls, xk, d, JdFk)
+      jprod_residual!(nls, rows, cols, vals, d, JdFk)
       JdFk .+= Fk
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
     end
 
     ∇φ!(g, d) = begin
-      jprod_residual!(nls, xk, d, JdFk)
+      jprod_residual!(nls, rows, cols, vals, d, JdFk)
       JdFk .+= Fk
-      jtprod_residual!(nls, xk, JdFk, g)
+      jtprod_residual!(nls, rows, cols, vals, JdFk, g)
       g .+= σk * d
       return g
     end
 
     mk(d) = begin
-      jprod_residual!(nls, xk, d, JdFk)
+      jprod_residual!(nls, rows, cols, vals, d, JdFk)
       JdFk .+= Fk
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2 + ψ(d)
     end
@@ -295,16 +302,13 @@ function Sto_LM(
       #! format: off
     end
 
-    #=if (η2 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #If very successful, decrease the penalisation parameter
-      μk = max(μk / λ, μmin)
-    end=#
     #-- to compute exact quantities --#
     nls.sample = 1:m
-    residual!(nls, xk, exact_Fk)
+    exact_Fk = residual(nls, xk)
     exact_fk = dot(exact_Fk, exact_Fk) / 2
 
     exact_φcp(d) = begin
-      jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
+      jtprod_residual!(nls, rows, cols, vals, exact_Fk, exact_Jt_Fk)
       dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
     end
 
@@ -316,7 +320,7 @@ function Sto_LM(
     # -- -- #
 
     #updating the indexes of the sampling
-    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:mₛ])
+    nls.sample = sort(randperm(nls.nobs)[1:mₛ])
     if nls.sample_rate*k - epoch_count >= 1 #we passed on all the data
       epoch_count += 1
       push!(nls.epoch_counter, k)
@@ -338,12 +342,13 @@ function Sto_LM(
 
       # update gradient & Hessian
       shift!(ψ, xk)
-      Jk = jac_op_residual(nls, xk)
-      jtprod_residual!(nls, xk, Fk, ∇fk)
+      jac_coord_residual!(nls, xk, vals)
+      Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+      jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
 
       μmax = opnorm(Jk)
       #η3 = μmax^2
-      νcpInv = (1 + θ) * (μmax^2 + μmin) 
+      νcpInv = (1 + θ) * (μmax^2 + σmin) 
 
       Complex_hist[k] += 1
     #end
