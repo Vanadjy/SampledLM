@@ -154,6 +154,7 @@ function SPLM(
       end
       
       metric = norm(∇fk)
+      Metric_hist[k] = metric
       
       if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
         # the current xk is approximately first-order stationary
@@ -186,16 +187,36 @@ function SPLM(
         s, stats = lsmr(Jk, -Fk; λ = sqrt(σk), itmax = 300)#, atol = subsolver_options.ϵa, rtol = ϵr)
         Complex_hist[k] = stats.niter
       else
-        n = meta_nls.nvar
-        rows_qrm = vcat(rows, (meta_nls.nequ+1):(meta_nls.nequ + n))
-        cols_qrm = vcat(cols, 1:n)
-        vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
-        spmat = qrm_spmat_init(meta_nls.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
-        spfct = qrm_spfct_init(spmat)
+        if nls.sample_rate == 1.0
+          n = meta_nls.nvar
+          rows_qrm = vcat(rows, (meta_nls.nequ+1):(meta_nls.nequ + n))
+          cols_qrm = vcat(cols, 1:n)
+          vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
+
+          @assert length(rows_qrm) == length(cols_qrm)
+          @assert length(rows_qrm) == length(vals_qrm)
+          @assert meta_nls.nequ + n ≥ maximum(rows_qrm)
+          @assert n ≥ maximum(cols_qrm)
+
+          spmat = qrm_spmat_init(meta_nls.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
+          qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
+        else
+          n = maximum(cols[sparse_sample])
+          m = maximum(rows[sparse_sample])
+          rows_qrm = vcat(rows[sparse_sample], (meta_nls.nequ+1):(meta_nls.nequ + n))
+          cols_qrm = vcat(cols[sparse_sample], 1:n)
+          vals_qrm = vcat(vals[sparse_sample], sqrt(σk) .* ones(n))
+
+          spmat = qrm_spmat_init(length(Fk) + n, n, rows_qrm, cols_qrm, vals_qrm)
+          qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
+        end
+        #spmat = qrm_spmat_init(meta_nls.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
+        #spmat = qrm_spmat_init(meta_nls.nequ, meta_nls.nvar, rows, cols, vals)
+        #=spfct = qrm_spfct_init(spmat)
         qrm_analyse!(spmat, spfct)
         qrm_factorize!(spmat, spfct)
         z = qrm_apply(spfct, -Fk; transp = 't') #TODO include complex compatibility
-        s = qrm_solve(spfct, z; transp = 'n')
+        s = qrm_solve(spfct, z; transp = 'n')=#
       end
   
       xkn .= xk .+ s
