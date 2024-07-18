@@ -96,7 +96,7 @@ versions = [1, 2, 3, 4, 5, 6]
 version = versions[end]
 
 df = problems_df()
-filter_name = "venice"
+filter_name = "dubrovnik"
 
 filter_df = df[ df.group .== filter_name, :]
 sample_rate = 1.0
@@ -119,7 +119,7 @@ elseif abscissa == "CPU time"
     MaxTime = 10.0
 end
 
-smooth = false
+smooth = true
 Jac_lop = false
 
 #plot_Sto_LM_BA(sample_rates, versions, name_list, selected_hs; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
