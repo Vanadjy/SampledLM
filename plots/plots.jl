@@ -90,7 +90,7 @@ end=#
 
 Random.seed!(seed)
 
-n_exec = 1
+n_exec = 2
 sample_rates = []
 versions = [1, 2, 3, 4, 5, 6]
 version = versions[end]
@@ -112,7 +112,7 @@ param = plot_parameter[1]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 10
+    MaxEpochs = 5
     MaxTime = 2e4
 elseif abscissa == "CPU time"
     MaxEpochs = 1000

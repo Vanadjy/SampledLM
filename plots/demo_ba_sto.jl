@@ -9,7 +9,7 @@ using PlotlyJS
 
 # Random.seed!(1234)
 
-function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 4, suffix::String = "dubrovnik-h1", compare::Bool = false, smooth::Bool = false, Jac_lop::Bool = true)
+function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 6, suffix::String = "dubrovnik-h1", compare::Bool = false, smooth::Bool = false, Jac_lop::Bool = true)
     temp_PLM = []
     temp_PLM_smooth = []
     temp_LM = []
@@ -136,7 +136,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
 
         sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
         if smooth
-            @info "using SPLM to solve"
+            @info "using SPLM to solve with " h
 
             PLM_outs = []
             plm_obj = []
@@ -237,8 +237,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
             fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
             #display(fig_ba)
             #display(fig_ba0)
-            PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
-            PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-l1-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs-l1-smooth.pdf"; format = "pdf")
     
             #println("Press enter")
             #n = readline()
@@ -276,8 +276,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
             std_obj_prob *= Confidence[conf]
             filter!(!isnan, std_obj_prob)
 
-            save_object("med_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_obj_prob)
-            save_object("std_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_obj_prob)
+            save_object("med_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_obj_prob)
+            save_object("std_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_obj_prob)
 
             # compute median of metric #
             for l in eachindex(med_metr_prob)
@@ -297,8 +297,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
             std_metr_prob *= Confidence[conf]
             filter!(!isnan, std_metr_prob)
 
-            save_object("med_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_metr_prob)
-            save_object("std_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_metr_prob)
+            save_object("med_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_metr_prob)
+            save_object("std_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_metr_prob)
             
             # compute median of MSE #
             for l in eachindex(med_mse_prob)
@@ -428,9 +428,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
             #display(plt_metr)
             #display(plt_mse)
     
-            PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
-            PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
-            PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-l1-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-l1-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-l1-smooth.pdf"; format = "pdf")
         end
 
         ## ---------------------------------------------------------------------------------------------------##
@@ -540,7 +540,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
         fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
         display(fig_ba)
         display(fig_ba0)
-        PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
 
         #println("Press enter")
         #n = readline()
@@ -730,9 +730,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
         #display(plt_metr)
         #display(plt_mse)
 
-        PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
-        PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
-        PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
 
         ## ---------------------------------------------------------------------------------------------------##
         ## ----------------------------------- CONSTANT SAMPLE RATE -------------------------------------------##
@@ -812,7 +812,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
         #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
         fig_ba = PlotlyJS.Plot(plt3d_slm, layout_3d)#; config = options)
         display(fig_ba)
-        PlotlyJS.savefig(fig_ba, "ba-SLM-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        PlotlyJS.savefig(fig_ba, "ba-SLM-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
 
         #println("Press enter")
         #n = readline()
@@ -952,9 +952,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
         #display(plt_metr)
         #display(plt_mse)
 
-        PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
-        PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
-        PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-compare=$compare.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
     end
 
     if smooth
