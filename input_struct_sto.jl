@@ -242,6 +242,7 @@ mutable struct SampledBAModel{T, S} <: AbstractNLSModel{T, S}
   sample::AbstractVector{<:Integer}
   epoch_counter::AbstractVector{<:Integer}
   sample_rate::T
+  opt_counter::AbstractVector{<:Integer}
 end
 
 """
@@ -283,6 +284,7 @@ function BAmodel_sto(name::AbstractString; T::Type = Float64, sample_rate = 1.0)
 
   sample_nobs = sort(randperm(nobs)[1:Int(ceil(sample_rate * nobs))])
   epoch_counter = [1]
+  opt_counter = Int[]
 
   return SampledBAModel(
     meta,
@@ -307,6 +309,7 @@ function BAmodel_sto(name::AbstractString; T::Type = Float64, sample_rate = 1.0)
     sample_nobs,
     epoch_counter,
     sample_rate,
+    opt_counter,
   )
 end
 
