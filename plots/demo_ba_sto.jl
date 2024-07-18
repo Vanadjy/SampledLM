@@ -9,7 +9,7 @@ using PlotlyJS
 
 # Random.seed!(1234)
 
-function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 6, suffix::String = "dubrovnik-h1", compare::Bool = false, smooth::Bool = false, Jac_lop::Bool = true)
+function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 6, suffix::String = "dubrovnik-h1", compare::Bool = false, smooth::Bool = false, Jac_lop::Bool = true)
     temp_PLM = []
     temp_PLM_smooth = []
     temp_LM = []
@@ -136,7 +136,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
 
         sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
         if smooth
-            @info "using SPLM to solve with " h
+            @info "using SPLM"
 
             PLM_outs = []
             plm_obj = []
@@ -148,7 +148,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
             for k in 1:n_runs
                 reset!(sampled_nls)
                 sampled_nls.epoch_counter = Int[1]
-                Prob_LM_out_k = SPLM(sampled_nls, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, sample_rate0 = sample_rate0, version = version, Jac_lop = Jac_lop)
+                Prob_LM_out_k = SPLM(sampled_nls, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, sample_rate0 = sample_rate, version = version, Jac_lop = Jac_lop)
                 push!(PLM_outs, Prob_LM_out_k)
                 push!(plm_obj, Prob_LM_out_k.objective)
     
@@ -449,7 +449,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = .05, sample_rate0 
         for k in 1:n_runs
             reset!(sampled_nls)
             sampled_nls.epoch_counter = Int[1]
-            Prob_LM_out_k = Prob_LM(sampled_nls, h, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, version = version)
+            Prob_LM_out_k = Prob_LM(sampled_nls, h, sampled_options, x0=sampled_nls.meta.x0, sample_rate0 = sample_rate0, subsolver_options = suboptions, version = version)
             push!(PLM_outs, Prob_LM_out_k)
             push!(plm_obj, Prob_LM_out_k.objective)
 
