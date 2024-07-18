@@ -538,8 +538,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
         fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
         fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
-        display(fig_ba)
-        display(fig_ba0)
+        #display(fig_ba)
+        #display(fig_ba0)
         PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
 
         #println("Press enter")
@@ -811,7 +811,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         
         #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
         fig_ba = PlotlyJS.Plot(plt3d_slm, layout_3d)#; config = options)
-        display(fig_ba)
+        #display(fig_ba)
         PlotlyJS.savefig(fig_ba, "ba-SLM-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
 
         #println("Press enter")

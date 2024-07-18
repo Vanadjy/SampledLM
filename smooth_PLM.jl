@@ -174,7 +174,7 @@ function SPLM(
   scp = similar(s)
 
   optimal = false
-  tired = epoch_count ≥ maxEpoch-1 || elapsed_time > maxTime
+  tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
   #tired = elapsed_time > maxTime
 
   while !(optimal || tired)
@@ -441,7 +441,7 @@ function SPLM(
       change_sample_rate = false
     end
 
-    tired = epoch_count ≥ maxEpoch-1 || elapsed_time > maxTime
+    tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
   end
 
   if verbose > 0

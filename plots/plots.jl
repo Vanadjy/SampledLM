@@ -90,7 +90,7 @@ end=#
 
 Random.seed!(seed)
 
-n_exec = 2
+n_exec = 5
 sample_rates = []
 versions = [1, 2, 3, 4, 5, 6]
 version = versions[end]
@@ -105,14 +105,14 @@ name_list = ["problem-49-7776-pre", "problem-16-22106-pre", "problem-52-64053-pr
 name_list = [filter_df[i, :name] for i in [1]]
 
 selected_hs = ["l1"]
-sample_rate0 = 1.0
+sample_rate0 = .05
 plot_parameter = ["objective", "metric", "MSE", "accuracy"]
 param = plot_parameter[1]
 
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 5
+    MaxEpochs = 1000
     MaxTime = 2e4
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
