@@ -359,6 +359,8 @@ function residuals!(
   end
 end
 
+
+
 function projection!(
   p3::AbstractVector,
   r::AbstractVector,
@@ -507,6 +509,12 @@ function NLPModels.jac_structure_residual!(
     @inbounds cols[(idx_obs + 16):(idx_obs + 24)] .= (idx_cam + 1):(idx_cam + 9)
   end
   return rows, cols
+end
+
+function NLPModels.residual(nls::SampledBAModel{T, S}, x::AbstractVector{T}) where {T, S}
+  @lencheck nls.meta.nvar x
+  Fx = S(undef, nls.nls_meta.nequ)
+  residual!(nls, x, Fx)
 end
 
 function NLPModels.jac_coord_residual!(

@@ -76,3 +76,46 @@ function sp_sample(rows::AbstractVector{T}, sample::AbstractVector{<:Integer}) w
   end
   return sp_sample
 end
+
+#=function formatting_tickvals_10power(v)
+  tickvals = Vector{Int}(undef, length(v))
+  for i in eachindex(tickvals)
+    if i <= 10
+      tickvals[i] = i
+    elseif isinteger(i / 10)
+      tickvals[i] = i
+    end
+  end
+  return tickvals
+end=#
+
+#=function formatting_tickvals_10power(v)
+  pmin = floor(log10(minimum(v)))
+  pmax = ceil(log10(maximum(v)))
+  tickvals = Float64[]
+  for i in pmin:(pmax-1)
+    if i < 0
+      els = [k / 10.0^(-i) for k in 1.0:9.0]
+      append!(tickvals, els)
+    else
+      els = [k * 10.0^i for k in 1.0:9.0]
+      append!(tickvals, els)
+    end
+  end
+  tickvals = vcat(tickvals, 10^pmax)
+  return tickvals
+end
+
+function formatting_ticktext_10power(tickvals)
+  ticktext = Vector{String}(undef, length(tickvals))
+  for i in eachindex(tickvals)
+    if string(tickvals[i])[1] == '1'
+      ticktext[i] = latexstring("\LARGE \$ 10^$(Int(log10(tickvals[i])))\$")
+    elseif string(tickvals[i])[end] == '1'
+      ticktext[i] = latexstring("\LARGE \$ 10^$(Int(log10(tickvals[i])))\$ ")
+    else
+      ticktext[i] = ""
+    end
+  end
+  return ticktext
+end=#

@@ -3,7 +3,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
     color_scheme = Dict([(1.0, "rgb(255,105,180)"), (.2, "rgb(176,196,222)"), (.1, "rgb(205,133,63)"), (.05, "rgb(154,205,50)"), (.01, 8)])
     color_scheme_std = Dict([(1.0, "rgba(255,105,180, .2)"), (.2, "rgba(176,196,222, 0.2)"), (.1, "rgba(205,133,63, 0.2)"), (.05, "rgba(154,205,50, 0.2)"), (.01, 8)])
 
-    prob_versions_names = Dict([(1, "mobmean"), (2, "nondec"), (3, "each-it"), (4, "hybrid"), (5, "acc"), (6, "hybrid-acc")])
+    prob_versions_names = Dict([(1, "mobmean"), (2, "nd-e"), (3, "each-it"), (4, "hybrid"), (5, "nd-s"), (6, "nd-hybrid")])
     prob_versions_colors = Dict([(1, "rgb(30,144,255)"), (2, "rgb(255,140,0)"), (3, "rgb(50,205,50)"), (4, "rgb(123,104,238)"), (5, "rgb(218,165,32)"), (6, "rgb(148,0,211)")])
     prob_versions_colors_std = Dict([(1, "rgba(30,144,255, 0.2)"), (2, "rgba(255,140,0, 0.2)"), (3, "rgba(50,205,50, 0.2)"), (4, "rgba(123,104,238, 0.2)"), (5, "rgba(218,165,32, .2)"), (6, "rgba(148,0,211, .2)")])
 
@@ -30,7 +30,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                     mnist_nlp_test, mnist_nls_test, mnist_sol_test = RegularizedProblems.svm_test_model()
                     A_ijcnn1, b_ijcnn1 = ijcnn1_load_data()
                     ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
-                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, σmin = 1e-5, maxIter = MaxEpochs+1, maxTime = MaxTime;)
+                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, σmin = 1e-5, maxIter = MaxEpochs, maxTime = MaxTime;)
                     subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
 
                     if selected_prob == "ijcnn1"
@@ -165,13 +165,14 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                 for sample_rate in sample_rates
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
                     local ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_model_sto(sample_rate)
                     #a9a, a9a_nls = a9a_model_sto(sample_rate)
                     local mnist, mnist_nls, mnist_sol = MNIST_train_model_sto(sample_rate; digits = digits)
+                    local mnist_test, mnist_nls_test, mnist_sol_test = MNIST_test_model_sto(sample_rate; digits = digits)
                     #lrcomp, lrcomp_nls, sol_lrcomp = lrcomp_model(50, 20; sample_rate = sample_rate)
                     local λ = .1
 
@@ -198,6 +199,10 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         elseif selected_h == "smooth"
                             h = NormL1(0.0)
                         end
+
+                        SLM_outs = []
+                        slm_trains = []
+
                         for k in 1:n_exec
                             # executes n_exec times Sto_LM with the same inputs
                             x0 = digits[1] * ones(prob.meta.nvar)
@@ -206,6 +211,8 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             reset!(prob)
                             #try
                             PLM_out = Sto_LM(prob, h, sampled_options; x0 = x0, subsolver_options = subsolver_options)
+                            push!(SLM_outs, PLM_out)
+                            push!(slm_trains, residual(prob, PLM_out.solution))
 
                             #=if param == "objective"
                                 if abscissa == "epoch"
@@ -243,22 +250,58 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
 
                             sample_size = length(prob.sample)
 
+                            selected_iterations = (sample_rate == 1.0) ? prob.epoch_counter[2:end] : prob.epoch_counter[1:end-1]
+
                             # get objective value for each run #
-                            @views Obj_Hists_epochs_sto[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactFhist][prob.epoch_counter]
-                            @views Obj_Hists_epochs_sto[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
+                            @views Obj_Hists_epochs_sto[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:ExactFhist][selected_iterations]
+                            @views Obj_Hists_epochs_sto[:, k][1:length(selected_iterations)] += PLM_out.solver_specific[:Hhist][selected_iterations]
 
                             # get MSE for each run #
-                            @views MSE_Hists_epochs_sto[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:Fhist][prob.epoch_counter]
-                            @views MSE_Hists_epochs_sto[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
-                            @views MSE_Hists_epochs_sto[:, k][1:length(prob.epoch_counter)] ./= (2 * sample_size)
+                            @views MSE_Hists_epochs_sto[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:Fhist][selected_iterations]
+                            @views MSE_Hists_epochs_sto[:, k][1:length(selected_iterations)] += PLM_out.solver_specific[:Hhist][selected_iterations]
+                            @views MSE_Hists_epochs_sto[:, k][1:length(selected_iterations)] ./= (2 * sample_size)
 
                             # get metric for each run #
-                            @views Metr_Hists_epochs_sto[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactMetricHist][prob.epoch_counter]
+                            @views Metr_Hists_epochs_sto[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:ExactMetricHist][selected_iterations]
 
                             if k < n_exec # reset epoch counter for each run
                                 prob.epoch_counter = Int[1]
                             end
                         end
+
+                        save_object("SLM_outs-$(sample_rate*100)%-$selected_prob-$selected_h.jld2", SLM_outs)
+                        save_object("slm_trains-$(sample_rate*100)%-$selected_prob-$selected_h.jld2", slm_trains)
+
+                        if n_exec%2 == 1
+                            med_ind = (n_exec ÷ 2) + 1
+                        else
+                            med_ind = (n_exec ÷ 2)
+                        end
+                        acc_vec = acc.(slm_trains)
+                        sorted_acc_vec = sort(acc_vec)
+                        ref_value = sorted_acc_vec[med_ind]
+                        origin_ind = 0
+                        for i in eachindex(SLM_outs)
+                            if acc_vec[i] == ref_value
+                                origin_ind = i
+                            end
+                        end
+
+                        Prob_LM_out = SLM_outs[origin_ind]
+                        slmtrain = residual(prob, Prob_LM_out.solution)
+                        if prob_name == "mnist-train-ls"
+                            slmtest = residual(mnist_nls_test, Prob_LM_out.solution)
+                            @show acc(slmtrain), acc(slmtest)
+                        end
+                        #nplm = neval_residual(sampled_nls_tr)
+                        nslm = length(prob.epoch_counter)-1
+                        save_object("nslm-mnist-PLM-$(100*sample_rate)%.jld2", nslm)
+                        ngslm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
+                        save_object("ngplm-mnist-PLM-$(100*sample_rate)%.jld2", ngslm)
+                        if prob_name == "mnist-train-ls"
+                            slmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "sto-lm-$(100*sample_rate)%-lhalf-$digits")
+                        end
+
                         med_obj_sto = zeros(axes(Obj_Hists_epochs_sto, 1))
                         std_obj_sto = zeros(axes(Obj_Hists_epochs_sto, 1))
 
@@ -400,7 +443,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                 for version in versions
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 2.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, μmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate0)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -480,18 +523,19 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             elseif param == "metric"
                                 @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactMetricHist][prob.epoch_counter]
                             end=#
+                            selected_iterations = (sample_rate0 == 1.0) ? prob.epoch_counter[2:end] : prob.epoch_counter[1:end-1]
 
                             # get objective value for each run #
-                            @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactFhist][prob.epoch_counter]
-                            @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
+                            @views Obj_Hists_epochs_prob[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:ExactFhist][selected_iterations]
+                            @views Obj_Hists_epochs_prob[:, k][1:length(selected_iterations)] += PLM_out.solver_specific[:Hhist][selected_iterations]
 
                             # get MSE for each run #
-                            @views MSE_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:Fhist][prob.epoch_counter]
-                            @views MSE_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] += PLM_out.solver_specific[:Hhist][prob.epoch_counter]
-                            @views MSE_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] ./= ceil.(2 * prob.nls_meta.nequ * PLM_out.solver_specific[:SampleRateHist][prob.epoch_counter])
+                            @views MSE_Hists_epochs_prob[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:Fhist][selected_iterations]
+                            @views MSE_Hists_epochs_prob[:, k][1:length(selected_iterations)] += PLM_out.solver_specific[:Hhist][selected_iterations]
+                            @views MSE_Hists_epochs_prob[:, k][1:length(selected_iterations)] ./= ceil.(2 * prob.nls_meta.nequ * PLM_out.solver_specific[:SampleRateHist][selected_iterations])
 
                             # get metric for each run #
-                            @views Metr_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactMetricHist][prob.epoch_counter]
+                            @views Metr_Hists_epochs_prob[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:ExactMetricHist][selected_iterations]
                         end
                         save_object("PLM_outs-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", PLM_outs)
                         save_object("plm_trains-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", plm_trains)
@@ -518,12 +562,12 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                             @show acc(plmtrain), acc(plmtest)
                         end
                         #nplm = neval_residual(sampled_nls_tr)
-                        nplm = length(prob.epoch_counter)
-                        save_object("nplm-mnist-PLM-$version.jld2", nplm)
+                        nplm = length(prob.epoch_counter)-1
+                        save_object("nplm-mnist-PLM-$(prob_versions_names[version]).jld2", nplm)
                         ngplm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
-                        save_object("ngplm-mnist-PLM-$version.jld2", ngplm)
+                        save_object("ngplm-mnist-PLM-$(prob_versions_names[version]).jld2", ngplm)
                         if prob_name == "mnist-train-ls"
-                            plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-lhalf-$digits")
+                            plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$(prob_versions_names[version])-lhalf-$digits")
                         end
 
                         med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
@@ -703,15 +747,17 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                                     @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactMetricHist][prob.epoch_counter]
                                 end=#
 
+                                selected_iterations = (sample_rate == 1.0) ? prob.epoch_counter[2:end] : prob.epoch_counter[1:end-1]
+
                                 # get objective value for each run #
-                                @views Obj_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactFhist][prob.epoch_counter]
+                                @views Obj_Hists_epochs_prob[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:ExactFhist][selected_iterations]
 
                                 # get MSE for each run #
-                                @views MSE_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:Fhist][prob.epoch_counter]
-                                @views MSE_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] ./= ceil.(2 * prob.nls_meta.nequ * PLM_out.solver_specific[:SampleRateHist][prob.epoch_counter])
+                                @views MSE_Hists_epochs_prob[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:Fhist][selected_iterations]
+                                @views MSE_Hists_epochs_prob[:, k][1:length(selected_iterations)] ./= ceil.(2 * prob.nls_meta.nequ * PLM_out.solver_specific[:SampleRateHist][selected_iterations])
 
                                 # get metric for each run #
-                                @views Metr_Hists_epochs_prob[:, k][1:length(prob.epoch_counter)] = PLM_out.solver_specific[:ExactMetricHist][prob.epoch_counter]
+                                @views Metr_Hists_epochs_prob[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:ExactMetricHist][selected_iterations]
                             end
 
                             save_object("SPLM_outs-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", SPLM_outs)
@@ -739,12 +785,12 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                                 @show acc(splmtrain), acc(splmtest)
                             end
                             #nplm = neval_residual(sampled_nls_tr)
-                            nsplm = length(prob.epoch_counter)
-                            save_object("nsplm-mnist-PLM-$version.jld2", nsplm)
+                            nsplm = length(prob.epoch_counter) - 1
+                            save_object("nsplm-mnist-PLM-$(prob_versions_names[version]).jld2", nsplm)
                             ngsplm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
-                            save_object("ngsplm-mnist-PLM-$version.jld2", ngsplm)
+                            save_object("ngsplm-mnist-PLM-$(prob_versions_names[version]).jld2", ngsplm)
                             if prob_name == "mnist-train-ls"
-                                plmdec = plot_svm(SProb_LM_out, SProb_LM_out.solution, "smooth-prob-lm-$version-lhalf-$digits")
+                                plmdec = plot_svm(SProb_LM_out, SProb_LM_out.solution, "smooth-prob-lm-$(prob_versions_names[version])-lhalf-$digits")
                             end
 
                             med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
@@ -1006,7 +1052,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                 display(plt_metr)
                 display(plt_mse)
 
-                if selected_prob == "ijcnn1"
+                #=if selected_prob == "ijcnn1"
                     PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.pdf"; format = "pdf")
                     PlotlyJS.savefig(plt_metr, "$selected_prob-metric-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.pdf"; format = "pdf")
                     PlotlyJS.savefig(plt_mse, "$selected_prob-MSE-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.pdf"; format = "pdf")
@@ -1014,7 +1060,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                     PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).pdf"; format = "pdf")
                     PlotlyJS.savefig(plt_metr, "$selected_prob-metric-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).pdf"; format = "pdf")
                     PlotlyJS.savefig(plt_mse, "$selected_prob-MSE-$(n_exec)runs-$digits-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth-version$(versions[end]).pdf"; format = "pdf")
-                end
+                end=#
             end
         end
     end

@@ -1,4 +1,4 @@
-function plot_ba(sample_rate, version::Int; n_runs = 10, smooth::Bool = false)
+function plot_ba(name, sample_rate, version::Int; n_runs = 10, smooth::Bool = false)
     include("plot-configuration.jl")
 
     data_obj = GenericTrace{Dict{Symbol, Any}}[]
@@ -9,7 +9,7 @@ function plot_ba(sample_rate, version::Int; n_runs = 10, smooth::Bool = false)
     ## ----------------------------------- CONSTANT SAMPLE RATE ------------------------------------------##
     ## ---------------------------------------------------------------------------------------------------##
 
-    SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate; n_runs = n_runs)
+    #=SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate; n_runs = n_runs)
 
     # --------------- OBJECTIVE DATA -------------------- #
     data_obj_slm = PlotlyJS.scatter(; x = 1:length(med_obj_sto), y = med_obj_sto, mode="lines", name = "SLM - $(prob_versions_names[version])", line=attr(
@@ -53,7 +53,7 @@ function plot_ba(sample_rate, version::Int; n_runs = 10, smooth::Bool = false)
     showlegend = false
     )
 
-    push!(data_mse, data_mse_slm, data_std_mse_slm)
+    push!(data_mse, data_mse_slm, data_std_mse_slm)=#
 
     ## ---------------------------------------------------------------------------------------------------##
     ## ----------------------------------- DYNAMIC SAMPLE RATE -------------------------------------------##
@@ -155,7 +155,7 @@ function plot_ba(sample_rate, version::Int; n_runs = 10, smooth::Bool = false)
         push!(data_mse, data_mse_splm, data_std_mse_splm)
     end
 
-    layout_obj, layout_metr, layout_mse = layout(name_list[1], n_runs, suffix)
+    layout_obj, layout_metr, layout_mse = layout(name_list[1], n_runs, "l1")
     plt_obj = PlotlyJS.plot(data_obj, layout_obj)
     plt_metr = PlotlyJS.plot(data_metr, layout_metr)
     plt_mse = PlotlyJS.plot(data_mse, layout_mse)
@@ -164,7 +164,7 @@ function plot_ba(sample_rate, version::Int; n_runs = 10, smooth::Bool = false)
     display(plt_metr)
     display(plt_mse)
 
-    PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
-    PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
-    PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+    PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
+    PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
+    PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
 end

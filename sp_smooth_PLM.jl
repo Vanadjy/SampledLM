@@ -207,6 +207,11 @@ function SPLM(
           cols_qrm = vcat(cols[sparse_sample], 1:n)
           vals_qrm = vcat(vals[sparse_sample], sqrt(σk) .* ones(n))
 
+          display(nls.sample_rate)
+          display(m)
+          display(n)
+          display(length(Fk))
+
           spmat = qrm_spmat_init(length(Fk) + n, n, rows_qrm, cols_qrm, vals_qrm)
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
         end

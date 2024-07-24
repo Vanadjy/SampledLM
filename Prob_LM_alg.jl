@@ -194,6 +194,14 @@ function Prob_LM(
     else
       push!(TimeHist, elapsed_time)
     end
+
+    #updating the indexes of the sampling
+    epoch_progress += nls.sample_rate
+    if epoch_progress >= 1 #we passed on all the data
+      epoch_count += 1
+      push!(nls.epoch_counter, k)
+      epoch_progress -= 1
+    end
     
     # model for the Cauchy-Point decrease
     φcp(d) = begin
@@ -225,6 +233,7 @@ function Prob_LM(
       ϵ_increment = ϵr * metric
       ϵ += ϵ_increment  # make stopping test absolute and relative
       ϵ_subsolver += ϵ_increment
+      μk = 1 / metric
     end
 
     if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
@@ -339,14 +348,6 @@ function Prob_LM(
       exact_Metric_hist[k] = metric
     end
     # -- -- #
-
-    #updating the indexes of the sampling
-    epoch_progress += nls.sample_rate
-    if epoch_progress >= 1 #we passed on all the data
-      epoch_count += 1
-      push!(nls.epoch_counter, k)
-      epoch_progress -= 1
-    end
 
     # Version 1: List of predetermined - switch with mobile average #
     if version == 1

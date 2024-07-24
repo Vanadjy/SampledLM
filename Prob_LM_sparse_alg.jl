@@ -158,7 +158,7 @@ function Prob_LM(
 
   #sampled Jacobian
   ∇fk = similar(xk)
-  JdFk = similar(Fk) # temporary storage
+  JdFk = similar(Fk) #temporary storage
   Jt_Fk = similar(∇fk)
 
   meta_nls = nls_meta(nls)
@@ -230,6 +230,7 @@ function Prob_LM(
       ϵ_increment = ϵr * metric
       ϵ += ϵ_increment  # make stopping test absolute and relative
       ϵ_subsolver += ϵ_increment
+      μk = 1e2 / metric
     end
 
     if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
@@ -517,7 +518,7 @@ function Prob_LM(
       #! format: off
       @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
       #! format: on
-      @info "SLM: terminating with √ξcp/νcp = $metric"
+      @info "PLM: terminating with √ξcp/νcp = $metric"
     end
   end
   status = if optimal

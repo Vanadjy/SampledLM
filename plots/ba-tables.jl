@@ -1,4 +1,4 @@
-function ba_tables(name, sample_rate, version; suffix::String = "l1", smooth::Bool = false)
+function ba_tables(name, sample_rate, version; suffix::String = "l1", n_runs = 10, smooth::Bool = false)
 
     SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate; n_runs = n_runs)
     PLM_outs, plm_obj, med_obj_prob, std_obj_prob, med_metr_prob, std_metr_prob, med_mse_prob, std_mse_prob, nplm, ngplm = load_ba_plm(name, version; n_runs = n_runs)

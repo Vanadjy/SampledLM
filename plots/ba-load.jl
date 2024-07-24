@@ -11,8 +11,8 @@ function load_ba_plm(name, version; n_runs = 10)
     med_mse_prob = load_object("med_mse_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2")
     std_mse_prob = load_object("std_mse_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2")
 
-    nplm = load_object("nplm-PLM-ba-$name-$version.jld2")
-    ngplm = load_object("ngplm-PLM-ba-$name-$version.jld2")
+    nplm = load_object("nplm-PLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2")
+    ngplm = load_object("ngplm-PLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2")
 
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
