@@ -52,7 +52,7 @@ if selected_probs == ["ijcnn1"]
     compare = false
 elseif selected_probs == ["mnist"]
     sample_rate0 = .05
-    sample_rates = [1.0]
+    sample_rates = [1.0, .05]
     selected_digits = [(1, 7)]
     versions = [2]
     version = versions[end]
