@@ -230,7 +230,7 @@ function Prob_LM(
       ϵ_increment = ϵr * metric
       ϵ += ϵ_increment  # make stopping test absolute and relative
       ϵ_subsolver += ϵ_increment
-      μk = 1e2 / metric
+      μk = 1 / metric
     end
 
     if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited

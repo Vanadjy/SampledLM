@@ -132,9 +132,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         end
 
         options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-        suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 100)
+        suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 1000)
 
-        sampled_options = ROSolverOptions(η3 = .4, ν = 1e5, νcp = 1e5, β = 1e16, σmax = 1e6, ϵa = 1e-10, ϵr = 1e-10, σmin = 1e-6, μmin = 1e-6, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+        sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-10, ϵr = 1e-10, σmin = 1e-6, μmin = 1e-6, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
         if smooth
             @info "using SPLM"
 
