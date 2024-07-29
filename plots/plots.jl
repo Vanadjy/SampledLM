@@ -34,7 +34,7 @@ Random.seed!(seed)
 # ---------------- Hyperbolic SVM Models ---------------- #
 
 n_exec = 10
-selected_probs = ["ijcnn1"]
+selected_probs = ["mnist"]
 MaxEpochs = 0
 MaxTime = 0.0
 
@@ -54,8 +54,8 @@ elseif selected_probs == ["mnist"]
     sample_rate0 = .05
     sample_rates = [1.0, .05]
     selected_digits = [(1, 7)]
-    versions = [2]
-    version = versions[end]
+    versions = []#2]
+    #version = versions[end]
     selected_hs = ["lhalf"]
     ϵ = 1e-4
     MaxEpochs = 1000
@@ -68,7 +68,7 @@ abscissas = ["epoch", "CPU time"]
 abscissa = abscissas[1]
 
 #plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
-#plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = smooth, sample_rate0 = sample_rate0, compare = compare, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
+plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = smooth, sample_rate0 = sample_rate0, compare = compare, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
 
 # -- Plots for MNIST grey map -- #
 
@@ -77,14 +77,14 @@ Random.seed!(seed)
     demo_svm_sto(;sample_rate = sample_rate0, n_runs = n_exec, digits = digits, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, smooth = true)
 end=#
 
-if selected_probs == ["ijcnn1"]
+#=if selected_probs == ["ijcnn1"]
     plot_ijcnn1(sample_rates, versions, selected_hs; n_runs = n_exec, MaxEpochs = MaxEpochs)
 elseif selected_probs == ["mnist"]
     plot_mnist(sample_rates, versions, selected_hs; n_runs = n_exec, smooth = smooth)
     for version in versions
         greymaps_tables_mnist(version, sample_rates, sample_rate0; smooth = smooth)
     end
-end
+end=#
 
 # ---------------- Bundle Adjustment Models ---------------- #
 
