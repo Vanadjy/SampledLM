@@ -76,7 +76,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
 
             data_mse_slm = PGFPlots.Plots.Linear(1:length(med_mse_sto), med_mse_sto, mark = "none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
             markers_mse_slm = PGFPlots.Plots.Linear(scatter_log, med_mse_sto[scatter_log], mark = "square", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", onlyMarks = true)
-            legend_mse_slm = PGFPlots.Plots.Linear(1:2, med_mse_sto[1:2], mark = "square", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", legendentry = "Cst-$(sample_rate*100)")
+            legend_mse_slm = PGFPlots.Plots.Linear(1:3, med_mse_sto[1:3], mark = "square", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", legendentry = "Cst-$(sample_rate*100)")
 
 
             #=data_mse_slm = PlotlyJS.scatter(; x = 1:length(med_mse_sto), y = med_mse_sto, mode="lines+markers", name = "$(sample_rate*100)%-N", 

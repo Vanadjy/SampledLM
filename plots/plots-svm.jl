@@ -69,7 +69,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         r2test = residual(mnist_nls_test, R2_stats.solution)
                         @show acc(r2train), acc(r2test)
                     end
-                    r2dec = plot_svm(R2_stats, R2_stats.solution, "r2-$version-lhalf-$digits")
+                    r2dec = plot_svm(R2_stats, R2_stats.solution, "r2-lhalf-$digits")
 
                     @info " using LM to solve with" h
                     LM_out = LM(prob_nls, h, sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
@@ -78,7 +78,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         lmtest = residual(mnist_nls_test, LM_out.solution)
                         @show acc(lmtrain), acc(lmtest)
                     end
-                    lmdec = plot_svm(LM_out, LM_out.solution, "lm-$version-lhalf-$digits")
+                    lmdec = plot_svm(LM_out, LM_out.solution, "lm-lhalf-$digits")
                     #nlm = NLPModels.neval_residual(nls_tr)
                     nlm = LM_out.iter
                     nglm = NLPModels.neval_jtprod_residual(prob_nls) + NLPModels.neval_jprod_residual(prob_nls)
@@ -95,7 +95,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         #nlmtr = NLPModels.neval_residual(nls_tr)
                         nlmtr = LMTR_out.iter
                         nglmtr = NLPModels.neval_jtprod_residual(prob_nls) + NLPModels.neval_jprod_residual(prob_nls)
-                        lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-$version-lhalf-$digits")
+                        lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-lhalf-$digits")
                     elseif h == NormL1(λ)
                         LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
                     elseif h == NormL1(0.0)
@@ -981,7 +981,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                                 :g => "\\# \$ \\nabla f \$",
                                 :p => "\\# inner",
                                 :s => "\$t \$ (s)")
-                            open("svm-lhalf-$version-$digits.tex", "w") do io
+                            open("svm-lhalf-$digits.tex", "w") do io
                                 SolverBenchmark.pretty_latex_stats(io, df,
                                     col_formatters=fmt_override,
                                     hdr_override=hdr_override)

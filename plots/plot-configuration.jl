@@ -12,7 +12,7 @@ smooth_versions_colors_std = Dict([(1, "rgba(65,105,225, 0.2)"), (2, "rgba(255,2
 line_style_sto = Dict([(1.0, "default"), (.2, "dot"), (.1, "dash"), (.05, "dashdot")])
 line_style_plm = Dict([(2, "default"), (5, "dash"), (6, "dashdot"), (4, "dot")])
 
-line_style_sto_pgf = Dict([(1.0, "dashdotted"), (.2, "dashdotted"), (.1, "thin"), (.05, "thick"), (.01, "semithick")])
+line_style_sto_pgf = Dict([(1.0, "solid"), (.2, "dashdotted"), (.1, "thin"), (.05, "thick"), (.01, "semithick")])
 line_style_plm_pgf = Dict([(2, "solid"), (5, "thick"), (6, "thin"), (4, "semithick")])
 prob_versions_colors_pgf = Dict([(1, "blue"), (2, "orange"), (3, "yellow"), (4, "pink"), (5, "green"), (6, "purple")])
 color_scheme_pgf = Dict([(1.0, "black"), (.2, "rgb(30,144,255)"), (.05, "red"), (.1, "blue"), (.01, "brown")])
