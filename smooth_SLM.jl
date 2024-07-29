@@ -41,7 +41,7 @@ the quantities are sampled ones from the original data of the Problem.
 * `Hobj_hist`: an array with the history of values of the nonsmooth objective
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
-function Sto_LM(
+function SSLM(
   nls::SampledNLSModel,
   h::H,
   options::ROSolverOptions;
@@ -175,33 +175,10 @@ function Sto_LM(
       push!(TimeHist, elapsed_time)
     end
 
-    # model for the Cauchy-Point decrease
-    φcp(d) = begin
-      jtprod_residual!(nls, xk, Fk, Jt_Fk)
-      dot(Fk, Fk) / 2 + dot(Jt_Fk, d)
-    end
-
-    #submodel to find scp
-    mkcp(d) = φcp(d) + ψ(d) #+ νcpInv * dot(d,d) / 2
-    
-    #computes the Cauchy step
-    νcp = 1 / νcpInv
-    ∇fk .*= -νcp
-    # take first proximal gradient step s1 and see if current xk is nearly stationary
-    # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
-    prox!(scp, ψ, ∇fk, νcp)
-    ξcp = fk + hk - φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
-
-    #ξcp > 0 || error("Sto_LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
-    
-    if ξcp ≤ 0
-      ξcp = - ξcp
-    end
-
-    metric = sqrt(ξcp*νcpInv)
+    metric = norm(∇fk)
     Metric_hist[k] = metric
 
-    if ξcp ≥ 0 && k == 1
+    if k == 1
       ϵ_increment = ϵr * metric
       ϵ += ϵ_increment  # make stopping test absolute and relative
       ϵ_subsolver += ϵ_increment
@@ -214,7 +191,7 @@ function Sto_LM(
       if nls.sample_rate == 1.0
         optimal = true
       else
-        if (length(nls.opt_counter) ≥ 5) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+        if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
           optimal = true
         end
       end
@@ -226,94 +203,58 @@ function Sto_LM(
 
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
-    φ(d) = begin
-      jprod_residual!(nls, xk, d, JdFk)
-      JdFk .+= Fk
-      return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
-    end
-
-    ∇φ!(g, d) = begin
-      jprod_residual!(nls, xk, d, JdFk)
-      JdFk .+= Fk
-      jtprod_residual!(nls, xk, JdFk, g)
-      g .+= σk * d
-      return g
-    end
-
-    mk(d) = begin
-      jprod_residual!(nls, xk, d, JdFk)
-      JdFk .+= Fk
-      return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2 + ψ(d)
+    mk_smooth(d) = begin
+        jprod_residual!(nls, xk, d, JdFk)
+        JdFk .+= Fk
+        return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
     end
   
-    νInv = (1 + θ) * (μmax^2 + σk) # μmax^2 + σk = ||Jmk||² + σk 
-    ν = 1 / νInv
-    subsolver_options.ν = ν
-
-    @debug "setting inner stopping tolerance to" subsolver_options.optTol
-    s, iter, _ = with_logger(subsolver_logger) do
-      subsolver(φ, ∇φ!, ψ, subsolver_options, scp)
-    end
-    # restore initial subsolver_options here so that it is not modified if there is an error
-    subsolver_options.ν = ν_subsolver
-    subsolver_options.ϵa = ϵa_subsolver
-
-    Complex_hist[k] = iter
-    # additionnal condition on step s
-    if norm(s) > β * norm(scp)
-      @info "cauchy step used"
-      s .= scp
+    if Jac_lop
+        # LSMR strategy for LinearOperators #
+        s, stats = lsmr(Jk, -Fk; λ = σk)#, atol = subsolver_options.ϵa, rtol = ϵr)
+        Complex_hist[k] = stats.niter
+    else
+        spmat = qrm_spmat_init(length(nls.sample), meta_nls.nvar, rows[sparse_sample], cols[sparse_sample], vals[sparse_sample])
+        spfct = qrm_analyse(spmat)
+        qrm_factorize!(spmat, spfct)
+        z = qrm_apply(spfct, -Fk, transp = 't') #TODO include complex compatibility
+        s = qrm_solve(spfct, z, transp = 'n')
     end
 
     xkn .= xk .+ s
 
-    residual!(nls, xkn, Fkn)
+    Fkn = residual(nls, xkn)
     fkn = dot(Fkn, Fkn) / 2
-    hkn = h(xkn[selected])
-    hkn == -Inf && error("nonsmooth term is not proper")
-    mks = mk(s)
-    ξ = fk + hk - mks + max(1, abs(hk)) * 10 * eps()
-
-    #=if (ξ ≤ 0 || isnan(ξ))
-      error("Sto_LM: failed to compute a step: ξ = $ξ")
-    end=#
-
-    if ξ ≤ 0
-      ξ = - ξ
-    end
-
-    Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
-    #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
-    Δobj = (Δobj < 0 ? - Δobj : Δobj)
+    mks = mk_smooth(s)
+    Δobj = fk - fkn
+    ξ = fk - mks
     ρk = Δobj / ξ
 
-    μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
+    #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
+    μ_stat = ρk < η1 ? "↘" : ((metric ≥ η3 / μk) ? "↗" : "↘")
     #μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat
+      @info @sprintf "%6d %8.1e %7.4e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k fk norm(∇fk) ρk σk μk norm(xk) norm(s) νInv μ_stat nls.sample_rate
       #! format: off
     end
-
-    #=if (η2 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #If very successful, decrease the penalisation parameter
-      μk = max(μk / λ, μmin)
-    end=#
+    
+    
     #-- to compute exact quantities --#
-    nls.sample = 1:m
-    residual!(nls, xk, exact_Fk)
-    exact_fk = dot(exact_Fk, exact_Fk) / 2
+    if nls.sample_rate < 1.0
+      nls.sample = 1:m
+      residual!(nls, xk, exact_Fk)
+      exact_fk = dot(exact_Fk, exact_Fk) / 2
+      jtprod_residual!(nls, xk, exact_Fk, ∇fk)
+      exact_metric = norm(∇fk)
 
-    exact_φcp(d) = begin
-      jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
-      dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
+      exact_Fobj_hist[k] = exact_fk
+      exact_Metric_hist[k] = exact_metric
+    elseif nls.sample_rate == 1.0
+      exact_Fobj_hist[k] = fk
+      exact_Metric_hist[k] = metric
     end
-
-    exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
-    exact_metric = sqrt(abs(exact_ξcp * νcpInv))
-
-    exact_Fobj_hist[k] = exact_fk
-    exact_Metric_hist[k] = exact_metric
     # -- -- #
 
     #updating the indexes of the sampling
@@ -335,10 +276,8 @@ function Sto_LM(
       # update functions #FIXME : obligés de refaire appel à residual! après changement du sampling --> on fait des évaluations du résidus en plus qui pourraient peut-être être évitées...
       Fk .= Fkn
       fk = fkn
-      hk = hkn
 
       # update gradient & Hessian
-      shift!(ψ, xk)
       Jk = jac_op_residual(nls, xk)
       jtprod_residual!(nls, xk, Fk, ∇fk)
 
@@ -347,8 +286,6 @@ function Sto_LM(
       νcpInv = (1 + θ) * (μmax^2 + μmin) 
 
       Complex_hist[k] += 1
-    #end
-
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
       μk = λ * μk
     end

@@ -40,8 +40,13 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
     for name in name_list
         nls = BundleAdjustmentModel(name)
         sampled_nls = BAmodel_sto(name; sample_rate = sample_rate0)
+        guess_0 = sampled_nls.nls_meta.x0
+        #=d = Normal()
+        noise = rand(d, length(guess_0))
+        guess_0 .-= noise=#
 
-        sol0 = sampled_nls.nls_meta.x0
+        sol0 = guess_0
+        println(guess_0)
         x0 = [sol0[3*i+1] for i in 0:(sampled_nls.npnts-1)]
         y0 = [sol0[3*i+2] for i in 0:(sampled_nls.npnts-1)]
         z0 = [sol0[3*i] for i in 1:sampled_nls.npnts]       
@@ -148,7 +153,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
             for k in 1:n_runs
                 reset!(sampled_nls)
                 sampled_nls.epoch_counter = Int[1]
-                Prob_LM_out_k = SPLM(sampled_nls, sampled_options, x0=sampled_nls.meta.x0, subsolver_options = suboptions, sample_rate0 = sample_rate0, version = version, Jac_lop = Jac_lop)
+                Prob_LM_out_k = SPLM(sampled_nls, sampled_options, x0=guess_0, subsolver_options = suboptions, sample_rate0 = sample_rate0, version = version, Jac_lop = Jac_lop)
                 push!(PLM_outs, Prob_LM_out_k)
                 push!(plm_obj, Prob_LM_out_k.objective)
     
@@ -449,7 +454,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         for k in 1:n_runs
             reset!(sampled_nls)
             sampled_nls.epoch_counter = Int[1]
-            Prob_LM_out_k = Prob_LM(sampled_nls, h, sampled_options, x0=sampled_nls.meta.x0, sample_rate0 = sample_rate0, subsolver_options = suboptions, version = version)
+            Prob_LM_out_k = Prob_LM(sampled_nls, h, sampled_options, x0=guess_0, sample_rate0 = sample_rate0, subsolver_options = suboptions, version = version)
             push!(PLM_outs, Prob_LM_out_k)
             push!(plm_obj, Prob_LM_out_k.objective)
 
@@ -751,7 +756,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         for k in 1:n_runs
             reset!(sampled_nls)
             sampled_nls.epoch_counter = Int[1]
-            Prob_LM_out_k = Sto_LM(sampled_nls, h, sampled_options; x0=sampled_nls.meta.x0, subsolver_options = suboptions)
+            Prob_LM_out_k = Sto_LM(sampled_nls, h, sampled_options; x0=guess_0, subsolver_options = suboptions)
             push!(SLM_outs, Prob_LM_out_k)
             push!(slm_obj, Prob_LM_out_k.objective)
 

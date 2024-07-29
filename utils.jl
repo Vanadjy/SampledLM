@@ -77,7 +77,7 @@ function sp_sample(rows::AbstractVector{T}, sample::AbstractVector{<:Integer}) w
   return sp_sample
 end
 
-#=function formatting_tickvals_10power(v)
+function formatting_tickvals_10power(v)
   tickvals = Vector{Int}(undef, length(v))
   for i in eachindex(tickvals)
     if i <= 10
@@ -87,9 +87,9 @@ end
     end
   end
   return tickvals
-end=#
+end
 
-#=function formatting_tickvals_10power(v)
+function formatting_tickvals_10power(v)
   pmin = floor(log10(minimum(v)))
   pmax = ceil(log10(maximum(v)))
   tickvals = Float64[]
@@ -106,16 +106,12 @@ end=#
   return tickvals
 end
 
-function formatting_ticktext_10power(tickvals)
-  ticktext = Vector{String}(undef, length(tickvals))
-  for i in eachindex(tickvals)
-    if string(tickvals[i])[1] == '1'
-      ticktext[i] = latexstring("\LARGE \$ 10^$(Int(log10(tickvals[i])))\$")
-    elseif string(tickvals[i])[end] == '1'
-      ticktext[i] = latexstring("\LARGE \$ 10^$(Int(log10(tickvals[i])))\$ ")
-    else
-      ticktext[i] = ""
-    end
+function log_scale(n)
+  try
+    Int(log10(n))
+  catch
+    error("Input Error: n should be a power of 10")
   end
-  return ticktext
-end=#
+  log_scale = vcat([k * 10.0^(i) for i in 0:Int(log10(n) - 1) for k in 1.0:9.0], 10.0^(log10(n)))
+  return log_scale
+end

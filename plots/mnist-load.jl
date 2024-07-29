@@ -73,7 +73,13 @@ function load_mnist_sto(sample_rate, selected_h)
     std_metr_sto_mnist = load_object("std_metr_sto-$(sample_rate*100)-mnist-$selected_h.jld2")
     std_mse_sto_mnist = load_object("std_mse_sto-$(sample_rate*100)-mnist-$selected_h.jld2")
 
+    SLM_outs = load_object("SLM_outs-$(sample_rate*100)%-mnist-$selected_h.jld2")
+    slm_trains = load_object("slm_trains-$(sample_rate*100)%-mnist-$selected_h.jld2")
+
+    nslm = load_object("nslm-mnist-PLM-$(sample_rate*100)%.jld2")
+    ngslm = load_object("ngslm-mnist-PLM-$(sample_rate*100)%.jld2")
+
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages\SampledLM")
 
-    return med_obj_sto_mnist, med_metr_sto_mnist, med_mse_sto_mnist, std_obj_sto_mnist, std_metr_sto_mnist, std_mse_sto_mnist
+    return med_obj_sto_mnist, med_metr_sto_mnist, med_mse_sto_mnist, std_obj_sto_mnist, std_metr_sto_mnist, std_mse_sto_mnist, SLM_outs, slm_trains, nslm, ngslm
 end

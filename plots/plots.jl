@@ -34,7 +34,7 @@ Random.seed!(seed)
 # ---------------- Hyperbolic SVM Models ---------------- #
 
 n_exec = 10
-selected_probs = ["ijcnn1"]
+selected_probs = ["mnist"]
 MaxEpochs = 0
 MaxTime = 0.0
 
@@ -45,7 +45,7 @@ if selected_probs == ["ijcnn1"]
     versions = [2, 5]
     #version = versions[end]
     ϵ = 1e-16
-    selected_hs = ["l1"]
+    selected_hs = ["l1", "lhalf", "smooth"]
     MaxEpochs = 100
     MaxTime = 3600.0
     smooth = false
@@ -54,8 +54,8 @@ elseif selected_probs == ["mnist"]
     sample_rate0 = .05
     sample_rates = [1.0, .05]
     selected_digits = [(1, 7)]
-    versions = [2]
-    version = versions[end]
+    versions = []
+    #version = versions[end]
     selected_hs = ["lhalf"]
     ϵ = 1e-4
     MaxEpochs = 1000
@@ -68,7 +68,7 @@ abscissas = ["epoch", "CPU time"]
 abscissa = abscissas[1]
 
 #plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
-#plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = smooth, sample_rate0 = sample_rate0, compare = compare, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
+plot_Sampled_LM_SVM_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = smooth, sample_rate0 = sample_rate0, compare = compare, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
 
 # -- Plots for MNIST grey map -- #
 
@@ -78,11 +78,11 @@ Random.seed!(seed)
 end=#
 
 #=if selected_probs == ["ijcnn1"]
-    plot_ijcnn1(sample_rates, versions, selected_hs; n_runs = n_exec)
+    plot_ijcnn1(sample_rates, versions, selected_hs; n_runs = n_exec, MaxEpochs = MaxEpochs)
 elseif selected_probs == ["mnist"]
-    plot_mnist(sample_rates, versions, selected_hs; n_runs = n_exec, smooth = true)
+    plot_mnist(sample_rates, versions, selected_hs; n_runs = n_exec, smooth = smooth)
     for version in versions
-        greymaps_tables_mnist(version, sample_rate0; smooth = true)
+        greymaps_tables_mnist(version, sample_rates, sample_rate0; smooth = smooth)
     end
 end=#
 
@@ -90,7 +90,7 @@ end=#
 
 Random.seed!(seed)
 
-n_exec = 10
+n_exec = 2
 sample_rates = []
 versions = [1, 2, 3, 4, 5, 6]
 version = versions[2]
@@ -112,7 +112,7 @@ param = plot_parameter[1]
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 1000
+    MaxEpochs = 20
     MaxTime = 2e4
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
@@ -124,7 +124,7 @@ Jac_lop = false
 
 #plot_Sto_LM_BA(sample_rates, versions, name_list, selected_hs; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
 Random.seed!(seed)
-demo_ba_sto(name_list; sample_rate = 1.0, sample_rate0 = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-l1", compare = false, smooth = smooth, Jac_lop = Jac_lop)
+#demo_ba_sto(name_list; sample_rate = 1.0, sample_rate0 = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-l1", compare = false, smooth = smooth, Jac_lop = Jac_lop)
 
 #=ba_3d_scatter(name_list; sample_rate = sample_rate, n_runs = n_exec)
 for name in name_list

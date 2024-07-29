@@ -297,7 +297,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         nslm = length(prob.epoch_counter)-1
                         save_object("nslm-mnist-PLM-$(100*sample_rate)%.jld2", nslm)
                         ngslm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
-                        save_object("ngplm-mnist-PLM-$(100*sample_rate)%.jld2", ngslm)
+                        save_object("ngslm-mnist-PLM-$(100*sample_rate)%.jld2", ngslm)
                         if prob_name == "mnist-train-ls"
                             slmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "sto-lm-$(100*sample_rate)%-lhalf-$digits")
                         end

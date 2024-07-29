@@ -191,6 +191,13 @@ function SPLM(
     end
 
     metric = norm(∇fk)
+
+    if k == 1
+      ϵ_increment = ϵr * metric
+      ϵ += ϵ_increment  # make stopping test absolute and relative
+      ϵ_subsolver += ϵ_increment
+      μk = 1 / metric
+    end
     
     if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
       # the current xk is approximately first-order stationary
@@ -248,7 +255,6 @@ function SPLM(
       @info @sprintf "%6d %8.1e %7.4e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k fk norm(∇fk) ρk σk μk norm(xk) norm(s) νInv μ_stat nls.sample_rate
       #! format: off
     end
-    
     
     #-- to compute exact quantities --#
     if nls.sample_rate < 1.0
