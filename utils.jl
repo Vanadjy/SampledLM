@@ -112,6 +112,6 @@ function log_scale(n)
   catch
     error("Input Error: n should be a power of 10")
   end
-  log_scale = vcat([k * 10.0^(i) for i in 0:Int(log10(n) - 1) for k in 1.0:9.0], 10.0^(log10(n)))
-  return log_scale
+  log_scale = [k * 10.0^(i) for i in 0:Int(log10(n) - 1) for k in 1.0:9.0]
+  return Int.(log_scale)
 end

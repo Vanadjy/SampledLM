@@ -76,7 +76,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
 
             data_mse_slm = PGFPlots.Plots.Linear(1:length(med_mse_sto), med_mse_sto, mark = "none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
             markers_mse_slm = PGFPlots.Plots.Linear(scatter_log, med_mse_sto[scatter_log], mark = "square", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", onlyMarks = true)
-            legend_mse_slm = PGFPlots.Plots.Linear(1:length(med_mse_sto), [1e16 for i in eachindex(med_mse_sto)], mark = "square", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", legendentry = "Cst-$(sample_rate*100)"*L"\%)")
+            legend_mse_slm = PGFPlots.Plots.Linear(1:2, med_mse_sto[1:2], mark = "square", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", legendentry = "Cst-$(sample_rate*100)")
 
 
             #=data_mse_slm = PlotlyJS.scatter(; x = 1:length(med_mse_sto), y = med_mse_sto, mode="lines+markers", name = "$(sample_rate*100)%-N", 
@@ -172,7 +172,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             
             data_mse_plm = PGFPlots.Plots.Linear(1:length(med_mse_prob), med_mse_prob, mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
             markers_mse_plm = PGFPlots.Plots.Linear(scatter_log, med_mse_prob[scatter_log], mark = "triangle", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", onlyMarks = true)
-            legend_mse_plm = PGFPlots.Plots.Linear(1:length(med_mse_prob), [1e16 for i in eachindex(med_mse_sto)], mark = "triangle", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", legendentry = "$(prob_versions_names[version])")
+            legend_mse_plm = PGFPlots.Plots.Linear(1:2, med_mse_prob[1:2], mark = "triangle", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", legendentry = "$(prob_versions_names[version])")
 
 
             #=data_mse_plm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines+markers", name = "$(prob_versions_names[version])-N", 
