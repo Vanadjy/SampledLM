@@ -49,7 +49,8 @@ function SSLM(
   subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
   subsolver = RegularizedOptimization.R2,
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
-  selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar)
+  selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
+  Jac_lop::Bool = true
 ) where {H}
 
   start_time = time()
@@ -97,17 +98,6 @@ function SSLM(
   σk = max(1 / options.ν, σmin)
   μk = max(1 / options.ν , μmin)
   xk = copy(x0)
-  hk = h(xk[selected])
-  if hk == Inf
-    verbose > 0 && @info "SLM: finding initial guess where nonsmooth term is finite"
-    prox!(xk, h, x0, one(eltype(x0)))
-    hk = h(xk[selected])
-    hk < Inf || error("prox computation must be erroneous")
-    verbose > 0 && @debug "SLM: found point where h has value" hk
-  end
-  hk == -Inf && error("nonsmooth term is not proper")
-  ψ = shifted(h, xk)
-
   xkn = similar(xk)
 
   local ξcp
@@ -129,7 +119,7 @@ function SSLM(
 
   if verbose > 0
     #! format: off
-    @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg"
+    @info @sprintf "%6s %7s %7s %8s %7s %7s %7s %7s %1s" "outer" "f(x)" "‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg"
     #! format: on
   end
 
@@ -166,7 +156,6 @@ function SSLM(
     elapsed_time = time() - start_time
     push!(X_hist, xk)
     Fobj_hist[k] = fk
-    Hobj_hist[k] = hk
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
     Resid_hist[k] = nls.counters.neval_residual
     if k == 1
@@ -197,7 +186,7 @@ function SSLM(
       end
     end
 
-    subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, ξcp / 10))
+    subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric^2 / 10))
     #update of σk
     σk = min(max(μk * metric, σmin), σmax)
 
@@ -236,7 +225,7 @@ function SSLM(
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8.1e %7.4e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k fk norm(∇fk) ρk σk μk norm(xk) norm(s) νInv μ_stat nls.sample_rate
+      @info @sprintf "%6d %8.1e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %1s" k fk norm(∇fk) ρk σk μk norm(xk) norm(s) μ_stat
       #! format: off
     end
     
@@ -295,12 +284,12 @@ function SSLM(
 
   if verbose > 0
     if k == 1
-      @info @sprintf "%6d %8s %8.1e %8.1e" k "" fk hk
+      @info @sprintf "%6d %8s %8.1e" k "" fk
     elseif optimal
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
+      @info @sprintf "%6d %8.1e %7.4e %8s %7.1e %7.1e %7.1e %7.1e" k fk norm(∇fk) "" σk μk norm(xk) norm(s)
       #! format: on
-      @info "SLM: terminating with √ξcp/νcp = $metric"
+      @info "SLM: terminating with ‖∇f(x)‖= $(norm(∇fk))"
     end
   end
   status = if optimal
@@ -316,15 +305,13 @@ function SSLM(
   stats = GenericExecutionStats(nls)
   set_status!(stats, status)
   set_solution!(stats, xk)
-  set_objective!(stats, fk + hk)
-  set_residuals!(stats, zero(eltype(xk)), ξcp ≥ 0 ? sqrt(ξcp * νcpInv) : ξcp)
+  set_objective!(stats, fk)
+  set_residuals!(stats, zero(eltype(xk)), sqrt(dot(∇fk, ∇fk)))
   set_iter!(stats, k)
   set_time!(stats, elapsed_time)
   set_solver_specific!(stats, :Xhist, X_hist[1:k])
   set_solver_specific!(stats, :Fhist, Fobj_hist[1:k])
   set_solver_specific!(stats, :ExactFhist, exact_Fobj_hist[1:k])
-  set_solver_specific!(stats, :Hhist, Hobj_hist[1:k])
-  set_solver_specific!(stats, :NonSmooth, h)
   set_solver_specific!(stats, :SubsolverCounter, Complex_hist[1:k])
   set_solver_specific!(stats, :NLSGradHist, Grad_hist[1:k])
   set_solver_specific!(stats, :ResidHist, Resid_hist[1:k])

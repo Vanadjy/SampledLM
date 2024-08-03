@@ -139,7 +139,7 @@ function SPLM(
 
   if verbose > 0
     #! format: off
-    @info @printf "%6s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "f(x)" "‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
+    @info @sprintf "%6s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "f(x)" "‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
     #! format: on
   end
 
@@ -211,7 +211,7 @@ function SPLM(
       end
     end
 
-    subsolver_options.ϵa = (length(nls.epoch_counter) ≤ 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric / 10)))
+    subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric^2 / 10))
 
     #update of σk
     σk = min(max(μk * metric, σmin), σmax)
@@ -252,7 +252,7 @@ function SPLM(
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8.1e %7.4e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k fk norm(∇fk) ρk σk μk norm(xk) norm(s) νInv μ_stat nls.sample_rate
+      @info @sprintf "%6d %8.1e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k fk norm(∇fk) ρk σk μk norm(xk) norm(s) μ_stat nls.sample_rate
       #! format: off
     end
     
@@ -348,7 +348,6 @@ function SPLM(
         ξ_mem = Metric_hist[1]
       end
       if nls.sample_rate < sample_rates_collec[end]
-        #@views mobile_mean = mean(Fobj_hist[(k - Num_mean + 1):k] + Hobj_hist[(k - Num_mean + 1):k])
         if metric/ξ_mem ≤ 1e-1 #if the current metric is a factor 10 lower than the previously stored ξ_mem
           nls.sample_rate = sample_rates_collec[sample_counter]
           sample_counter += 1
@@ -366,7 +365,7 @@ function SPLM(
       # Change sample rate
       #nls.sample_rate = basic_change_sample_rate(epoch_count)
       if nls.sample_rate < 1.0
-        if metric/ξ_mem ≤ 1e-1 #if the mean on the Num_mean last iterations is near the current objective value
+        if metric/ξ_mem ≤ 1e-1 #if the current metric is a factor 10 lower than the previously stored ξ_mem
           nls.sample_rate = sample_rates_collec[sample_counter]
           sample_counter += 1
           ξ_mem *= 1e-1

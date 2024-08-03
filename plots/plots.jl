@@ -40,13 +40,13 @@ MaxTime = 0.0
 
 if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
-    sample_rates = [1.0, .1, .05, .01]
+    sample_rates = [1.0]#, .1, .05, .01]
     selected_digits = [(1, 7)] # let only one pair of random digits
-    versions = []#2, 5]
+    versions = [7, 8]
     #version = versions[end]
     ϵ = 1e-16
-    selected_hs = ["l1", "lhalf"]#, "smooth"]
-    MaxEpochs = 100
+    selected_hs = ["l1"]#, "lhalf", "smooth"]
+    MaxEpochs = 30
     MaxTime = 3600.0
     smooth = false
     compare = false
@@ -54,14 +54,14 @@ elseif selected_probs == ["mnist"]
     sample_rate0 = .05
     sample_rates = [1.0, .05]
     selected_digits = [(1, 7)]
-    versions = []#2]
+    versions = [2]
     #version = versions[end]
     selected_hs = ["lhalf"]
     ϵ = 1e-4
     MaxEpochs = 1000
     MaxTime = 3600.0
-    smooth = false
-    compare = true
+    smooth = true
+    compare = false
 end
 
 abscissas = ["epoch", "CPU time"]
@@ -105,14 +105,14 @@ name_list = ["problem-49-7776-pre", "problem-16-22106-pre", "problem-52-64053-pr
 name_list = [filter_df[i, :name] for i in [1]]
 
 selected_hs = ["l1"]
-sample_rate0 = .05
+sample_rate0 = 1.0
 plot_parameter = ["objective", "metric", "MSE", "accuracy"]
 param = plot_parameter[1]
 
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 20
+    MaxEpochs = 10
     MaxTime = 2e4
 elseif abscissa == "CPU time"
     MaxEpochs = 1000

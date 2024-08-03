@@ -40,7 +40,8 @@ the quantities are sampled ones from the original data of the Problem.
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
 function Prob_LM(
-  nls::SampledBAModel,
+  nls::SampledADNLSModel,
+  ba_model::SampledBAModel,
   h::H,
   options::ROSolverOptions;
   x0::AbstractVector = nls.meta.x0,
@@ -49,7 +50,7 @@ function Prob_LM(
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
   selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
   sample_rate0::Float64 = .05,
-  version::Int = 1
+  version::Int = 1,
 ) where {H}
 
   # initializes epoch counting and progression
@@ -64,8 +65,11 @@ function Prob_LM(
   epoch_limits = [1, 2, 5, 10]
   @assert length(sample_rates_collec) == length(epoch_limits)
   nls.sample_rate = sample_rate0
-  ζk = Int(ceil(nls.sample_rate * nls.nobs))
-  nls.sample = sort(randperm(nls.nobs)[1:ζk])
+
+  nobs = nls.nls_meta.nequ ÷ 2
+  ζk = Int(ceil(nls.sample_rate * nobs))
+  nls.sample = sort(randperm(nobs)[1:ζk])
+  ba_model.sample = nls.sample
 
   sample_counter = 1
   change_sample_rate = false
@@ -151,8 +155,13 @@ function Prob_LM(
     @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "rate"
   end
 
+  # meta_nls = nls_meta(nls)
+
   #creating required objects
-  Fk = residual(nls, xk)
+  Fk = zeros(eltype(xk), nls.nls_meta.nequ)
+  display(nls.nls_meta.nequ)
+  residual!(nls, xk, Fk)
+  @info "Number of filtered Fk = $(length(filter(!iszero, Fk)))"
   Fkn = similar(Fk)
   exact_Fk = zeros(1:m)
 
@@ -161,15 +170,14 @@ function Prob_LM(
   JdFk = similar(Fk) #temporary storage
   Jt_Fk = similar(∇fk)
 
-  meta_nls = nls_meta(nls)
-  rows = Vector{Int}(undef, meta_nls.nnzj)
-  cols = Vector{Int}(undef, meta_nls.nnzj)
-  vals = similar(xk, meta_nls.nnzj)
-  jac_structure_residual!(nls, rows, cols)
-  jac_coord_residual!(nls, nls.meta.x0, vals)
+  rows = Vector{Int}(undef, nls.nls_meta.nnzj)
+  cols = Vector{Int}(undef, nls.nls_meta.nnzj)
+  vals = similar(xk, nls.nls_meta.nnzj)
+  jac_structure_residual!(ba_model, rows, cols)
+  jac_coord_residual!(ba_model, nls.meta.x0, vals)
   Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
 
-  fk = dot(Fk, Fk) / 2 #objective estimated without noise
+  fk = dot(Fk[1:2*length(nls.sample)], Fk[1:2*length(nls.sample)]) / 2 #objective estimated without noise
   jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
 
   exact_Jt_Fk = similar(∇fk)
@@ -197,6 +205,18 @@ function Prob_LM(
       push!(TimeHist, 0.0)
     else
       push!(TimeHist, elapsed_time)
+    end
+
+    #changes sample with new sample rate
+    nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
+    ba_model.sample = nls.sample
+
+    #updating the indexes of the sampling
+    epoch_progress += nls.sample_rate
+    if epoch_progress >= 1 #we passed on all the data
+      epoch_count += 1
+      push!(nls.epoch_counter, k)
+      epoch_progress -= 1
     end
 
     # model for the Cauchy-Point decrease
@@ -321,8 +341,8 @@ function Prob_LM(
     
     
     #-- to compute exact quantities --#
-    if nls.sample_rate < 1.0
-      nls.sample = 1:nls.nobs
+    #=if nls.sample_rate < 1.0
+      nls.sample = collect(1:nobs)
       residual!(nls, xk, exact_Fk)
       exact_fk = dot(exact_Fk, exact_Fk) / 2
 
@@ -339,17 +359,8 @@ function Prob_LM(
     elseif nls.sample_rate == 1.0
       exact_Fobj_hist[k] = fk
       exact_Metric_hist[k] = metric
-    end
+    end=#
     # -- -- #
-    
-
-    #updating the indexes of the sampling
-    epoch_progress += nls.sample_rate
-    if epoch_progress >= 1 #we passed on all the data
-      epoch_count += 1
-      push!(nls.epoch_counter, k)
-      epoch_progress -= 1
-    end
 
     # Version 1: List of predetermined - switch with mobile average #
     if version == 1
@@ -385,7 +396,7 @@ function Prob_LM(
       p = .75
       q = .75
       ζk = Int(ceil((log(1 / (1-p)) * max(μk^4, μk^2) + log(1 / (1-q)) * μk^4)))
-      nls.sample_rate = min(1.0, (ζk / nls.nobs) * (nls.meta.nvar + 1))
+      nls.sample_rate = min(1.0, (ζk / nobs) * (nls.meta.nvar + 1))
       change_sample_rate = true
     end
 
@@ -455,16 +466,14 @@ function Prob_LM(
       end
     end
 
-    #changes sample with new sample rate
-    nls.sample = sort(randperm(nls.nobs)[1:Int(ceil(nls.sample_rate * nls.nobs))])
-
     # mandatory updates whenever the sample_rate chages #
     if change_sample_rate
       #display("Went here for epoch_count = $epoch_count and sample_rate = $(nls.sample_rate)")
-      Fk = residual(nls, xk)
+      residual!(nls, xk, Fk)
       Fkn = similar(Fk)
       JdFk = similar(Fk)
-      fk = dot(Fk, Fk) / 2
+      fk = dot(Fk[1:2*length(nls.sample)], Fk[1:2*length(nls.sample)]) / 2
+      jac_coord_residual!(nls, xk, vals)
       Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
 
       jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
@@ -486,11 +495,13 @@ function Prob_LM(
       if (!change_sample_rate) && (nls.sample_rate == 1.0)
         Fk .= Fkn
       else
-        Fk = residual(nls, xk)
+        residual!(nls, xk, Fk)
       end
-      fk = dot(Fk, Fk) / 2
+      @info "Length of filtered residual : Fk = $(length(filter(!iszero, Fk)))"
+      fk = dot(Fk[1:2*length(nls.sample)], Fk[1:2*length(nls.sample)]) / 2
       hk = hkn
       shift!(ψ, xk)
+      jac_coord_residual!(nls, xk, vals)
       Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
 
       jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)

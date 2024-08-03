@@ -9,12 +9,25 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
         data_mse = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
 
         scatter_log = log_scale(MaxEpochs)
+
+        for sample_rate in sample_rates
+            med_obj_sto, med_metr_sto, med_mse_sto, std_obj_sto, std_metr_sto, std_mse_sto = load_ijcnn1_sto(sample_rate, selected_h)
+            legend_mse_slm = PGFPlots.Plots.Linear(1:2, [1e16 for i in 1:2], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", legendentry = "Cst\\_batch=$(Int(sample_rate*100))\\%")
+            push!(data_mse, legend_mse_slm)
+        end
+
+        for version in versions
+            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob = load_ijcnn1_plm(version, selected_h)
+            legend_mse_plm = PGFPlots.Plots.Linear(1:2, [1e16 for i in 1:2], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", legendentry = "$(prob_versions_names[version])")
+            push!(data_mse, legend_mse_plm)
+        end
+
         for sample_rate in sample_rates
             med_obj_sto, med_metr_sto, med_mse_sto, std_obj_sto, std_metr_sto, std_mse_sto = load_ijcnn1_sto(sample_rate, selected_h)
 
             # --------------- OBJECTIVE DATA -------------------- #
-            data_obj_slm = PGFPlots.Plots.Linear(1:length(med_obj_sto), med_obj_sto, mark = "none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
-            markers_obj_slm = PGFPlots.Plots.Linear(scatter_log, med_obj_sto[scatter_log], mark = "square", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", onlyMarks = true)
+            data_obj_slm = PGFPlots.Plots.Linear(1:length(med_obj_sto), (med_obj_sto), mark = "none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
+            markers_obj_slm = PGFPlots.Plots.Scatter(scatter_log, (med_obj_sto[scatter_log]), mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate])", onlyMarks = true, markSize = 1.5)
 
             #=data_obj_slm = PlotlyJS.scatter(; x = 1:length(med_obj_sto), y = med_obj_sto, mode="lines+markers", name = "$(sample_rate*100)%-N", 
             line=attr(
@@ -41,7 +54,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             # --------------- METRIC DATA -------------------- #
 
             data_metr_slm = PGFPlots.Plots.Linear(1:length(med_metr_sto), med_metr_sto, mark = "none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
-            markers_metr_slm = PGFPlots.Plots.Linear(scatter_log, med_metr_sto[scatter_log], mark = "square", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", onlyMarks = true)
+            markers_metr_slm = PGFPlots.Plots.Scatter(scatter_log, med_metr_sto[scatter_log], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate])", onlyMarks = true, markSize = 1.5)
 
 
             #=data_metr_slm = PlotlyJS.scatter(; x = 1:length(med_metr_sto), y = med_metr_sto, mode="lines+markers", name = "$(sample_rate*100)%-N", 
@@ -75,9 +88,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             # --------------- MSE DATA -------------------- #
 
             data_mse_slm = PGFPlots.Plots.Linear(1:length(med_mse_sto), med_mse_sto, mark = "none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
-            markers_mse_slm = PGFPlots.Plots.Linear(scatter_log, med_mse_sto[scatter_log], mark = "square", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", onlyMarks = true)
-            legend_mse_slm = PGFPlots.Plots.Linear(1:3, med_mse_sto[1:3], mark = "square", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", legendentry = "Cst-$(sample_rate*100)")
-
+            markers_mse_slm = PGFPlots.Plots.Scatter(scatter_log, med_mse_sto[scatter_log], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate])", onlyMarks = true, markSize = 1.5)
 
             #=data_mse_slm = PlotlyJS.scatter(; x = 1:length(med_mse_sto), y = med_mse_sto, mode="lines+markers", name = "$(sample_rate*100)%-N", 
             line=attr(
@@ -99,7 +110,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
                 showlegend = false
             )=#
 
-            push!(data_mse, data_mse_slm, markers_mse_slm, legend_mse_slm)#, data_std_mse_slm)
+            push!(data_mse, data_mse_slm, markers_mse_slm)#, data_std_mse_slm)
         end
 
         ## -------------------------------- DYNAMIC SAMPLE RATE ------------------------------------- ##
@@ -108,8 +119,8 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob = load_ijcnn1_plm(version, selected_h)
             # --------------- OBJECTIVE DATA -------------------- #
 
-            data_obj_plm = PGFPlots.Plots.Linear(1:length(med_obj_prob), med_obj_prob, mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
-            markers_obj_plm = PGFPlots.Plots.Linear(scatter_log, med_obj_prob[scatter_log], mark = "triangle", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", onlyMarks = true)
+            data_obj_plm = PGFPlots.Plots.Linear(1:length(med_obj_prob), (med_obj_prob), mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
+            markers_obj_plm = PGFPlots.Plots.Scatter(scatter_log, (med_obj_prob[scatter_log]), mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version])", onlyMarks = true, markSize = 1.5)
 
             #=data_obj_plm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines+markers", name = "$(prob_versions_names[version])-N", 
             line=attr(
@@ -136,7 +147,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             # --------------- METRIC DATA -------------------- #
 
             data_metr_plm = PGFPlots.Plots.Linear(1:length(med_metr_prob), med_metr_prob, mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
-            markers_metr_plm = PGFPlots.Plots.Linear(scatter_log, med_metr_prob[scatter_log], mark = "triangle", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", onlyMarks = true)
+            markers_metr_plm = PGFPlots.Plots.Scatter(scatter_log, med_metr_prob[scatter_log], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version])", onlyMarks = true, markSize = 1.5)
 
 
             #=data_metr_plm = PlotlyJS.scatter(; x = 1:length(med_metr_prob), y = med_metr_prob, mode="lines+markers", name = "$(prob_versions_names[version])-N", 
@@ -171,9 +182,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             # --------------- MSE DATA -------------------- #
             
             data_mse_plm = PGFPlots.Plots.Linear(1:length(med_mse_prob), med_mse_prob, mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
-            markers_mse_plm = PGFPlots.Plots.Linear(scatter_log, med_mse_prob[scatter_log], mark = "triangle", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", onlyMarks = true)
-            legend_mse_plm = PGFPlots.Plots.Linear(1:2, med_mse_prob[1:2], mark = "triangle", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", legendentry = "$(prob_versions_names[version])")
-
+            markers_mse_plm = PGFPlots.Plots.Scatter(scatter_log, med_mse_prob[scatter_log], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version])", onlyMarks = true, markSize = 1.5)
 
             #=data_mse_plm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines+markers", name = "$(prob_versions_names[version])-N", 
             line=attr(
@@ -195,7 +204,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
                 showlegend = false
             )=#
 
-            push!(data_mse, data_mse_plm, markers_mse_plm, legend_mse_plm)#, data_std_mse_plm)
+            push!(data_mse, data_mse_plm, markers_mse_plm)#, data_std_mse_plm)
         end
 
         #=layout_o = layout_obj("ijcnn1", n_runs)
@@ -207,24 +216,25 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
 
         plt_obj = PGFPlots.Axis(
             data_obj,
-            xlabel="\$ j^{th}\$   Epoch",
+            xlabel="\$ j^{th}\$   epoch",
             ylabel="\$ (f+h)(x_j) \$",
             ymode="log",
             xmode="log",
         )
         plt_metr = PGFPlots.Axis(
             data_metr,
-            xlabel="\$ j^{th}\$   Epoch",
-            ylabel=L"\left(\xi_{j,cp}^*(x_j,\nu_j^{-1})\nu_j^{-1} \right)^{\frac{1}{2}}",
+            xlabel="\$ j^{th}\$   epoch",
+            ylabel="Stationarity measure",
             ymode="log",
             xmode="log",
         )
         plt_mse = PGFPlots.Axis(
             data_mse,
-            xlabel="\$ j^{th}\$   Epoch",
-            ylabel="\$ MSE \$",
+            xlabel="\$ j^{th}\$   epoch",
+            ylabel="MSE",
             ymode="log",
             xmode="log",
+            ymax = 1.0
         )
 
         #display(plt_obj)

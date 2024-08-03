@@ -313,6 +313,66 @@ function BAmodel_sto(name::AbstractString; T::Type = Float64, sample_rate = 1.0)
   )
 end
 
+mutable struct SampledADNLSModel{T, S, Si} <: AbstractNLSModel{T, S}
+  adnls::ADNLSModel{T, S, Si}
+  #stochastic parameters
+  sample::Si
+  data_mem::Si
+  sample_rate::Real
+  epoch_counter::Si
+  opt_counter::Si
+end
+
+function SampledADNLSModel(adnls::ADNLSModel{T, S, Si}, sample::Si, sample_rate::T) where {T, S, Si}
+  return SampledADNLSModel(adnls, sample, Int[], sample_rate, Int[], Int[])
+end
+
+# API SampledADNLSModel #
+
+function Base.getproperty(model::SampledADNLSModel, f::Symbol)
+  if f in fieldnames(ADNLSModel)
+    getfield(model.adnls, f)
+  else
+    getfield(model, f)
+  end
+end
+
+function Base.setproperty!(model::SampledADNLSModel, f::Symbol, x)
+  if f in fieldnames(ADNLSModel)
+    setfield!(model.adnls, f, x)
+  else
+    setfield!(model, f, x)
+  end
+end
+
+function NLPModels.residual(model::SampledADNLSModel, x)
+  return residual(model.adnls, x)
+end
+
+function NLPModels.residual!(model::SampledADNLSModel, x, Fx)
+  return residual!(model.adnls, x, Fx)
+end
+
+function NLPModels.jprod_residual!(model::SampledADNLSModel, rows::AbstractVector{<:Integer}, cols::AbstractVector{<:Integer}, vals::AbstractVector, v::AbstractVector, Jv::AbstractVector)
+  return jprod_residual!(model.adnls, rows, cols, vals, v, Jv)
+end
+
+function NLPModels.jtprod_residual!(model::SampledADNLSModel, rows::AbstractVector{<:Integer}, cols::AbstractVector{<:Integer}, vals::AbstractVector, v::AbstractVector, Jtv::AbstractVector)
+  return jtprod_residual!(model.adnls, rows, cols, vals, v, Jtv)
+end
+
+function NLPModels.jac_structure_residual!(nls::SampledADNLSModel, rows::AbstractVector{<:Integer}, cols::AbstractVector{<:Integer})
+  return jac_structure_residual!(nls.adnls, rows, cols)
+end
+
+function NLPModels.jac_coord_residual!(nls::SampledADNLSModel, x::AbstractVector, vals::AbstractVector)
+  return jac_coord_residual!(nls.adnls, x, vals)
+end
+
+function NLPModels.jac_op_residual!(nls::SampledADNLSModel, rows::AbstractVector{<:Integer}, cols::AbstractVector{<:Integer}, vals::AbstractVector, Jv::AbstractVector, Jtv::AbstractVector)
+  jac_op_residual!(nls.adnls, rows, cols, vals, Jv, Jtv)
+end
+
 function NLPModels.residual!(nls::SampledBAModel, x::AbstractVector, rx::AbstractVector)
   increment!(nls, :neval_residual)
   residuals!(
@@ -342,6 +402,7 @@ function residuals!(
   pt2d::AbstractVector,
   sample::AbstractVector,
 )
+  #@info "Length of the current sample = $(length(sample))"
   @simd for i in eachindex(sample)
     cam_index = cam_indices[sample[i]]
     pnt_index = pnt_indices[sample[i]]
@@ -349,43 +410,55 @@ function residuals!(
     cam_range = (3 * npts + (cam_index - 1) * 9 + 1):(3 * npts + (cam_index - 1) * 9 + 9)
     x = view(xs, pnt_range)
     c = view(xs, cam_range)
-    k = view(ks, pnt_range)
-    P = view(Ps, pnt_range)
     r = view(rxs, (2 * i - 1):(2 * i))
-    projection!(x, c, r, k, P)
+    projection!(x, c, r)
   end
-  for j in sample
-    rxs[(2 * j - 1):(2 * j)] .-= pt2d[(2 * j - 1):(2 * j)]
+  for j in eachindex(sample)
+    rxs[(2 * j - 1):(2 * j)] .-= pt2d[(2 * sample[j] - 1):(2 * sample[j])]
   end
+  return rxs
 end
-
-
 
 function projection!(
   p3::AbstractVector,
   r::AbstractVector,
   t::AbstractVector,
-  k1,
-  k2,
+  k_1,
+  k_2,
   f,
   r2::AbstractVector,
-  k::AbstractVector,
-  P1::AbstractVector,
 )
-  θ = norm(r)
-  k .= r ./ θ
-  cross!(P1, k, p3)
-  P1 .*= sin(θ)
-  P1 .+= cos(θ) .* p3 .+ (1 - cos(θ)) .* dot(k, p3) .* k .+ t
-  r2[1] = -P1[1] ./ P1[3]
-  r2[2] = -P1[2] ./ P1[3]
-  s = scaling_factor(r2, k1, k2)
+  θ = sqrt(dot(r, r))
+
+  k1 = r[1] / θ
+  k2 = r[2] / θ
+  k3 = r[3] / θ
+
+  #cross!(P1, k, p3)
+  P1_1 = k2 * p3[3] - k3 * p3[2]
+  P1_2 = k3 * p3[1] - k1 * p3[3]
+  P1_3 = k1 * p3[2] - k2 * p3[1]
+
+  #P1 .*= sin(θ)
+  P1_1 *= sin(θ)
+  P1_2 *= sin(θ)
+  P1_3 *= sin(θ)
+
+  #P1 .+= cos(θ) .* p3 .+ (1 - cos(θ)) .* dot(k, p3) .* k .+ t
+  kp3 = p3[1] * r[1] / θ + p3[2] * r[2] / θ + p3[3] * r[3] / θ # dot(k, p3)
+  P1_1 += cos(θ) * p3[1] + (1 - cos(θ)) * kp3 * k1 + t[1]
+  P1_2 += cos(θ) * p3[2] + (1 - cos(θ)) * kp3 * k2 + t[2]
+  P1_3 += cos(θ) * p3[3] + (1 - cos(θ)) * kp3 * k3 + t[3]
+
+  r2[1] = -P1_1 / P1_3
+  r2[2] = -P1_2 / P1_3
+  s = scaling_factor(r2, k_1, k_2)
   r2 .*= f * s
   return r2
 end
 
-projection!(x, c, r2, k, P1) =
-  projection!(x, view(c, 1:3), view(c, 4:6), c[7], c[8], c[9], r2, k, P1)
+projection!(x, c, r2) =
+  projection!(x, view(c, 1:3), view(c, 4:6), c[7], c[8], c[9], r2)
 
 function cross!(c::AbstractVector, a::AbstractVector, b::AbstractVector)
   if !(length(a) == length(b) == length(c) == 3)
@@ -445,7 +518,7 @@ for counter in fieldnames(NLSGeneralCounters)
     end
 end
   
-  function LinearOperators.reset!(nls::Union{SampledNLSModel, SampledBAModel})
+  function LinearOperators.reset!(nls::Union{SampledNLSModel, SampledBAModel, SampledADNLSModel})
     reset!(nls.counters)
     return nls
   end
@@ -480,6 +553,12 @@ function NLPModels.residual(nls::SampledNLSModel{T, S, R, J, Jt}, x::AbstractVec
   residual!(nls, x, Fx)
 end
 
+function NLPModels.residual(nls::SampledBAModel{T, S}, x::AbstractVector{T}) where {T, S}
+  @lencheck nls.meta.nvar x
+  Fx = S(undef, nls.nls_meta.nequ)
+  residual!(nls, x, Fx)
+end
+
 include("api-sampled-Jacobian.jl")
 
 ## API for SampledBAModel ##
@@ -489,10 +568,11 @@ function NLPModels.jac_structure_residual!(
   rows::AbstractVector{<:Integer},
   cols::AbstractVector{<:Integer},
 )
-  @simd for i in nls.sample
+  display("Creating sampled Jac Structure")
+  @simd for i in eachindex(nls.sample)
     idx_obs = (i - 1) * 24
-    idx_cam = 3 * nls.npnts + 9 * (nls.cams_indices[i] - 1)
-    idx_pnt = 3 * (nls.pnts_indices[i] - 1)
+    idx_cam = 3 * nls.npnts + 9 * (nls.cams_indices[nls.sample[i]] - 1)
+    idx_pnt = 3 * (nls.pnts_indices[nls.sample[i]] - 1)
 
     # Only the two rows corresponding to the observation i are not empty
     p = 2 * i
@@ -511,12 +591,6 @@ function NLPModels.jac_structure_residual!(
   return rows, cols
 end
 
-function NLPModels.residual(nls::SampledBAModel{T, S}, x::AbstractVector{T}) where {T, S}
-  @lencheck nls.meta.nvar x
-  Fx = S(undef, nls.nls_meta.nequ)
-  residual!(nls, x, Fx)
-end
-
 function NLPModels.jac_coord_residual!(
   nls::SampledBAModel,
   x::AbstractVector,
@@ -532,9 +606,9 @@ function NLPModels.jac_coord_residual!(
   fill!(nls.JP2_mat, zero(T))
   nls.JP2_mat[3, 4], nls.JP2_mat[4, 5], nls.JP2_mat[5, 6] = 1, 1, 1
 
-  @simd for i in nls.sample
-    idx_cam = nls.cams_indices[i]
-    idx_pnt = nls.pnts_indices[i]
+  @simd for i in eachindex(nls.sample)
+    idx_cam = nls.cams_indices[nls.sample[i]]
+    idx_pnt = nls.pnts_indices[nls.sample[i]]
     @views X = x[((idx_pnt - 1) * 3 + 1):((idx_pnt - 1) * 3 + 3)] # 3D point coordinates
     @views C = x[(3 * nls.npnts + (idx_cam - 1) * 9 + 1):(3 * nls.npnts + (idx_cam - 1) * 9 + 9)] # camera parameters
     @views r = C[1:3] # is the Rodrigues vector for the rotation
@@ -558,6 +632,69 @@ function NLPModels.jac_coord_residual!(
   return vals
 end
 
+function NLPModels.jac_op_residual!(
+  nls::SampledBAModel,
+  rows::AbstractVector{<:Integer},
+  cols::AbstractVector{<:Integer},
+  vals::AbstractVector,
+  Jv::AbstractVector,
+  Jtv::AbstractVector,
+)
+  @lencheck length(rows) rows cols vals
+  @lencheck nls.nls_meta.nequ Jv
+  @lencheck nls.meta.nvar Jtv
+  prod! = @closure (res, v, α, β) -> begin
+    jprod_residual!(nls, rows, cols, vals, v, Jv)
+    if β == 0
+      @. res = α * Jv
+    else
+      @. res = α * Jv + β * res
+    end
+    return res
+  end
+  ctprod! = @closure (res, v, α, β) -> begin
+    jtprod_residual!(nls, rows, cols, vals, v, Jtv)
+    if β == 0
+      @. res = α * Jtv
+    else
+      @. res = α * Jtv + β * res
+    end
+    return res
+  end
+  return LinearOperator{eltype(vals)}(
+    nls_meta(nls).nequ,
+    nls_meta(nls).nvar,
+    false,
+    false,
+    prod!,
+    ctprod!,
+    ctprod!,
+  )
+end
+
+"""
+    coo_prod!(rows, cols, vals, v, Av)
+
+Compute the product of a matrix `A` given by `(rows, cols, vals)` and the vector `v`.
+The result is stored in `Av`, which should have length equals to the number of rows of `A`.
+"""
+function NLPModels.coo_prod!(
+  rows::AbstractVector{<:Integer},
+  cols::AbstractVector{<:Integer},
+  vals::AbstractVector,
+  v::AbstractVector,
+  Av::AbstractVector,
+)
+  fill!(Av, zero(eltype(v)))
+  nnz = length(rows)
+  display(nnz)
+  for k = 1:nnz
+    i, j = rows[k], cols[k]
+    Av[i] += vals[k] * v[j]
+  end
+  return Av
+end
+
 """
     Jv = jprod_residual!(nls, rows, cols, vals, v, Jv)
 
@@ -572,7 +709,7 @@ function NLPModels.jprod_residual!(
   v::AbstractVector,
   Jv::AbstractVector,
 )
-  @lencheck nls.nls_meta.nnzj rows cols vals
+  @lencheck length(rows) rows cols vals
   @lencheck nls.meta.nvar v
   @lencheck nls.nls_meta.nequ Jv
   increment!(nls, :neval_jprod_residual)
@@ -593,7 +730,7 @@ function NLPModels.jtprod_residual!(
   v::AbstractVector,
   Jtv::AbstractVector,
 )
-  @lencheck nls.nls_meta.nnzj rows cols vals
+  @lencheck length(rows) rows cols vals
   @lencheck nls.nls_meta.nequ v
   @lencheck nls.meta.nvar Jtv
   increment!(nls, :neval_jtprod_residual)

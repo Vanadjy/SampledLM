@@ -39,17 +39,27 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
 
     for name in name_list
         nls = BundleAdjustmentModel(name)
-        sampled_nls = BAmodel_sto(name; sample_rate = sample_rate0)
-        guess_0 = sampled_nls.nls_meta.x0
+
+        sampled_nls_ba = BAmodel_sto(name; sample_rate = sample_rate0)
+        meta_nls_ba = nls_meta(sampled_nls_ba)
+        function F!(Fx, x)
+            residual!(sampled_nls_ba, x, Fx)
+        end
+
+        adnls = ADNLSModel!(F!, sampled_nls_ba.meta.x0, sampled_nls_ba.nls_meta.nequ, sampled_nls_ba.meta.lvar, sampled_nls_ba.meta.uvar, jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+                                                                                           jacobian_backend = ADNLPModels.EmptyADbackend,
+                                                                                           hessian_backend = ADNLPModels.EmptyADbackend,
+                                                                                           hessian_residual_backend = ADNLPModels.EmptyADbackend)
+        sampled_nls = SampledADNLSModel(adnls, sampled_nls_ba.sample, sampled_nls_ba.sample_rate)
+        guess_0 = sampled_nls_ba.nls_meta.x0
         #=d = Normal()
         noise = rand(d, length(guess_0))
         guess_0 .-= noise=#
 
         sol0 = guess_0
-        println(guess_0)
-        x0 = [sol0[3*i+1] for i in 0:(sampled_nls.npnts-1)]
-        y0 = [sol0[3*i+2] for i in 0:(sampled_nls.npnts-1)]
-        z0 = [sol0[3*i] for i in 1:sampled_nls.npnts]       
+        x0 = [sol0[3*i+1] for i in 0:(sampled_nls_ba.npnts-1)]
+        y0 = [sol0[3*i+2] for i in 0:(sampled_nls_ba.npnts-1)]
+        z0 = [sol0[3*i] for i in 1:sampled_nls_ba.npnts]       
         plt3d0 = PlotlyJS.scatter(
             x=x0,
             y=y0,
@@ -70,74 +80,13 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
 
         #nlp_train = LSR1Model(nlp_train)
         λ = 1e-1
-        # h = RootNormLhalf(λ)
-        h = NormL1(λ)
-        h_name = "l1"
+        h = RootNormLhalf(λ)
+        # h = NormL1(λ)
+        h_name = "lhalf"
         χ = NormLinf(1.0)
 
-        if compare
-            if smooth
-                @info " using LM to solve"
-                reset!(nls)
-                LM_out = levenberg_marquardt(nls; max_iter = 20, in_itmax = 300)
-                nlm = neval_residual(nls)
-                nglm = neval_jtprod_residual(nls) + neval_jprod_residual(nls)
-
-                sol = LM_out.solution
-                x = [sol[3*i+1] for i in 0:(nls.npnts-1)]
-                y = [sol[3*i+2] for i in 0:(nls.npnts-1)]
-                z = [sol[3*i] for i in 1:nls.npnts]
-                plt3d = PlotlyJS.plot(PlotlyJS.scatter(
-                    x=x,
-                    y=y,
-                    z=z,
-                    mode="markers",
-                    marker=attr(
-                        size=1,
-                        opacity=0.8
-                    ),
-                    type="scatter3d"
-                ), Layout(margin=attr(l=0, r=0, b=0, t=0)))
-                relayout!(plt3d, template=:simple_white)
-                #display(plt3d)
-                
-
-                @info " using LMTR to solve with" χ
-                reset!(nls)
-                LMTR_out = levenberg_marquardt(nls, TR = true; max_iter = 20, in_itmax = 300)
-                nlmtr = neval_residual(nls)
-                nglmtr = neval_jtprod_residual(nls) + neval_jprod_residual(nls)
-
-                sol = LMTR_out.solution
-                x = [sol[3*i+1] for i in 0:(nls.npnts-1)]
-                y = [sol[3*i+2] for i in 0:(nls.npnts-1)]
-                z = [sol[3*i] for i in 1:nls.npnts]
-                plt3d = PlotlyJS.plot(PlotlyJS.scatter(
-                    x=x,
-                    y=y,
-                    z=z,
-                    mode="markers",
-                    marker=attr(
-                        size=1,
-                        opacity=0.8
-                    ),
-                    type="scatter3d"
-                ), Layout(margin=attr(l=0, r=0, b=0, t=0)))
-                relayout!(plt3d, template=:simple_white)
-                #display(plt3d)
-
-                if name == name_list[1]
-                    temp_LM = [0.5 * LM_out.rNorm^2, nlm, nglm, LM_out.elapsed_time]
-                    temp_LMTR = [0.5 * LMTR_out.rNorm^2, nlmtr, nglmtr, LMTR_out.elapsed_time]
-                else
-                    temp_LM = hcat(temp_LM, [0.5 * LM_out.rNorm^2, nlm, nglm, LM_out.elapsed_time])
-                    temp_LMTR = hcat(temp_LMTR, [0.5 * LMTR_out.rNorm^2, nlmtr, nglmtr, LMTR_out.elapsed_time])
-                end
-            end
-        end
-
         options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-        suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 1000)
+        suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 100)
 
         sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-10, ϵr = 1e-10, σmin = 1e-6, μmin = 1e-6, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
         if smooth
@@ -242,8 +191,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
             fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
             #display(fig_ba)
             #display(fig_ba0)
-            PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-l1-smooth.pdf"; format = "pdf")
-            PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs-l1-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-smooth.pdf"; format = "pdf")
     
             #println("Press enter")
             #n = readline()
@@ -281,8 +230,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
             std_obj_prob *= Confidence[conf]
             filter!(!isnan, std_obj_prob)
 
-            save_object("med_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_obj_prob)
-            save_object("std_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_obj_prob)
+            save_object("med_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", med_obj_prob)
+            save_object("std_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", std_obj_prob)
 
             # compute median of metric #
             for l in eachindex(med_metr_prob)
@@ -302,8 +251,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
             std_metr_prob *= Confidence[conf]
             filter!(!isnan, std_metr_prob)
 
-            save_object("med_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_metr_prob)
-            save_object("std_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_metr_prob)
+            save_object("med_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", med_metr_prob)
+            save_object("std_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", std_metr_prob)
             
             # compute median of MSE #
             for l in eachindex(med_mse_prob)
@@ -323,8 +272,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
             std_mse_prob *= Confidence[conf]
             filter!(!isnan, std_mse_prob)
 
-            save_object("med_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_mse_prob)
-            save_object("std_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_mse_prob)
+            save_object("med_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", med_mse_prob)
+            save_object("std_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", std_mse_prob)
     
             # --------------- OBJECTIVE DATA -------------------- #
             data_obj_splm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
@@ -433,9 +382,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
             #display(plt_metr)
             #display(plt_mse)
     
-            PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-l1-smooth.pdf"; format = "pdf")
-            PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-l1-smooth.pdf"; format = "pdf")
-            PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-l1-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-smooth.pdf"; format = "pdf")
+            PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name-smooth.pdf"; format = "pdf")
         end
 
         ## ---------------------------------------------------------------------------------------------------##
@@ -446,6 +395,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
 
         PLM_outs = []
         plm_obj = []
+        nplms = []
+        ngplms = []
 
         Obj_Hists_epochs_prob = zeros(1 + MaxEpochs, n_runs)
         Metr_Hists_epochs_prob = zero(Obj_Hists_epochs_prob)
@@ -454,9 +405,11 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         for k in 1:n_runs
             reset!(sampled_nls)
             sampled_nls.epoch_counter = Int[1]
-            Prob_LM_out_k = Prob_LM(sampled_nls, h, sampled_options, x0=guess_0, sample_rate0 = sample_rate0, subsolver_options = suboptions, version = version)
+            Prob_LM_out_k = Prob_LM(sampled_nls, sampled_nls_ba, h, sampled_options, x0=guess_0, sample_rate0 = sample_rate0, subsolver_options = suboptions, version = version)
             push!(PLM_outs, Prob_LM_out_k)
             push!(plm_obj, Prob_LM_out_k.objective)
+            push!(nplms, length(sampled_nls.epoch_counter))
+            push!(ngplms, (neval_jtprod_residual(sampled_nls_ba) + neval_jprod_residual(sampled_nls_ba)))
 
             # get objective value for each run #
             @views Obj_Hists_epochs_prob[:, k][1:length(sampled_nls.epoch_counter)] = Prob_LM_out_k.solver_specific[:ExactFhist][sampled_nls.epoch_counter]
@@ -493,9 +446,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
 
         sol = Prob_LM_out.solution
 
-        x = [sol[3*i+1] for i in 0:(sampled_nls.npnts-1)]
-        y = [sol[3*i+2] for i in 0:(sampled_nls.npnts-1)]
-        z = [sol[3*i] for i in 1:sampled_nls.npnts]       
+        x = [sol[3*i+1] for i in 0:(sampled_nls_ba.npnts-1)]
+        y = [sol[3*i+2] for i in 0:(sampled_nls_ba.npnts-1)]
+        z = [sol[3*i] for i in 1:sampled_nls_ba.npnts]       
         plt3d = PlotlyJS.scatter(
             x=x,
             y=y,
@@ -545,15 +498,16 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
         #display(fig_ba)
         #display(fig_ba0)
-        PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
+        PlotlyJS.savefig(fig_ba, "PLM-ND-ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(fig_ba0, "PLM-ND-x0-ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
 
         #println("Press enter")
         #n = readline()
 
         #nplm = neval_residual(sampled_nls)
-        nplm = length(sampled_nls.epoch_counter)
+        nplm = nplms[origin_ind]
         save_object("nplm-PLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", nplm)
-        ngplm = (neval_jtprod_residual(sampled_nls) + neval_jprod_residual(sampled_nls))
+        ngplm = ngplms[origin_ind]
         save_object("ngplm-PLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", ngplm)
 
         med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
@@ -583,8 +537,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         std_obj_prob *= Confidence[conf]
         filter!(!isnan, std_obj_prob)
 
-        save_object("med_obj_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_obj_prob)
-        save_object("std_obj_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_obj_prob)
+        save_object("med_obj_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", med_obj_prob)
+        save_object("std_obj_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", std_obj_prob)
 
         # compute median of metric #
         for l in eachindex(med_metr_prob)
@@ -604,8 +558,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         std_metr_prob *= Confidence[conf]
         filter!(!isnan, std_metr_prob)
 
-        save_object("med_metr_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_metr_prob)
-        save_object("std_metr_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_metr_prob)
+        save_object("med_metr_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", med_metr_prob)
+        save_object("std_metr_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", std_metr_prob)
         
         # compute median of MSE #
         for l in eachindex(med_mse_prob)
@@ -625,8 +579,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         std_mse_prob *= Confidence[conf]
         filter!(!isnan, std_mse_prob)
 
-        save_object("med_mse_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", med_mse_prob)
-        save_object("std_mse_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-l1.jld2", std_mse_prob)
+        save_object("med_mse_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", med_mse_prob)
+        save_object("std_mse_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", std_mse_prob)
 
         # --------------- OBJECTIVE DATA -------------------- #
         data_obj_plm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
@@ -735,9 +689,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         #display(plt_metr)
         #display(plt_mse)
 
-        PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
-        PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
-        PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
 
         ## ---------------------------------------------------------------------------------------------------##
         ## ----------------------------------- CONSTANT SAMPLE RATE -------------------------------------------##
@@ -817,7 +771,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
         fig_ba = PlotlyJS.Plot(plt3d_slm, layout_3d)#; config = options)
         #display(fig_ba)
-        PlotlyJS.savefig(fig_ba, "ba-SLM-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
+        PlotlyJS.savefig(fig_ba, "ba-SLM-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
 
         #println("Press enter")
         #n = readline()
@@ -854,8 +808,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         filter!(!isnan, med_obj_sto)
         std_obj_sto *= Confidence[conf]
         filter!(!isnan, std_obj_sto)
-        save_object("med_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", med_obj_sto)
-        save_object("std_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", std_obj_sto)
+        save_object("med_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-$h_name.jld2", med_obj_sto)
+        save_object("std_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-$h_name.jld2", std_obj_sto)
 
         # compute median of metric #
         for l in eachindex(med_metr_sto)
@@ -874,8 +828,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         filter!(!isnan, med_metr_sto)
         std_metr_sto *= Confidence[conf]
         filter!(!isnan, std_metr_sto)
-        save_object("med_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", med_metr_sto)
-        save_object("std_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", std_metr_sto)
+        save_object("med_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-$h_name.jld2", med_metr_sto)
+        save_object("std_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-$h_name.jld2", std_metr_sto)
         
         # compute median of MSE #
         for l in eachindex(med_mse_sto)
@@ -894,8 +848,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         filter!(!isnan, med_mse_sto)
         std_mse_sto *= Confidence[conf]
         filter!(!isnan, std_mse_sto)
-        save_object("med_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", med_mse_sto)
-        save_object("std_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2", std_mse_sto)
+        save_object("med_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-$h_name.jld2", med_mse_sto)
+        save_object("std_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-$h_name.jld2", std_mse_sto)
 
         # --------------- OBJECTIVE DATA -------------------- #
         data_obj_slm = PlotlyJS.scatter(; x = 1:length(med_obj_sto), y = med_obj_sto, mode="lines", name = "SLM - $(prob_versions_names[version])", line=attr(
@@ -957,9 +911,9 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         #display(plt_metr)
         #display(plt_mse)
 
-        PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
-        PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
-        PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
     end
 
     if smooth

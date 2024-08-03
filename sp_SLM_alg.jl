@@ -265,7 +265,7 @@ function Sto_LM(
     subsolver_options.ν = ν_subsolver
     subsolver_options.ϵa = ϵa_subsolver
 
-    Complex_hist[k] = iter * nls.sample_rate
+    Complex_hist[k] = iter
     # additionnal condition on step s
     if norm(s) > β * norm(scp)
       @info "cauchy step used"

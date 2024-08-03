@@ -5,9 +5,8 @@ using LinearAlgebra, Logging, Printf
 using ProximalOperators#, TSVD
 
 # dependencies from us
-using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov #JSOSolvers,
+using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov, ADNLPModels, Symbolics, JSOSolvers
 
-#using LinearAlgebra: length
 using Random, Test, Statistics, OnlineStats, Distributions, Noise
 using RegularizedProblems, RegularizedOptimization
 using FastClosures
@@ -19,23 +18,30 @@ using JLD2
 
 seed = 1234
 
+#tools and problems
 include("utils.jl")
 include("input_struct_sto.jl")
-#include("input_struct_prob.jl")
 include("Problems/Sto_LM_Problems.jl")
-#include(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages\LevenbergMarquardt.jl\src\LevenbergMarquardt.jl")
-#include("OldCodes/LM_alg.jl")
+
+#PLM-Cst variants
 include("Sto_LM_alg.jl")
 include("sp_SLM_alg.jl")
 include("Sto_LM_algv3.jl")
 include("Sto_LM_guided_alg.jl")
 include("Sto_LM_cp.jl")
+include("smooth_SLM.jl")
+
+#PLM-ND variants
 include("Prob_LM_alg.jl")
 include("smooth_PLM.jl")
 include("sp_smooth_PLM.jl")
 include("Prob_LM_sparse_alg.jl")
+
+#tests
 #=@testset "Probabilistic LM tests" begin
     include("test/runtests.jl")
 end=#
 #include(raw"C:\Users\valen\Downloads\demo_svm.jl")
+
+#plots
 include("plots/plots.jl")
