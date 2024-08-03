@@ -60,8 +60,8 @@ elseif selected_probs == ["mnist"]
     ϵ = 1e-4
     MaxEpochs = 1000
     MaxTime = 3600.0
-    smooth = true
-    compare = false
+    smooth = false
+    compare = true
 end
 
 abscissas = ["epoch", "CPU time"]

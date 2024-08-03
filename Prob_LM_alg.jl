@@ -511,11 +511,11 @@ function Prob_LM(
 
     if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
       xk .= xkn
-      μk = max(μk / λ, μmin)
+      #=μk = max(μk / λ, μmin)
       μ_dec_count += 1
-      μ_inc_count = 0
+      μ_inc_count = 0=#
 
-      #=if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
+      if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
         μk = max(μk / λ, μmin)
         μ_dec_count += 1
         μ_inc_count = 0
@@ -526,7 +526,7 @@ function Prob_LM(
       else
         μ_dec_count = 0
         μ_inc_count = 0
-      end=#
+      end
 
       if (!change_sample_rate) && (nls.sample_rate == 1.0)
         Fk .= Fkn
