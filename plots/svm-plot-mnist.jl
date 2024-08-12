@@ -10,7 +10,7 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
 
     ## ------------------------------------ R2, LM, LMTR ----------------------------------------- ##
 
-    k_R2, R2_out, R2_stats = load_mnist_r2()
+    k_R2, R2_out, R2_stats, r2_metric_hist = load_mnist_r2()
     LM_out, LMTR_out = load_mnist_lm_lmtr()
     m = mnist_nls.nls_meta.nequ
 
@@ -39,6 +39,13 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
     data_obj_lmtr = PGFPlots.Plots.Linear(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], mark="none", style="black, dashed")
 
     push!(data_obj, data_obj_r2)#, data_obj_lm, data_obj_lmtr)
+
+    # --------------- METRIC DATA -------------------- #
+    display(r2_metric_hist)
+    println(k_R2)
+    data_metr_r2 = PGFPlots.Plots.Linear(1:k_R2, r2_metric_hist, mark="none", style="cyan, dashed")
+
+    push!(data_metr, data_metr_r2)
 
     ## -------------------------------- CONSTANT SAMPLE RATE ------------------------------------- ##
 

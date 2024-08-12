@@ -115,3 +115,21 @@ function log_scale(n)
   log_scale = [k * 10.0^(i) for i in 0:Int(log10(n) - 1) for k in 1.0:9.0]
   return Int.(log_scale)
 end
+
+function compframe_dec(a, n)
+  @assert length(a) ≥ n
+  if n == 1
+    return a[end] < a[end-1]
+  else
+    return (a[end] < a[end-1])&&(compframe(a[1:end-1], n - 1))
+  end
+end
+
+function compframe_inc(a, n)
+  @assert length(a) ≥ n
+  if n == 1
+    return a[end] > a[end-1]
+  else
+    return (a[end] > a[end-1])&&(compframe(a[1:end-1], n - 1))
+  end
+end

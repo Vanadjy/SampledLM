@@ -144,6 +144,7 @@ function Sto_LM(
 
   #sampled Jacobian
   ∇fk = similar(xk)
+  #exact_∇fk = similar(∇fk)
   jtprod_residual!(nls, xk, Fk, ∇fk)
   JdFk = similar(Fk)   # temporary storage
   Jt_Fk = similar(∇fk)
@@ -155,6 +156,7 @@ function Sto_LM(
 
   s = zero(xk)
   scp = similar(s)
+  #exact_scp = similar(scp)
 
   optimal = false
   tired = k ≥ maxIter || elapsed_time > maxTime
@@ -309,7 +311,9 @@ function Sto_LM(
       dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
     end
 
-    exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
+    #jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
+    #prox!(exact_scp, ψ, exact_∇fk, νcp)
+    exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
     exact_metric = sqrt(abs(exact_ξcp * νcpInv))
 
     exact_Fobj_hist[k] = exact_fk
@@ -339,7 +343,7 @@ function Sto_LM(
 
       # update gradient & Hessian
       shift!(ψ, xk)
-      Jk = jac_op_residual(nls, xk)
+      #Jk = jac_op_residual(nls, xk)
       jtprod_residual!(nls, xk, Fk, ∇fk)
 
       μmax = opnorm(Jk)

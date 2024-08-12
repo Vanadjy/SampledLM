@@ -315,16 +315,11 @@ end
 
 mutable struct SampledADNLSModel{T, S, Si} <: AbstractNLSModel{T, S}
   adnls::ADNLSModel{T, S, Si}
-  #stochastic parameters
-  sample::Si
-  data_mem::Si
-  sample_rate::Real
-  epoch_counter::Si
-  opt_counter::Si
+  ba::SampledBAModel{T, S}
 end
 
-function SampledADNLSModel(adnls::ADNLSModel{T, S, Si}, sample::Si, sample_rate::T) where {T, S, Si}
-  return SampledADNLSModel(adnls, sample, Int[], sample_rate, Int[], Int[])
+function SADNLSModel(adnls::ADNLSModel{T, S, Si}, ba::SampledBAModel{T, S}) where {T, S, Si}
+  return SampledADNLSModel(adnls, ba)
 end
 
 # API SampledADNLSModel #
@@ -332,6 +327,8 @@ end
 function Base.getproperty(model::SampledADNLSModel, f::Symbol)
   if f in fieldnames(ADNLSModel)
     getfield(model.adnls, f)
+  elseif f in fieldnames(SampledBAModel)
+    getfield(model.ba, f)
   else
     getfield(model, f)
   end
@@ -340,6 +337,8 @@ end
 function Base.setproperty!(model::SampledADNLSModel, f::Symbol, x)
   if f in fieldnames(ADNLSModel)
     setfield!(model.adnls, f, x)
+  elseif f in fieldnames(SampledBAModel)
+    setfield!(model.ba, f, x)
   else
     setfield!(model, f, x)
   end
@@ -353,7 +352,7 @@ function NLPModels.residual!(model::SampledADNLSModel, x, Fx)
   return residual!(model.adnls, x, Fx)
 end
 
-function NLPModels.jprod_residual!(model::SampledADNLSModel, rows::AbstractVector{<:Integer}, cols::AbstractVector{<:Integer}, vals::AbstractVector, v::AbstractVector, Jv::AbstractVector)
+#=function NLPModels.jprod_residual!(model::SampledADNLSModel, rows::AbstractVector{<:Integer}, cols::AbstractVector{<:Integer}, vals::AbstractVector, v::AbstractVector, Jv::AbstractVector)
   return jprod_residual!(model.adnls, rows, cols, vals, v, Jv)
 end
 
@@ -371,7 +370,7 @@ end
 
 function NLPModels.jac_op_residual!(nls::SampledADNLSModel, rows::AbstractVector{<:Integer}, cols::AbstractVector{<:Integer}, vals::AbstractVector, Jv::AbstractVector, Jtv::AbstractVector)
   jac_op_residual!(nls.adnls, rows, cols, vals, Jv, Jtv)
-end
+end=#
 
 function NLPModels.residual!(nls::SampledBAModel, x::AbstractVector, rx::AbstractVector)
   increment!(nls, :neval_residual)
@@ -518,7 +517,7 @@ for counter in fieldnames(NLSGeneralCounters)
     end
 end
   
-  function LinearOperators.reset!(nls::Union{SampledNLSModel, SampledBAModel, SampledADNLSModel})
+  function LinearOperators.reset!(nls::Union{SampledNLSModel, SampledADNLSModel})
     reset!(nls.counters)
     return nls
   end
@@ -567,9 +566,7 @@ function NLPModels.jac_structure_residual!(
   nls::SampledBAModel,
   rows::AbstractVector{<:Integer},
   cols::AbstractVector{<:Integer},
-)
-  display("Creating sampled Jac Structure")
-  @simd for i in eachindex(nls.sample)
+)  @simd for i in eachindex(nls.sample)
     idx_obs = (i - 1) * 24
     idx_cam = 3 * nls.npnts + 9 * (nls.cams_indices[nls.sample[i]] - 1)
     idx_pnt = 3 * (nls.pnts_indices[nls.sample[i]] - 1)
@@ -687,7 +684,6 @@ function NLPModels.coo_prod!(
 )
   fill!(Av, zero(eltype(v)))
   nnz = length(rows)
-  display(nnz)
   for k = 1:nnz
     i, j = rows[k], cols[k]
     Av[i] += vals[k] * v[j]
@@ -701,7 +697,7 @@ end
 Computes the product of the Jacobian of the residual given by `(rows, cols, vals)`
 and a vector, i.e.,  ``J(x)v``, storing it in `Jv`.
 """
-function NLPModels.jprod_residual!(
+#=function NLPModels.jprod_residual!(
   nls::SampledBAModel,
   rows::AbstractVector{<:Integer},
   cols::AbstractVector{<:Integer},
@@ -714,7 +710,7 @@ function NLPModels.jprod_residual!(
   @lencheck nls.nls_meta.nequ Jv
   increment!(nls, :neval_jprod_residual)
   coo_prod!(rows, cols, vals, v, Jv)
-end
+end=#
 
 """
     Jtv = jtprod_residual!(nls, rows, cols, vals, v, Jtv)
@@ -722,7 +718,7 @@ end
 Computes the product of the transpose of the Jacobian of the residual given by `(rows, cols, vals)`
 and a vector, i.e.,  ``J(x)^Tv``, storing it in `Jv`.
 """
-function NLPModels.jtprod_residual!(
+#=function NLPModels.jtprod_residual!(
   nls::SampledBAModel,
   rows::AbstractVector{<:Integer},
   cols::AbstractVector{<:Integer},
@@ -735,4 +731,4 @@ function NLPModels.jtprod_residual!(
   @lencheck nls.meta.nvar Jtv
   increment!(nls, :neval_jtprod_residual)
   coo_prod!(cols, rows, vals, v, Jtv)
-end
+end=#

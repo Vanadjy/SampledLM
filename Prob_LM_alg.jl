@@ -134,10 +134,15 @@ function Prob_LM(
   local exact_ξcp
   local ξ
   local ξ_mem
+
   μ_inc_count = 0
   μ_dec_count = 0
+  μ_stab_count = 0
   δ_sample = .05
+  buffer = .05
+  distance_indic = zero(eltype(xk))
   k = 0
+
   X_hist = zeros(eltype(xk), length(xk), maxIter * 100) 
   Fobj_hist = zeros(maxIter * 100)
   exact_Fobj_hist = zeros(maxIter * 100)
@@ -169,6 +174,7 @@ function Prob_LM(
 
   #sampled Jacobian
   ∇fk = similar(xk)
+  exact_∇fk = similar(∇fk)
   jtprod_residual!(nls, xk, Fk, ∇fk)
   JdFk = similar(Fk) # temporary storage
   Jt_Fk = similar(∇fk)
@@ -180,6 +186,7 @@ function Prob_LM(
 
   s = zero(xk)
   scp = similar(s)
+  exact_scp = similar(scp)
 
   optimal = false
   tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
@@ -343,7 +350,9 @@ function Prob_LM(
         dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
       end
 
-      exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
+      jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
+      prox!(exact_scp, ψ, exact_∇fk, νcp)
+      exact_ξcp = exact_fk + hk - exact_φcp(exact_scp) - ψ(exact_scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
       exact_metric = sqrt(abs(exact_ξcp * νcpInv))
 
       exact_Fobj_hist[k] = exact_fk
@@ -488,6 +497,27 @@ function Prob_LM(
       end
     end
 
+    if (version == 9) && (k >= 3)
+      if (μ_inc_count == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+        ζk = Int(ceil(100 * λ^4 * (log(1 / (1-p)) + log(1 / (1-q)))))
+        nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
+        change_sample_rate = true
+        μ_inc_count = 0
+        μ_dec_count = 0
+      elseif (μ_dec_count == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+        ζk = Int(ceil(100 * λ^(-4) * (log(1 / (1-p)) + log(1 / (1-q)))))
+        nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
+        change_sample_rate = true
+        μ_inc_count = 0
+        μ_dec_count = 0
+      end
+      if (nls.sample_rate < sample_rates_collec[end]) && ((distance_indic > norm(xk)) || (μ_stab_count > 100)) # if μ did not change for too long, increase the buffer value
+        sample_counter += 1
+        buffer = sample_rates_collec[sample_counter]
+        nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
+      end
+    end
+
     #changes sample with new sample rate
     nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
     if nls.sample_rate == 1.0
@@ -509,7 +539,7 @@ function Prob_LM(
       #change_sample_rate = false
     end
 
-    if (η1 ≤ ρk < Inf) && (metric ≥ η3 / μk) #successful step
+    if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
       #=μk = max(μk / λ, μmin)
       μ_dec_count += 1
@@ -519,13 +549,15 @@ function Prob_LM(
         μk = max(μk / λ, μmin)
         μ_dec_count += 1
         μ_inc_count = 0
+        μ_stab_count = 0
       elseif (nls.sample_rate == 1.0) && (η2 ≤ ρk < Inf)
         μk = max(μk / λ, μmin)
         μ_dec_count += 1
         μ_inc_count = 0
+        μ_stab_count = 0
       else
-        μ_dec_count = 0
-        μ_inc_count = 0
+        distance_indic += norm(s)
+        μ_stab_count += 1
       end
 
       if (!change_sample_rate) && (nls.sample_rate == 1.0)
@@ -551,6 +583,7 @@ function Prob_LM(
       μk = λ * μk
       μ_dec_count = 0
       μ_inc_count += 1
+      μ_stab_count = 0
     end
 
     if change_sample_rate

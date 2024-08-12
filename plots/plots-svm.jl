@@ -17,9 +17,9 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                     bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound)
                     mnist_full, mnist_nls_full, mnist_nls_sol = RegularizedProblems.svm_train_model()
                     mnist_nlp_test, mnist_nls_test, mnist_sol_test = RegularizedProblems.svm_test_model()
-                    #A_ijcnn1, b_ijcnn1 = ijcnn1_load_data()
-                    #ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
-                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, σmin = 1e-5, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    A_ijcnn1, b_ijcnn1 = ijcnn1_generate_data_tr()
+                    ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
+                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 1, σmin = 1e-5, maxIter = 2*MaxEpochs, maxTime = MaxTime;)
                     subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
 
                     if selected_prob == "ijcnn1"
@@ -48,11 +48,24 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
 
                     @info "using R2 to solve with" h
                     reset!(prob)
-                    xk_R2, k_R2, R2_out = RegularizedOptimization.R2(prob.f, prob.∇f!, h, sampled_options_full, x0)
-                    prob = LSR1Model(prob)
-                    R2_stats = RegularizedOptimization.R2(prob, h, sampled_options_full, x0 = x0)
-                    nr2 = NLPModels.neval_obj(prob)
-                    ngr2 = NLPModels.neval_grad(prob)
+                    #xk_R2, k_R2, R2_out = RegularizedOptimization.R2(prob.f, prob.∇f!, h, sampled_options_full, x0)
+                    prob_lsr1 = LSR1Model(prob)
+                    R2_stats = RegularizedOptimization.R2(prob_lsr1, h, sampled_options_full, x0 = x0)
+
+                    ## For R2 metric callback ##
+                    reg_prob = RegularizedNLPModel(prob, h)
+                    reg_stats = GenericExecutionStats(reg_prob.model)
+                    reg_solver = RegularizedOptimization.R2Solver(x0, sampled_options_full, l_bound, u_bound; ψ = shifted(h, x0))
+                    cb = (nlp, solver, stats) -> begin
+                                                    solver.Fobj_hist[stats.iter+1] = stats.solver_specific[:smooth_obj] + stats.solver_specific[:nonsmooth_obj]
+                                                    solver.Hobj_hist[stats.iter+1] = stats.solver_specific[:xi]
+                                                    solver.Complex_hist[stats.iter+1] += 1
+                                                 end
+                    RegularizedOptimization.solve!(reg_solver, reg_prob, reg_stats; callback = cb)
+                    r2_metric_hist = filter!(!iszero, reg_solver.Hobj_hist)
+
+                    nr2 = NLPModels.neval_obj(prob_lsr1)
+                    ngr2 = NLPModels.neval_grad(prob_lsr1)
                     r2train = residual(prob_nls, R2_stats.solution) #||e - tanh(b * <A, x>)||^2, b ∈ {-1,1}^n
                     if selected_prob == "mnist"
                         r2test = residual(mnist_nls_test, R2_stats.solution)
@@ -91,15 +104,16 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
                     end
 
-                    save_object("k_R2-$selected_prob-$selected_h.jld2", k_R2)
-                    save_object("R2_out-$selected_prob-$selected_h.jld2", R2_out)
+                    #save_object("k_R2-$selected_prob-$selected_h.jld2", k_R2)
+                    #save_object("R2_out-$selected_prob-$selected_h.jld2", R2_out)
                     save_object("R2_stats-$selected_prob-$selected_h.jld2", R2_stats)
+                    save_object("r2_metric_hist-$selected_prob-$selected_h.jld2", r2_metric_hist)
                     save_object("LM_out-$selected_prob-$selected_h.jld2", LM_out)
                     save_object("LMTR_out-$selected_prob-$selected_h.jld2", LMTR_out)
 
                     # --------------- OBJECTIVE DATA -------------------- #
 
-                    data_obj_r2 = PlotlyJS.scatter(; x = 1:k_R2 , y = R2_out[:Fhist] + R2_out[:Hhist], mode="lines", name = "R2", line=attr(
+                    data_obj_r2 = PlotlyJS.scatter(; x = 1:length(R2_stats.solver_specific[:Fhist]) , y = R2_stats.solver_specific[:Fhist] + R2_stats.solver_specific[:Hhist], mode="lines", name = "R2", line=attr(
                         color="rgb(220,20,60)", dash = "dashdot", width = 1
                         )
                     )
@@ -141,8 +155,8 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                     bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound)
                     mnist_full, mnist_nls_full, mnist_nls_sol = RegularizedProblems.svm_train_model()
                     mnist_nlp_test, mnist_nls_test, mnist_sol_test = RegularizedProblems.svm_test_model()
-                    #A_ijcnn1, b_ijcnn1 = ijcnn1_load_data()
-                    #ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
+                    A_ijcnn1, b_ijcnn1 = ijcnn1_load_data()
+                    ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
                     sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, σmin = 1e-5, maxIter = MaxEpochs, maxTime = MaxTime;)
                     subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
 
@@ -278,7 +292,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                         local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
                         #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
-                        #local ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_model_sto(sample_rate)
+                        local ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_model_sto(sample_rate)
                         #a9a, a9a_nls = a9a_model_sto(sample_rate)
                         local mnist, mnist_nls, mnist_sol = MNIST_train_model_sto(sample_rate; digits = digits)
                         local mnist_test, mnist_nls_test, mnist_sol_test = MNIST_test_model_sto(sample_rate; digits = digits)
@@ -508,7 +522,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                         local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate0)
                         #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
-                        #local ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_model_sto(sample_rate0)
+                        local ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_model_sto(sample_rate0)
                         #a9a, a9a_nls = a9a_model_sto(sample_rate)
                         local mnist, mnist_nls, mnist_sol = MNIST_train_model_sto(sample_rate0; digits = digits)
                         local mnist_nlp_test_sto, mnist_nls_test_sto, mnist_sto_sol_test = MNIST_test_model_sto(sample_rate0; digits = digits)
@@ -778,7 +792,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                         local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
                         #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
-                        #local ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_model_sto(sample_rate)
+                        local ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_model_sto(sample_rate)
                         #a9a, a9a_nls = a9a_model_sto(sample_rate)
                         local mnist, mnist_nls, mnist_sol = MNIST_train_model_sto(sample_rate; digits = digits)
                         local mnist_test, mnist_nls_test, mnist_sol_test = MNIST_test_model_sto(sample_rate; digits = digits)
@@ -1016,7 +1030,7 @@ function plot_Sampled_LM_SVM_epoch(sample_rates::AbstractVector, versions::Abstr
                         local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                         local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate0)
                         #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
-                        #local ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_model_sto(sample_rate0)
+                        local ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_model_sto(sample_rate0)
                         #a9a, a9a_nls = a9a_model_sto(sample_rate)
                         local mnist, mnist_nls, mnist_sol = MNIST_train_model_sto(sample_rate0; digits = digits)
                         local mnist_nlp_test_sto, mnist_nls_test_sto, mnist_sto_sol_test = MNIST_test_model_sto(sample_rate0; digits = digits)

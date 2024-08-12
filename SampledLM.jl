@@ -12,6 +12,7 @@ using RegularizedProblems, RegularizedOptimization
 using FastClosures
 using Plots
 using MLDatasets:MNIST
+using LIBSVMdata
 using DataFrames, BundleAdjustmentModels
 using JSON
 using JLD2

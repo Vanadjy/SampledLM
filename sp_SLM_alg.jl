@@ -42,7 +42,7 @@ the quantities are sampled ones from the original data of the Problem.
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
 function Sto_LM(
-  nls::SampledBAModel,
+  nls::SampledADNLSModel,
   h::H,
   options::ROSolverOptions;
   x0::AbstractVector = nls.meta.x0,
@@ -74,7 +74,7 @@ function Sto_LM(
   μmin = options.μmin
   metric = options.metric
 
-  m = nls.nobs
+  nobs = nls.nls_meta.nequ ÷ 2
 
   # Initializes epoch_counter
   epoch_count = 0
@@ -134,16 +134,17 @@ function Sto_LM(
   end
 
   #creating required objects
-  Fk = residual(nls, xk)
+  Fk = zeros(eltype(xk), nls.nls_meta.nequ)
+  residual!(nls, xk, Fk)
   Fkn = similar(Fk)
-  exact_Fk = zeros(1:m)
+  exact_Fk = similar(Fk)
 
   meta_nls = nls_meta(nls)
   rows = Vector{Int}(undef, meta_nls.nnzj)
   cols = Vector{Int}(undef, meta_nls.nnzj)
   vals = similar(xk, meta_nls.nnzj)
-  jac_structure_residual!(nls, rows, cols)
-  jac_coord_residual!(nls, xk, vals)
+  jac_structure_residual!(nls.adnls, rows, cols)
+  jac_coord_residual!(nls.adnls, xk, vals)
 
   fk = dot(Fk, Fk) / 2 #objective estimated without noise
 
@@ -153,10 +154,10 @@ function Sto_LM(
   Jt_Fk = similar(∇fk)
   exact_Jt_Fk = similar(∇fk)
 
-  jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
-  Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+  jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
+  #Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
 
-  μmax = opnorm(Jk)
+  μmax = norm(vals)
   νcpInv = (1 + θ) * (μmax^2 + μmin)
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
@@ -169,7 +170,6 @@ function Sto_LM(
 
   while !(optimal || tired)
     k = k + 1
-    mₛ = length(nls.sample) #current length of the sample
     elapsed_time = time() - start_time
     push!(X_hist, xk)
     Fobj_hist[k] = fk
@@ -182,9 +182,14 @@ function Sto_LM(
       push!(TimeHist, elapsed_time)
     end
 
+    if nls.sample_rate*k - epoch_count >= 1 #we passed on all the data
+      epoch_count += 1
+      push!(nls.epoch_counter, k)
+    end
+
     # model for the Cauchy-Point decrease
     φcp(d) = begin
-      jtprod_residual!(nls, rows, cols, vals, Fk, Jt_Fk)
+      jtprod_residual!(nls.adnls, rows, cols, vals, Fk, Jt_Fk)
       dot(Fk, Fk) / 2 + dot(Jt_Fk, d)
     end
 
@@ -234,21 +239,21 @@ function Sto_LM(
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
     φ(d) = begin
-      jprod_residual!(nls, rows, cols, vals, d, JdFk)
+      jprod_residual!(nls.adnls, rows, cols, vals, d, JdFk)
       JdFk .+= Fk
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
     end
 
     ∇φ!(g, d) = begin
-      jprod_residual!(nls, rows, cols, vals, d, JdFk)
+      jprod_residual!(nls.adnls, rows, cols, vals, d, JdFk)
       JdFk .+= Fk
-      jtprod_residual!(nls, rows, cols, vals, JdFk, g)
+      jtprod_residual!(nls.adnls, rows, cols, vals, JdFk, g)
       g .+= σk * d
       return g
     end
 
     mk(d) = begin
-      jprod_residual!(nls, rows, cols, vals, d, JdFk)
+      jprod_residual!(nls.adnls, rows, cols, vals, d, JdFk)
       JdFk .+= Fk
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2 + ψ(d)
     end
@@ -304,27 +309,31 @@ function Sto_LM(
     end
 
     #-- to compute exact quantities --#
-    nls.sample = 1:m
-    exact_Fk = residual(nls, xk)
-    exact_fk = dot(exact_Fk, exact_Fk) / 2
+    if nls.sample_rate < 1.0
+      nls.sample = collect(1:nobs)
+      residual!(nls, xk, exact_Fk)
+      exact_fk = dot(exact_Fk, exact_Fk) / 2
 
-    exact_φcp(d) = begin
-      jtprod_residual!(nls, rows, cols, vals, exact_Fk, exact_Jt_Fk)
-      dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
+      exact_φcp(d) = begin
+        jtprod_residual!(nls, rows, cols, vals, exact_Fk, exact_Jt_Fk)
+        dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
+      end
+
+      exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
+      exact_metric = sqrt(abs(exact_ξcp * νcpInv))
+      exact_Metric_hist[k] = exact_metric
+
+      exact_Fobj_hist[k] = exact_fk
+    elseif nls.sample_rate == 1.0
+      exact_Fobj_hist[k] = fk
+      exact_Metric_hist[k] = metric
     end
-
-    exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
-    exact_metric = sqrt(abs(exact_ξcp * νcpInv))
-
-    exact_Fobj_hist[k] = exact_fk
-    exact_Metric_hist[k] = exact_metric
     # -- -- #
 
-    #updating the indexes of the sampling
-    nls.sample = sort(randperm(nls.nobs)[1:mₛ])
-    if nls.sample_rate*k - epoch_count >= 1 #we passed on all the data
-      epoch_count += 1
-      push!(nls.epoch_counter, k)
+    #changes sample
+    nls.sample = sort(randperm(nls.nobs)[1:Int(ceil(nls.sample_rate * nls.nobs))])
+    if nls.sample_rate == 1.0
+      nls.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
     end
 
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
@@ -343,11 +352,11 @@ function Sto_LM(
 
       # update gradient & Hessian
       shift!(ψ, xk)
-      jac_coord_residual!(nls, xk, vals)
-      Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
-      jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
+      jac_coord_residual!(nls.adnls, xk, vals)
+      #Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+      jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
 
-      μmax = opnorm(Jk)
+      μmax = norm(vals)
       #η3 = μmax^2
       νcpInv = (1 + θ) * (μmax^2 + σmin) 
 

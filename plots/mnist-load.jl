@@ -3,9 +3,10 @@ function load_mnist_r2()
     k_R2 = load_object(raw"k_R2-mnist-lhalf.jld2")
     R2_out = load_object("R2_out-mnist-lhalf.jld2")
     R2_stats = load_object("R2_stats-mnist-lhalf.jld2")
+    r2_metric_hist = load_object("r2_metric_hist-mnist-lhalf.jld2")
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages\SampledLM")
 
-    return k_R2, R2_out, R2_stats
+    return k_R2, R2_out, R2_stats, r2_metric_hist
 end
 
 function load_mnist_lm_lmtr()

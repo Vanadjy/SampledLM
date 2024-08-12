@@ -1,3 +1,32 @@
+export svm_model_sto, ijcnn1_model_sto
+
+"""
+    nlp_model, sampled_nls_model, sol = svm_model_sto(args...)
+
+Return an instance of an `NLPModel` representing the hyperbolic SVM
+problem, i.e., the under-determined linear least-squares objective
+
+   f(x) = ‖1 - tanh(b ⊙ ⟨A, x⟩)‖²,
+
+where A is the data matrix with labels b = {-1, 1}ⁿ.
+
+## Arguments
+
+* `A :: Matrix{Float64}`: the data matrix
+* `b :: Vector{Float64}`: the labels
+
+With the IJCNN1 Dataset, the dimensions are:
+
+    m = 49990
+    n = 22
+
+## Return Value
+
+An instance of a `FirstOrderModel` that represents the complete SVM problem in NLP form, and
+an instance of `SampledNLSModel` that represents the nonlinear least squares in nonlinear least squares form
+with an associated sample on the number of equations.
+"""
+
 function svm_model_sto(A, b; sample_rate::AbstractFloat = 1.0)
   Ahat = Diagonal(b) * A' #dimensions : m × n
 
@@ -46,4 +75,9 @@ function svm_model_sto(A, b; sample_rate::AbstractFloat = 1.0)
   FirstOrderModel(obj, grad!, ones(size(A, 1)), name = "Nonlinear-SVM"),
   SampledNLSModel(resid!, jacv!, jactv!, length(b), ones(size(A, 1)), sample, data_mem, sample_rate),
   b
+end
+
+function ijcnn1_model_sto(sample_rate)
+  A, b = ijcnn1_generate_data_tr()
+  return svm_model_sto(A', b; sample_rate = sample_rate)
 end
