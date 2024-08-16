@@ -40,17 +40,19 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
     for name in name_list
         nls = BundleAdjustmentModel(name)
 
-        sampled_nls_ba = BAmodel_sto(name; sample_rate = sample_rate0)
+        sampled_nls_ba = BAmodel_sto(name; sample_rate = 1.0)
         meta_nls_ba = nls_meta(sampled_nls_ba)
         function F!(Fx, x)
             residual!(sampled_nls_ba, x, Fx)
         end
 
-        adnls = ADNLSModel!(F!, sampled_nls_ba.meta.x0, sampled_nls_ba.nls_meta.nequ, sampled_nls_ba.meta.lvar, sampled_nls_ba.meta.uvar, jacobian_residual_backend = ADNLPModels.SparseADJacobian,
-                                                                                           jacobian_backend = ADNLPModels.EmptyADbackend,
-                                                                                           hessian_backend = ADNLPModels.EmptyADbackend,
-                                                                                           hessian_residual_backend = ADNLPModels.EmptyADbackend,
-                                                                                           matrix_free = true)
+        adnls = ADNLSModel!(F!, sampled_nls_ba.meta.x0,  meta_nls_ba.nequ, sampled_nls_ba.meta.lvar, sampled_nls_ba.meta.uvar, jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+            jacobian_backend = ADNLPModels.EmptyADbackend,
+            hessian_backend = ADNLPModels.EmptyADbackend,
+            hessian_residual_backend = ADNLPModels.EmptyADbackend,
+            matrix_free = true)
+
+        sampled_nls_ba.sample_rate = sample_rate0
         sampled_nls = SADNLSModel(adnls, sampled_nls_ba)
         guess_0 = sampled_nls_ba.nls_meta.x0
         #=d = Normal()
@@ -81,15 +83,15 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
 
         #nlp_train = LSR1Model(nlp_train)
         λ = 1e-1
-        h = RootNormLhalf(λ)
-        # h = NormL1(λ)
-        h_name = "lhalf"
+        # h = RootNormLhalf(λ)
+        h = NormL1(λ)
+        h_name = "l1"
         χ = NormLinf(1.0)
 
-        options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+        #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, γ = 10, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
         suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 300)
 
-        sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-10, ϵr = 1e-10, σmin = 1e-6, μmin = 1e-6, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+        sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, λ = 10.0, σmax = 1e6, ϵa = 1e-8, ϵr = 1e-8, σmin = 1e-6, μmin = 1e-6, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
         if smooth
             @info "using SPLM"
 
@@ -584,7 +586,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         save_object("std_mse_prob-$(n_runs)runs-ba-$name-$(prob_versions_names[version])-$h_name.jld2", std_mse_prob)
 
         # --------------- OBJECTIVE DATA -------------------- #
-        data_obj_plm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
+        data_obj_plm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "PLM - $(color_scheme[sample_rate])", line=attr(
                             color = prob_versions_colors[version], width = 1
                             )
                         )
@@ -599,7 +601,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
 
         # --------------- METRIC DATA -------------------- #
 
-        data_metr_plm = PlotlyJS.scatter(; x = 1:length(med_metr_prob), y = med_metr_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
+        data_metr_plm = PlotlyJS.scatter(; x = 1:length(med_metr_prob), y = med_metr_prob, mode="lines", name = "PLM - $(color_scheme[sample_rate])", line=attr(
             color = prob_versions_colors[version], width = 1
             )
         )
@@ -614,7 +616,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         
         # --------------- MSE DATA -------------------- #
 
-        data_mse_plm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
+        data_mse_plm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines", name = "PLM - $(color_scheme[sample_rate])", line=attr(
             color = prob_versions_colors[version], width = 1
             )
         )
@@ -699,6 +701,20 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         ## ---------------------------------------------------------------------------------------------------##
 
         @info "using SLM to solve with" h
+
+        sampled_nls_ba = BAmodel_sto(name; sample_rate = 1.0)
+        meta_nls_ba = nls_meta(sampled_nls_ba)
+        function F!(Fx, x)
+            residual!(sampled_nls_ba, x, Fx)
+        end
+
+        adnls = ADNLSModel!(F!, sampled_nls_ba.meta.x0,  meta_nls_ba.nequ, sampled_nls_ba.meta.lvar, sampled_nls_ba.meta.uvar, jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+            jacobian_backend = ADNLPModels.EmptyADbackend,
+            hessian_backend = ADNLPModels.EmptyADbackend,
+            hessian_residual_backend = ADNLPModels.EmptyADbackend,
+            matrix_free = true)
+
+        sampled_nls = SADNLSModel(adnls, sampled_nls_ba)
 
         SLM_outs = []
         slm_obj = []

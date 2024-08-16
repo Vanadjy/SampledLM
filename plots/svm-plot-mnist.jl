@@ -3,14 +3,18 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
     data_obj = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
     data_metr = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
     data_mse = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
+    data_neval_f = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
+    data_neval_jac = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
 
     scatter_log = log_scale(MaxEpochs)
+
+    acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100
 
     local mnist, mnist_nls, mnist_nls_sol = RegularizedProblems.svm_train_model()
 
     ## ------------------------------------ R2, LM, LMTR ----------------------------------------- ##
 
-    k_R2, R2_out, R2_stats, r2_metric_hist = load_mnist_r2()
+    k_R2, R2_out, R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist = load_mnist_r2()
     LM_out, LMTR_out = load_mnist_lm_lmtr()
     m = mnist_nls.nls_meta.nequ
 
@@ -27,27 +31,37 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
     end
     
     # --------------- MSE DATA -------------------- #
-    data_mse_r2 = PGFPlots.Plots.Linear(1:k_R2, 0.5*(R2_out[:Fhist] + R2_out[:Hhist])/m, mark="none", style="cyan, dashed", legendentry = "R2")
+    data_mse_r2 = PGFPlots.Plots.Linear(1:k_R2, 0.5*(r2_obj_hist)/m, mark="none", style="cyan, dashed", legendentry = "R2")
     data_mse_lm = PGFPlots.Plots.Linear(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, mark="none", style="black, dotted", legendentry = "LM")
     data_mse_lmtr = PGFPlots.Plots.Linear(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, mark="none", style="black, dashed", legendentry = "LMTR")
 
     push!(data_mse, data_mse_r2)#, data_mse_lm, data_mse_lmtr)
 
     # --------------- OBJECTIVE DATA -------------------- #
-    data_obj_r2 = PGFPlots.Plots.Linear(1:k_R2, R2_out[:Fhist] + R2_out[:Hhist], mark="none", style="cyan, dashed")
+    data_obj_r2 = PGFPlots.Plots.Linear(1:length(r2_obj_hist), r2_obj_hist, mark="none", style="cyan, dashed")
     data_obj_lm = PGFPlots.Plots.Linear(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], mark="none", style="black, dotted")
     data_obj_lmtr = PGFPlots.Plots.Linear(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], mark="none", style="black, dashed")
 
     push!(data_obj, data_obj_r2)#, data_obj_lm, data_obj_lmtr)
 
     # --------------- METRIC DATA -------------------- #
-    display(r2_metric_hist)
-    println(k_R2)
-    data_metr_r2 = PGFPlots.Plots.Linear(1:k_R2, r2_metric_hist, mark="none", style="cyan, dashed")
+    data_metr_r2 = PGFPlots.Plots.Linear(1:length(r2_metric_hist), r2_metric_hist, mark="none", style="cyan, dashed")
 
     push!(data_metr, data_metr_r2)
 
+    # --------------- NEVAL_F DATA -------------------- #
+    data_neval_f_r2 = PGFPlots.Plots.Linear(1:length(r2_metric_hist), 1:length(r2_metric_hist), mark="none", style="cyan, dashed")
+    push!(data_neval_f, data_neval_f_r2)
+
+    # --------------- NEVAL_JAC_DATA -------------------- #
+    data_neval_jac_r2 = PGFPlots.Plots.Linear(1:length(r2_numjac_hist), r2_numjac_hist, mark="none", style="cyan, dashed")
+    push!(data_neval_jac, data_neval_jac_r2)
+
+
+    ## ------------------------------------------------------------------------------------------- ##
     ## -------------------------------- CONSTANT SAMPLE RATE ------------------------------------- ##
+    ## ------------------------------------------------------------------------------------------- ##
+
 
     for selected_h in selected_hs
         for sample_rate in sample_rates
@@ -73,12 +87,39 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
             markers_mse_slm = PGFPlots.Plots.Scatter(markers_mse, med_mse_sto[markers_mse], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate])", onlyMarks = true, markSize = 1.5)
 
             push!(data_mse, data_mse_slm, markers_mse_slm)#, data_std_mse_slm)
+            
+            if n_exec%2 == 1
+                med_ind = (n_exec ÷ 2) + 1
+            else
+                med_ind = (n_exec ÷ 2)
+            end
+            acc_vec = acc.(slm_trains)
+            sorted_acc_vec = sort(acc_vec)
+            ref_value = sorted_acc_vec[med_ind]
+            origin_ind = 0
+            for i in eachindex(SLM_outs)
+                if acc_vec[i] == ref_value
+                    origin_ind = i
+                end
+            end
+
+            SLM_out = SLM_outs[origin_ind]
+            ecs = epoch_counter_slm(length(SLM_out.solver_specific[:NLSGradHist]), sample_rate)
+            
+
+            # --------------- NEVAL_F DATA -------------------- #
+            data_neval_f_slm = PGFPlots.Plots.Linear(1:length(SLM_out.solver_specific[:ResidHist][ecs]), SLM_out.solver_specific[:ResidHist][ecs], mark="none", style="cyan, dashed")
+            push!(data_neval_f, data_neval_f_slm)
+
+            # --------------- NEVAL_JAC_DATA -------------------- #
+            data_neval_jac_slm = PGFPlots.Plots.Linear(1:length(SLM_out.solver_specific[:NLSGradHist][ecs]), SLM_out.solver_specific[:NLSGradHist][ecs], mark="none", style="cyan, dashed")
+            push!(data_neval_jac, data_neval_jac_slm)
         end
 
         ## -------------------------------- DYNAMIC SAMPLE RATE ------------------------------------- ##
 
         for version in versions
-            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob = load_mnist_plm(version, selected_h)
+            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob, PLM_outs, plm_trains, nplm, ngplm, epoch_counters_plm = load_mnist_plm(version, selected_h)
             # --------------- OBJECTIVE DATA -------------------- #
             markers_obj = vcat(filter(!>=(length(med_obj_prob)), scatter_log), length(med_obj_prob))
             data_obj_plm = PGFPlots.Plots.Linear(1:length(med_obj_prob), med_obj_prob, mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
@@ -100,88 +141,35 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
 
             push!(data_mse, data_mse_plm, markers_mse_plm)#, data_std_mse_plm)
 
-            #=if smooth
-                med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob = load_mnist_splm(version, selected_h)
-
-                # --------------- OBJECTIVE DATA -------------------- #
-
-                data_obj_splm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines+markers", name = "$(prob_versions_names[version])-S", 
-                line=attr(
-                    color = smooth_versions_colors[version], 
-                    width = 1,
-                    dash = line_style_plm[version]
-                    ),
-                marker = attr(
-                        color = smooth_versions_colors[version],
-                        symbol = "circle",
-                        size = 8
-                    ),
-                    showlegend = false
-                )
-
-                #=data_std_obj_splm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-S", fill="tozerox",
-                    fillcolor = smooth_versions_colors_std[version],
-                    line_color = "transparent",
-                    showlegend = false
-                )=#
-
-                push!(data_obj, data_obj_splm)#, data_std_obj_splm)
-
-                # --------------- METRIC DATA -------------------- #
-
-                data_metr_splm = PlotlyJS.scatter(; x = 1:length(med_metr_prob), y = med_metr_prob, mode="lines+markers", name = "$(prob_versions_names[version])-S", 
-                line=attr(
-                    color = smooth_versions_colors[version], 
-                    width = 1,
-                    dash = line_style_plm[version]
-                    ),
-                marker = attr(
-                        color = smooth_versions_colors[version],
-                        symbol = "circle",
-                        size = 8
-                    ),
-                    showlegend = false
-                )
-
-                reverse = reverse!(med_metr_prob - std_metr_prob)
-                for l in eachindex(reverse)
-                    if reverse[l] < 0
-                        reverse[l] = med_metr_prob[l]
-                    end
+            if n_exec%2 == 1
+                med_ind = (n_exec ÷ 2) + 1
+            else
+                med_ind = (n_exec ÷ 2)
+            end
+            acc_vec = acc.(plm_trains)
+            sorted_acc_vec = sort(acc_vec)
+            ref_value = sorted_acc_vec[med_ind]
+            origin_ind = 0
+            for i in eachindex(PLM_outs)
+                if acc_vec[i] == ref_value
+                    origin_ind = i
                 end
+            end
 
-                #=data_std_metr_splm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse), mode="lines+markers", name = "$(prob_versions_names[version])-S", fill="tozerox",
-                    fillcolor = smooth_versions_colors_std[version],
-                    line_color = "transparent",
-                    showlegend = false
-                )=#
+            PLM_out = PLM_outs[origin_ind]
+            ecp = epoch_counters_plm
+            adjusted_neval_f = similar(PLM_out.solver_specific[:ResidHist])
+            adjusted_neval_f .= PLM_out.solver_specific[:ResidHist] .- 1:length(PLM_out.solver_specific[:ResidHist])
+            adjusted_neval_jac = similar(PLM_out.solver_specific[:NLSGradHist])
+            adjusted_neval_jac .= PLM_out.solver_specific[:NLSGradHist] .- (2 .* 1:length(PLM_out.solver_specific[:NLSGradHist]))
 
-                push!(data_metr, data_metr_splm)#, data_std_metr_splm)
-                
-                # --------------- MSE DATA -------------------- #
+            # --------------- NEVAL_F DATA -------------------- #
+            data_neval_f_slm = PGFPlots.Plots.Linear(1:length(adjusted_neval_f[ecp]), adjusted_neval_f[ecp], mark="none", style="cyan, dashed")
+            push!(data_neval_f, data_neval_f_slm)
 
-                data_mse_splm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines+markers", name = "$(prob_versions_names[version])-S", 
-                line=attr(
-                    color = smooth_versions_colors[version], 
-                    width = 1,
-                    dash = line_style_plm[version]
-                    ),
-                marker = attr(
-                        color = smooth_versions_colors[version],
-                        symbol = "circle",
-                        size = 8
-                    ),
-                    showlegend = true
-                )
-
-                #=data_std_mse_splm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines+markers", name = "$(prob_versions_names[version])-S", fill="tozerox",
-                    fillcolor = smooth_versions_colors_std[version],
-                    line_color = "transparent",
-                    showlegend = false
-                )=#
-
-                push!(data_mse, data_mse_splm)#, data_std_mse_splm)
-            end=#
+            # --------------- NEVAL_JAC_DATA -------------------- #
+            data_neval_jac_slm = PGFPlots.Plots.Linear(1:length(adjusted_neval_jac[ecp]), adjusted_neval_jac[ecp], mark="none", style="cyan, dashed")
+            push!(data_neval_jac, data_neval_jac_slm)
         end
 
     plt_obj = PGFPlots.Axis(

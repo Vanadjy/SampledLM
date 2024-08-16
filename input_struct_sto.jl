@@ -25,6 +25,7 @@ mutable struct ROSolverOptions{R}
   spectral::Bool # for TRDH: use spectral gradient update if true, otherwise DiagonalQN
   psb::Bool # for TRDH with DiagonalQN (spectral = false): use PSB update if true, otherwise Andrei update
   reduce_TR::Bool
+  M::R
 
   function ROSolverOptions{R}(;
     ϵa::R = √eps(R),
@@ -51,6 +52,7 @@ mutable struct ROSolverOptions{R}
     spectral::Bool = false,
     psb::Bool = false,
     reduce_TR::Bool = true,
+    M::R = R(1e5),
   ) where {R <: Real}
     @assert ϵa ≥ 0
     @assert ϵr ≥ 0
@@ -73,6 +75,7 @@ mutable struct ROSolverOptions{R}
     @assert β ≥ 1
     @assert λ > 1
     @assert metric > 0
+    @assert M > 0
     return new{R}(
       ϵa,
       ϵr,
@@ -98,6 +101,7 @@ mutable struct ROSolverOptions{R}
       spectral,
       psb,
       reduce_TR,
+      M,
     )
   end
 end

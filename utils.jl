@@ -133,3 +133,18 @@ function compframe_inc(a, n)
     return (a[end] > a[end-1])&&(compframe(a[1:end-1], n - 1))
   end
 end
+
+function epoch_counter_slm(n::Int, τ::Real)
+  ecs = Int[1]
+  counter = 0.0
+  i = 0
+  while i < n
+    i += 1
+    counter += τ
+    if counter >= 1.0
+      ecs = vcat(ecs, i)
+      counter -= 1.0
+    end
+  end
+  ecs
+end

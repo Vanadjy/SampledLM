@@ -5,7 +5,7 @@ using LinearAlgebra, Logging, Printf
 using ProximalOperators#, TSVD
 
 # dependencies from us
-using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov, ADNLPModels, Symbolics, JSOSolvers
+using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov, ADNLPModels, JSOSolvers
 
 using Random, Test, Statistics, OnlineStats, Distributions, Noise
 using RegularizedProblems, RegularizedOptimization
@@ -32,8 +32,9 @@ include("Sto_LM_guided_alg.jl")
 include("Sto_LM_cp.jl")
 include("smooth_SLM.jl")
 
-#PLM-ND variants
+#PLM-ND and PLM-AD variants
 include("Prob_LM_alg.jl")
+include("Prob_LM_sparse_alg.jl")
 include("smooth_PLM.jl")
 include("sp_smooth_PLM.jl")
 include("Prob_LM_sparse_alg.jl")

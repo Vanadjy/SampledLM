@@ -114,7 +114,7 @@ function Sto_LM(
   local exact_ξcp
   local ξ
   k = 0
-  X_hist = zeros(eltype(xk), length(xk), maxIter) 
+  #X_hist = zeros(eltype(xk), length(xk), maxIter) 
   Fobj_hist = zeros(maxIter)
   exact_Fobj_hist = zeros(maxIter)
   Hobj_hist = zeros(maxIter)
@@ -144,7 +144,7 @@ function Sto_LM(
 
   #sampled Jacobian
   ∇fk = similar(xk)
-  #exact_∇fk = similar(∇fk)
+  exact_∇fk = similar(∇fk)
   jtprod_residual!(nls, xk, Fk, ∇fk)
   JdFk = similar(Fk)   # temporary storage
   Jt_Fk = similar(∇fk)
@@ -156,7 +156,7 @@ function Sto_LM(
 
   s = zero(xk)
   scp = similar(s)
-  #exact_scp = similar(scp)
+  exact_scp = similar(scp)
 
   optimal = false
   tired = k ≥ maxIter || elapsed_time > maxTime
@@ -166,7 +166,7 @@ function Sto_LM(
     k = k + 1
     mₛ = length(nls.sample) #current length of the sample
     elapsed_time = time() - start_time
-    X_hist[:, k] .= xk
+    #X_hist[:, k] .= xk
     Fobj_hist[k] = fk
     Hobj_hist[k] = hk
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
@@ -289,8 +289,9 @@ function Sto_LM(
     Δobj = (Δobj < 0 ? - Δobj : Δobj)
     ρk = Δobj / ξ
 
-    μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
+    #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
     #μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
+    μ_stat = ρk < η1 ? "↘" : ((nls.sample_rate==1.0 && (metric > η2))||(nls.sample_rate<1.0 && (metric ≥ η3 / μk)) ? "↗" : "=")
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
@@ -311,9 +312,9 @@ function Sto_LM(
       dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
     end
 
-    #jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
-    #prox!(exact_scp, ψ, exact_∇fk, νcp)
-    exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
+    jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
+    prox!(exact_scp, ψ, exact_∇fk, νcp)
+    exact_ξcp = exact_fk + hk - exact_φcp(exact_scp) - ψ(exact_scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
     exact_metric = sqrt(abs(exact_ξcp * νcpInv))
 
     exact_Fobj_hist[k] = exact_fk
@@ -387,7 +388,7 @@ function Sto_LM(
   set_residuals!(stats, zero(eltype(xk)), ξcp ≥ 0 ? sqrt(ξcp * νcpInv) : ξcp)
   set_iter!(stats, k)
   set_time!(stats, elapsed_time)
-  set_solver_specific!(stats, :Xhist, X_hist[:, 1:k])
+  #set_solver_specific!(stats, :Xhist, X_hist[:, 1:k])
   set_solver_specific!(stats, :Fhist, Fobj_hist[1:k])
   set_solver_specific!(stats, :ExactFhist, exact_Fobj_hist[1:k])
   set_solver_specific!(stats, :Hhist, Hobj_hist[1:k])

@@ -1,4 +1,4 @@
-function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, selected_probs::AbstractVector, selected_hs::AbstractVector, selected_digits::AbstractVector; abscissa = "CPU time", n_exec = 10, sample_rate0::Float64 = .05, param::String = "MSE", compare::Bool = false, guide::Bool = false, MaxEpochs::Int = 1000, MaxTime = 3600.0, precision = 1e-4)
+function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, selected_probs::AbstractVector, selected_hs::AbstractVector, selected_digits::AbstractVector; abscissa = "CPU time", n_exec = 10, sample_rate0::Float64 = .05, param::String = "MSE", compare::Bool = false, guide::Bool = false, MaxEpochs::Int = 1000, MaxTime = 3600.0, precision = 1e-4)
     compound = 1
     include("plot-configuration.jl")
 
@@ -11,163 +11,139 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                 data_obj = GenericTrace{Dict{Symbol, Any}}[]
                 data_metr = GenericTrace{Dict{Symbol, Any}}[]
                 data_mse = GenericTrace{Dict{Symbol, Any}}[]
-                data_sr = GenericTrace{Dict{Symbol, Any}}[]
-                data_sr_e = GenericTrace{Dict{Symbol, Any}}[]
 
-                if compare
-                    #plots of other algorithms
-                    bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound)
-                    mnist_full, mnist_nls_full, mnist_nls_sol = RegularizedProblems.svm_train_model()
-                    mnist_nlp_test, mnist_nls_test, mnist_sol_test = RegularizedProblems.svm_test_model()
-                    A_ijcnn1, b_ijcnn1 = ijcnn1_generate_data_tr()
-                    ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
-                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 1, σmin = 1e-5, maxIter = MaxEpochs, maxTime = MaxTime;)
-                    subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
+                bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound)
+                mnist_full, mnist_nls_full, mnist_nls_sol = RegularizedProblems.svm_train_model()
+                mnist_nlp_test, mnist_nls_test, mnist_sol_test = RegularizedProblems.svm_test_model()
+                A_ijcnn1, b_ijcnn1 = ijcnn1_load_data()
+                ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
+                sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, σmin = 1e-5, maxIter = MaxEpochs, maxTime = MaxTime;)
+                subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
 
-                    if selected_prob == "ijcnn1"
-                        prob = ijcnn1_full
-                        prob_nls = ijcnn1_nls_full
-                    elseif selected_prob == "mnist"
-                        prob = mnist_full
-                        prob_nls = mnist_nls_full
-                    end
-
-                    x0 = ones(prob.meta.nvar)
-                    m = prob_nls.nls_meta.nequ
-                    l_bound = prob.meta.lvar
-                    u_bound = prob.meta.uvar
-
-                    λ = .1
-                    if selected_h == "l0"
-                        h = NormL0(λ)
-                    elseif selected_h == "l1"
-                        h = NormL1(λ)
-                    elseif selected_h == "lhalf"
-                        h = RootNormLhalf(λ)
-                    elseif selected_h == "smooth"
-                        h = NormL1(0.0)
-                    end
-
-                    @info "using R2 to solve with" h
-                    reset!(prob)
-                    reg_prob = RegularizedNLPModel(prob, h)
-                    reg_stats = GenericExecutionStats(reg_prob.model)
-                    reg_solver = RegularizedOptimization.R2Solver(x0, sampled_options_full, l_bound, u_bound; ψ = shifted(h, x0))
-                    cb = (nlp, solver, stats) -> begin
-                                                    solver.Fobj_hist[stats.iter+1] = stats.solver_specific[:smooth_obj] + stats.solver_specific[:nonsmooth_obj]
-                                                    solver.Hobj_hist[stats.iter+1] = stats.solver_specific[:xi]
-                                                    solver.Complex_hist[stats.iter+1] = NLPModels.neval_grad(reg_prob)
-                                                    end
-                    RegularizedOptimization.solve!(reg_solver, reg_prob, reg_stats; callback = cb, verbose = 1, ν = 1.0, atol = precision, rtol = precision, σmin = 1e-5, max_iter = MaxEpochs, max_time = MaxTime)
-                    r2_metric_hist = filter(!iszero, reg_solver.Hobj_hist)
-                    r2_obj_hist = filter(!iszero, reg_solver.Fobj_hist)
-                    r2_numjac_hist = filter(!iszero, reg_solver.Complex_hist)
-
-                    nr2 = reg_stats.iter
-                    ngr2 = NLPModels.neval_grad(reg_prob)
-                    println(ngr2)
-                    r2train = residual(prob_nls, reg_stats.solution) #||e - tanh(b * <A, x>)||^2, b ∈ {-1,1}^n
-                    if selected_prob == "mnist"
-                        r2test = residual(mnist_nls_test, reg_stats.solution)
-                        @show acc(r2train), acc(r2test)
-                    end
-
-                    r2dec = plot_svm(reg_stats, reg_stats.solution, "r2-lhalf-$digits")
-
-                    @info " using LM to solve with" h
-                    LM_out = LM(prob_nls, h, sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
-                    lmtrain = residual(prob_nls, LM_out.solution)
-                    if selected_prob == "mnist"
-                        lmtest = residual(mnist_nls_test, LM_out.solution)
-                        @show acc(lmtrain), acc(lmtest)
-                    end
-                    lmdec = plot_svm(LM_out, LM_out.solution, "lm-lhalf-$digits")
-                    #nlm = NLPModels.neval_residual(nls_tr)
-                    nlm = LM_out.iter
-                    nglm = NLPModels.neval_jtprod_residual(prob_nls) + NLPModels.neval_jprod_residual(prob_nls)
-
-                    if (h == NormL0(λ)) || (h == RootNormLhalf(λ))
-                        @info " using LMTR to solve with" h NormLinf(1.0)
-                        reset!(prob_nls)
-                        LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormLinf(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
-                        lmtrtrain = residual(prob_nls, LMTR_out.solution)
-                        if selected_prob == "mnist"
-                            lmtrtest = residual(mnist_nls_test, LMTR_out.solution)
-                            @show acc(lmtrtrain), acc(lmtrtest)
-                        end
-                        #nlmtr = NLPModels.neval_residual(nls_tr)
-                        nlmtr = LMTR_out.iter
-                        nglmtr = NLPModels.neval_jtprod_residual(prob_nls) + NLPModels.neval_jprod_residual(prob_nls)
-                        lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-lhalf-$digits")
-                    elseif h == NormL1(λ)
-                        LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
-                    elseif h == NormL1(0.0)
-                        LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
-                    end
-
-                    #save_object("R2_stats-$selected_prob-$selected_h.jld2", R2_stats)
-                    #save_object("r2_metric_hist-$selected_prob-$selected_h.jld2", r2_metric_hist)
-                    #save_object("r2_obj_hist-$selected_prob-$selected_h.jld2", r2_obj_hist)
-                    #save_object("r2_numjac_hist-$selected_prob-$selected_h.jld2", r2_numjac_hist)
-                    #save_object("LM_out-$selected_prob-$selected_h.jld2", LM_out)
-                    #save_object("LMTR_out-$selected_prob-$selected_h.jld2", LMTR_out)
-
-                    # --------------- OBJECTIVE DATA -------------------- #
-
-                    data_obj_r2 = PlotlyJS.scatter(; x = 1:length(r2_obj_hist) , y = r2_obj_hist, mode="lines", name = "R2", line=attr(
-                        color="rgb(220,20,60)", dash = "dashdot", width = 1
-                        )
-                    )
-
-                    #=data_obj_lm = PlotlyJS.scatter(; x = 1:length(LM_out.solver_specific[:Fhist]) , y = LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], mode="lines", name = "LM", line=attr(
-                        color="rgb(255,165,0)", dash = "dot", width = 1
-                        )
-                    )
-                    
-                    data_obj_lmtr = PlotlyJS.scatter(; x = 1:length(LMTR_out.solver_specific[:Fhist]) , y = LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], mode="lines", name = "LMTR", line=attr(
-                            color="black", dash = "dash", width = 1
-                            )
-                    )=#
-
-                    push!(data_obj, data_obj_r2)#, data_obj_lm, data_obj_lmtr)
-
-                    # --------------- METRIC DATA -------------------- #
-
-                    data_metr_r2 = PlotlyJS.scatter(; x = 1:length(r2_metric_hist) , y = r2_metric_hist, mode="lines", name = "R2", line=attr(
-                        color="rgb(220,20,60)", dash = "dashdot", width = 1
-                        )
-                    )
-
-                    push!(data_metr, data_metr_r2)
-                    
-                    # --------------- MSE DATA -------------------- #
-
-                    data_mse_r2 = PlotlyJS.scatter(; x = 1:length(r2_obj_hist) , y = 0.5*(r2_obj_hist)/m, mode="lines", name = "R2", line=attr(
-                        color="rgb(220,20,60)", dash = "dashdot", width = 1
-                        )
-                    )
-
-                    #=data_mse_lm = PlotlyJS.scatter(; x = 1:length(LM_out.solver_specific[:Fhist]) , y = 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, mode="lines", name = "LM", line=attr(
-                        color="rgb(255,165,0)", dash = "dot", width = 1
-                        )
-                    )
-                    
-                    data_mse_lmtr = PlotlyJS.scatter(; x = 1:length(LMTR_out.solver_specific[:Fhist]) , y = 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, mode="lines", name = "LMTR", line=attr(
-                            color="black", dash = "dash", width = 1
-                            )
-                    )=#
-
-                    push!(data_mse, data_mse_r2)#, data_mse_lm, data_mse_lmtr)
+                if selected_prob == "ijcnn1"
+                    prob = ijcnn1_full
+                    prob_nls = ijcnn1_nls_full
+                elseif selected_prob == "mnist"
+                    prob = mnist_full
+                    prob_nls = mnist_nls_full
                 end
+
+                x0 = ones(prob.meta.nvar)
+                m = prob_nls.nls_meta.nequ
+                l_bound = prob.meta.lvar
+                u_bound = prob.meta.uvar
+
+                λ = .1
+                if selected_h == "l0"
+                    h = NormL0(λ)
+                elseif selected_h == "l1"
+                    h = NormL1(λ)
+                elseif selected_h == "lhalf"
+                    h = RootNormLhalf(λ)
+                elseif selected_h == "smooth"
+                    h = NormL1(0.0)
+                end
+
+                @info "using R2 to solve with" h
+                reset!(prob)
+                xk_R2, k_R2, R2_out = JSOSolvers.R2(prob.f, prob.∇f!, sampled_options_full, x0)
+                prob = LSR1Model(prob)
+                R2_stats = JSOSolvers.R2(prob, sampled_options_full, x0 = x0)
+                nr2 = NLPModels.neval_obj(prob)
+                ngr2 = NLPModels.neval_grad(prob)
+                r2train = residual(prob_nls, R2_stats.solution) #||e - tanh(b * <A, x>)||^2, b ∈ {-1,1}^n
+                if selected_prob == "mnist"
+                    r2test = residual(mnist_nls_test, R2_stats.solution)
+                    @show acc(r2train), acc(r2test)
+                end
+                r2dec = plot_svm(R2_stats, R2_stats.solution, "r2-lhalf-$digits")
+
+                @info " using LM to solve with" h
+                LM_out = LM(prob_nls, h, sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
+                lmtrain = residual(prob_nls, LM_out.solution)
+                if selected_prob == "mnist"
+                    lmtest = residual(mnist_nls_test, LM_out.solution)
+                    @show acc(lmtrain), acc(lmtest)
+                end
+                lmdec = plot_svm(LM_out, LM_out.solution, "lm-lhalf-$digits")
+                #nlm = NLPModels.neval_residual(nls_tr)
+                nlm = LM_out.iter
+                nglm = NLPModels.neval_jtprod_residual(prob_nls) + NLPModels.neval_jprod_residual(prob_nls)
+
+                if (h == NormL0(λ)) || (h == RootNormLhalf(λ))
+                    @info " using LMTR to solve with" h NormLinf(1.0)
+                    reset!(prob_nls)
+                    LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormLinf(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
+                    lmtrtrain = residual(prob_nls, LMTR_out.solution)
+                    if selected_prob == "mnist"
+                        lmtrtest = residual(mnist_nls_test, LMTR_out.solution)
+                        @show acc(lmtrtrain), acc(lmtrtest)
+                    end
+                    #nlmtr = NLPModels.neval_residual(nls_tr)
+                    nlmtr = LMTR_out.iter
+                    nglmtr = NLPModels.neval_jtprod_residual(prob_nls) + NLPModels.neval_jprod_residual(prob_nls)
+                    lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-lhalf-$digits")
+                elseif h == NormL1(λ)
+                    LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
+                elseif h == NormL1(0.0)
+                    LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
+                end
+
+                save_object("smooth-k_R2-$selected_prob-$selected_h.jld2", k_R2)
+                save_object("smooth-R2_out-$selected_prob-$selected_h.jld2", R2_out)
+                save_object("smooth-R2_stats-$selected_prob-$selected_h.jld2", R2_stats)
+                save_object("smooth-LM_out-$selected_prob-$selected_h.jld2", LM_out)
+                save_object("smooth-LMTR_out-$selected_prob-$selected_h.jld2", LMTR_out)
+
+                # --------------- OBJECTIVE DATA -------------------- #
+
+                data_obj_r2 = PlotlyJS.scatter(; x = 1:k_R2 , y = R2_out[:Fhist] + R2_out[:Hhist], mode="lines", name = "R2", line=attr(
+                    color="rgb(220,20,60)", dash = "dashdot", width = 1
+                    )
+                )
+
+                data_obj_lm = PlotlyJS.scatter(; x = 1:length(LM_out.solver_specific[:Fhist]) , y = LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], mode="lines", name = "LM", line=attr(
+                    color="rgb(255,165,0)", dash = "dot", width = 1
+                    )
+                )
+                
+                data_obj_lmtr = PlotlyJS.scatter(; x = 1:length(LMTR_out.solver_specific[:Fhist]) , y = LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], mode="lines", name = "LMTR", line=attr(
+                        color="black", dash = "dash", width = 1
+                        )
+                )
+
+                push!(data_obj, data_obj_r2, data_obj_lm, data_obj_lmtr)
+                
+                # --------------- MSE DATA -------------------- #
+
+                data_mse_r2 = PlotlyJS.scatter(; x = 1:k_R2 , y = 0.5*(R2_out[:Fhist] + R2_out[:Hhist])/m, mode="lines", name = "R2", line=attr(
+                    color="rgb(220,20,60)", dash = "dashdot", width = 1
+                    )
+                )
+
+                data_mse_lm = PlotlyJS.scatter(; x = 1:length(LM_out.solver_specific[:Fhist]) , y = 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, mode="lines", name = "LM", line=attr(
+                    color="rgb(255,165,0)", dash = "dot", width = 1
+                    )
+                )
+                
+                data_mse_lmtr = PlotlyJS.scatter(; x = 1:length(LMTR_out.solver_specific[:Fhist]) , y = 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, mode="lines", name = "LMTR", line=attr(
+                        color="black", dash = "dash", width = 1
+                        )
+                )
+
+                push!(data_mse, data_mse_r2, data_mse_lm, data_mse_lmtr)
+
+
 
                 ## ------------------------------------------------------------------------------------------- ##
                 ## -------------------------------- SAMPLED VERSION ------------------------------------------ ##
                 ## ------------------------------------------------------------------------------------------- ##
 
+
                 for sample_rate in sample_rates
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, M = (selected_prob == "mnist" ? 100.0 : 10000.0);)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, M = (selected_prob == "mnist" ? 100 : 10000);)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -204,33 +180,27 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
 
                         SLM_outs = []
                         slm_trains = []
-                        nslms = []
-                        ngslms = []
 
-                        for k in 1:n_exec
+                        for k in (sample_rate == 1 ? 1 : 1:n_exec)
                             # executes n_exec times Sto_LM with the same inputs
                             x0 = digits[1] * ones(prob.meta.nvar)
                             #p = randperm(prob.meta.nvar)[1:nz]
                             #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
                             reset!(prob)
                             #try
-                            PLM_out = Sto_LM(prob, h, sampled_options; x0 = x0, subsolver_options = subsolver_options)
+                            PLM_out = SSLM(prob, h, sampled_options; x0 = x0, subsolver_options = subsolver_options)
                             push!(SLM_outs, PLM_out)
                             push!(slm_trains, residual(prob, PLM_out.solution))
-                            push!(nslms, length(prob.epoch_counter)-1)
-                            push!(ngslms, (neval_jtprod_residual(prob) + neval_jprod_residual(prob)))
 
                             sample_size = length(prob.sample)
 
-                            selected_iterations = (sample_rate > .5) ? prob.epoch_counter[2:end] : prob.epoch_counter[1:end-1]
+                            selected_iterations = (sample_rate == 1.0) ? prob.epoch_counter[2:end] : prob.epoch_counter[1:end-1]
 
                             # get objective value for each run #
                             @views Obj_Hists_epochs_sto[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:ExactFhist][selected_iterations]
-                            @views Obj_Hists_epochs_sto[:, k][1:length(selected_iterations)] += PLM_out.solver_specific[:Hhist][selected_iterations]
 
                             # get MSE for each run #
                             @views MSE_Hists_epochs_sto[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:Fhist][selected_iterations]
-                            @views MSE_Hists_epochs_sto[:, k][1:length(selected_iterations)] += PLM_out.solver_specific[:Hhist][selected_iterations]
                             @views MSE_Hists_epochs_sto[:, k][1:length(selected_iterations)] ./= (2 * sample_size)
 
                             # get metric for each run #
@@ -241,13 +211,17 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                             end
                         end
 
-                        save_object("SLM_outs-$(sample_rate*100)%-$selected_prob-$selected_h.jld2", SLM_outs)
-                        save_object("slm_trains-$(sample_rate*100)%-$selected_prob-$selected_h.jld2", slm_trains)
+                        save_object("SSLM_outs-$(sample_rate*100)%-$selected_prob-$selected_h.jld2", SLM_outs)
+                        save_object("sslm_trains-$(sample_rate*100)%-$selected_prob-$selected_h.jld2", slm_trains)
 
-                        if n_exec%2 == 1
-                            med_ind = (n_exec ÷ 2) + 1
+                        if sample_rate == 1.0
+                            med_ind = 1
                         else
-                            med_ind = (n_exec ÷ 2)
+                            if n_exec%2 == 1
+                                med_ind = (n_exec ÷ 2) + 1
+                            else
+                                med_ind = (n_exec ÷ 2)
+                            end
                         end
                         acc_vec = acc.(slm_trains)
                         sorted_acc_vec = sort(acc_vec)
@@ -266,10 +240,10 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                             @show acc(slmtrain), acc(slmtest)
                         end
                         #nplm = neval_residual(sampled_nls_tr)
-                        nslm = nslms[origin_ind]
-                        save_object("nslm-mnist-PLM-$(100*sample_rate)%.jld2", nslm)
-                        ngslm = ngslms[origin_ind]
-                        save_object("ngslm-mnist-PLM-$(100*sample_rate)%.jld2", ngslm)
+                        nslm = length(prob.epoch_counter)-1
+                        save_object("nsslm-mnist-PLM-$(100*sample_rate)%.jld2", nslm)
+                        ngslm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
+                        save_object("ngsslm-mnist-PLM-$(100*sample_rate)%.jld2", ngslm)
                         if prob_name == "mnist-train-ls"
                             slmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "sto-lm-$(100*sample_rate)%-lhalf-$digits")
                         end
@@ -300,8 +274,8 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         filter!(!isnan, med_obj_sto)
                         std_obj_sto *= Confidence[conf]
                         filter!(!isnan, std_obj_sto)
-                        save_object("med_obj_sto-$(sample_rate*100)-$prob_name-$selected_h.jld2", med_obj_sto)
-                        save_object("std_obj_sto-$(sample_rate*100)-$prob_name-$selected_h.jld2", std_obj_sto)
+                        save_object("med_obj_sto_smooth-$(sample_rate*100)-$prob_name-$selected_h.jld2", med_obj_sto)
+                        save_object("std_obj_sto_smooth-$(sample_rate*100)-$prob_name-$selected_h.jld2", std_obj_sto)
 
                         # compute median of metric #
                         for l in eachindex(med_metr_sto)
@@ -320,8 +294,8 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         filter!(!isnan, med_metr_sto)
                         std_metr_sto *= Confidence[conf]
                         filter!(!isnan, std_metr_sto)
-                        save_object("med_metr_sto-$(sample_rate*100)-$selected_prob-$selected_h.jld2", med_metr_sto)
-                        save_object("std_metr_sto-$(sample_rate*100)-$selected_prob-$selected_h.jld2", std_metr_sto)
+                        save_object("med_metr_sto_smooth-$(sample_rate*100)-$selected_prob-$selected_h.jld2", med_metr_sto)
+                        save_object("std_metr_sto_smooth-$(sample_rate*100)-$selected_prob-$selected_h.jld2", std_metr_sto)
                         
                         # compute median of MSE #
                         for l in eachindex(med_mse_sto)
@@ -340,8 +314,8 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         filter!(!isnan, med_mse_sto)
                         std_mse_sto *= Confidence[conf]
                         filter!(!isnan, std_mse_sto)
-                        save_object("med_mse_sto-$(sample_rate*100)-$selected_prob-$selected_h.jld2", med_mse_sto)
-                        save_object("std_mse_sto-$(sample_rate*100)-$selected_prob-$selected_h.jld2", std_mse_sto)
+                        save_object("med_mse_sto_smooth-$(sample_rate*100)-$selected_prob-$selected_h.jld2", med_mse_sto)
+                        save_object("std_mse_sto_smooth-$(sample_rate*100)-$selected_prob-$selected_h.jld2", std_mse_sto)
 
                         # --------------- OBJECTIVE DATA -------------------- #
 
@@ -394,18 +368,16 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         )
 
                         push!(data_mse, data_mse_slm, data_std_mse_slm)
-
+                        
                         # reset epoch counter for next problem
                         prob.epoch_counter = Int[1]
                     end
                 end
 
-                ## ---------------------- DYNAMIC SAMPLE RATE STRATEGIES ------------------------------ ##
-
                 for version in versions
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, μmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, M = (selected_prob == "mnist" ? 100.0 : 10000.0);)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, μmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate0)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -424,7 +396,6 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                     Obj_Hists_epochs_prob = zeros(1 + MaxEpochs, n_exec)
                     Metr_Hists_epochs_prob = zero(Obj_Hists_epochs_prob)
                     MSE_Hists_epochs_prob = zero(Obj_Hists_epochs_prob)
-
                     for (prob, prob_name) in nls_prob_collection
                         if selected_h == "l0"
                             h = NormL0(λ)
@@ -441,84 +412,65 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
 
                         @info "using PLM to solve with" h
                         # routine to select the output with the median accuracy on the training set
-                        PLM_outs = []
-                        plm_trains = []
-                        nplms = []
-                        ngplms = []
-                        epoch_counters_plm = []
+                        SPLM_outs = []
+                        splm_trains = []
 
                         for k in 1:n_exec
+                            # executes n_exec times Sto_LM with the same inputs
                             x0 = ones(prob.meta.nvar)
                             #p = randperm(prob.meta.nvar)[1:nz]
                             #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
                             reset!(prob)
                             prob.epoch_counter = Int[1]
-                            PLM_out = Prob_LM(prob, h, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version)
-                            push!(PLM_outs, PLM_out)
-                            push!(plm_trains, residual(prob, PLM_out.solution))
-                            push!(nplms, length(prob.epoch_counter))
-                            push!(ngplms, (neval_jtprod_residual(prob) + neval_jprod_residual(prob)))
-                            push!(epoch_counters_plm, prob.epoch_counter)
+                            PLM_out = SPLM(prob, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version, Jac_lop = true)
+                            push!(SPLM_outs, PLM_out)
+                            push!(splm_trains, residual(prob, PLM_out.solution))
                             #PLM_out = SPLM(prob, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version)
 
-                            selected_iterations = (sample_rate0 > .5) ? prob.epoch_counter[2:end] : prob.epoch_counter[1:end-1]
+                            selected_iterations = (sample_rate0 == 1.0) ? prob.epoch_counter[2:end] : prob.epoch_counter[1:end-1]
 
                             # get objective value for each run #
                             @views Obj_Hists_epochs_prob[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:ExactFhist][selected_iterations]
-                            @views Obj_Hists_epochs_prob[:, k][1:length(selected_iterations)] += PLM_out.solver_specific[:Hhist][selected_iterations]
 
                             # get MSE for each run #
                             @views MSE_Hists_epochs_prob[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:Fhist][selected_iterations]
-                            @views MSE_Hists_epochs_prob[:, k][1:length(selected_iterations)] += PLM_out.solver_specific[:Hhist][selected_iterations]
                             @views MSE_Hists_epochs_prob[:, k][1:length(selected_iterations)] ./= ceil.(2 * prob.nls_meta.nequ * PLM_out.solver_specific[:SampleRateHist][selected_iterations])
 
                             # get metric for each run #
                             @views Metr_Hists_epochs_prob[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:ExactMetricHist][selected_iterations]
                         end
-                        save_object("PLM_outs-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", PLM_outs)
-                        save_object("plm_trains-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", plm_trains)
-                        save_object("epoch_counters_plm-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", epoch_counters_plm)
+
+                        save_object("SPLM_outs-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", SPLM_outs)
+                        save_object("splm_trains-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", splm_trains)
 
                         if n_exec%2 == 1
                             med_ind = (n_exec ÷ 2) + 1
                         else
                             med_ind = (n_exec ÷ 2)
                         end
-                        acc_vec = acc.(plm_trains)
+                        acc_vec = acc.(splm_trains)
                         sorted_acc_vec = sort(acc_vec)
                         ref_value = sorted_acc_vec[med_ind]
                         origin_ind = 0
-                        for i in eachindex(PLM_outs)
+                        for i in eachindex(SPLM_outs)
                             if acc_vec[i] == ref_value
                                 origin_ind = i
                             end
                         end
 
-                        Prob_LM_out = PLM_outs[origin_ind]
-
-                        data_sr_plm = PlotlyJS.scatter(; x = 1:length(Prob_LM_out.solver_specific[:SampleRateHist]), y = Prob_LM_out.solver_specific[:SampleRateHist], mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-                            color = prob_versions_colors[version], width = 1
-                            )
-                        )
-                        data_sr_plm_epoch = PlotlyJS.scatter(; x = 1:length(Prob_LM_out.solver_specific[:SampleRateHist][epoch_counters_plm[origin_ind]]), y = Prob_LM_out.solver_specific[:SampleRateHist][epoch_counters_plm[origin_ind]], mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-                            color = prob_versions_colors[version], width = 1
-                            )
-                        )
-                        push!(data_sr_e, data_sr_plm_epoch)
-                        push!(data_sr, data_sr_plm)
-
-                        plmtrain = residual(prob, Prob_LM_out.solution)
+                        SProb_LM_out = SPLM_outs[origin_ind]
+                        splmtrain = residual(prob, SProb_LM_out.solution)
                         if prob_name == "mnist-train-ls"
-                            plmtest = residual(mnist_nls_test_sto, Prob_LM_out.solution)
-                            @show acc(plmtrain), acc(plmtest)
+                            splmtest = residual(mnist_nls_test_sto, SProb_LM_out.solution)
+                            @show acc(splmtrain), acc(splmtest)
                         end
                         #nplm = neval_residual(sampled_nls_tr)
-                        nplm = nplms[origin_ind]
-                        save_object("nplm-mnist-PLM-$(prob_versions_names[version]).jld2", nplm)
-                        ngplm = ngplms[origin_ind]
-                        save_object("ngplm-mnist-PLM-$(prob_versions_names[version]).jld2", ngplm)
+                        nsplm = length(prob.epoch_counter) - 1
+                        save_object("nsplm-mnist-PLM-$(prob_versions_names[version]).jld2", nsplm)
+                        ngsplm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
+                        save_object("ngsplm-mnist-PLM-$(prob_versions_names[version]).jld2", ngsplm)
                         if prob_name == "mnist-train-ls"
-                            plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$(prob_versions_names[version])-lhalf-$digits")
+                            plmdec = plot_svm(SProb_LM_out, SProb_LM_out.solution, "smooth-prob-lm-$(prob_versions_names[version])-lhalf-$digits")
                         end
 
                         med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
@@ -548,8 +500,8 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         std_obj_prob *= Confidence[conf]
                         filter!(!isnan, std_obj_prob)
 
-                        save_object("med_obj_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_obj_prob)
-                        save_object("std_obj_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_obj_prob)
+                        save_object("med_obj_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_obj_prob)
+                        save_object("std_obj_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_obj_prob)
 
                         # compute median of metric #
                         for l in eachindex(med_metr_prob)
@@ -569,8 +521,8 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         std_metr_prob *= Confidence[conf]
                         filter!(!isnan, std_metr_prob)
 
-                        save_object("med_metr_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_metr_prob)
-                        save_object("std_metr_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_metr_prob)
+                        save_object("med_metr_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_metr_prob)
+                        save_object("std_metr_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_metr_prob)
                         
                         # compute median of MSE #
                         for l in eachindex(med_mse_prob)
@@ -590,28 +542,28 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         std_mse_prob *= Confidence[conf]
                         filter!(!isnan, std_mse_prob)
 
-                        save_object("med_mse_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_mse_prob)
-                        save_object("std_mse_prob-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_mse_prob)
+                        save_object("med_mse_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", med_mse_prob)
+                        save_object("std_mse_prob_smooth-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", std_mse_prob)
 
                         # --------------- OBJECTIVE DATA -------------------- #
 
-                        data_obj_plm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-                            color = prob_versions_colors[version], width = 1
+                        data_obj_splm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
+                            color = smooth_versions_colors[version], width = 1
                             )
                         )
 
-                        data_std_obj_plm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-                            fillcolor = prob_versions_colors_std[version],
+                        data_std_obj_splm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
+                            fillcolor = smooth_versions_colors_std[version],
                             line_color = "transparent",
                             showlegend = false
                         )
 
-                        push!(data_obj, data_obj_plm)#, data_std_obj_plm)
+                        push!(data_obj, data_obj_splm)#, data_std_obj_splm)
 
                         # --------------- METRIC DATA -------------------- #
 
-                        data_metr_plm = PlotlyJS.scatter(; x = 1:length(med_metr_prob), y = med_metr_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-                            color = prob_versions_colors[version], width = 1
+                        data_metr_splm = PlotlyJS.scatter(; x = 1:length(med_metr_prob), y = med_metr_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
+                            color = smooth_versions_colors[version], width = 1
                             )
                         )
 
@@ -622,82 +574,75 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                             end
                         end
 
-                        data_std_metr_plm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-                            fillcolor = prob_versions_colors_std[version],
+                        data_std_metr_splm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
+                            fillcolor = smooth_versions_colors_std[version],
                             line_color = "transparent",
                             showlegend = false
                         )
 
-                        push!(data_metr, data_metr_plm)#, data_std_metr_plm)
+                        push!(data_metr, data_metr_splm)#, data_std_metr_splm)
                         
                         # --------------- MSE DATA -------------------- #
 
-                        data_mse_plm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-                            color = prob_versions_colors[version], width = 1
+                        data_mse_splm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
+                            color = smooth_versions_colors[version], width = 1
                             )
                         )
 
-                        data_std_mse_plm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-                            fillcolor = prob_versions_colors_std[version],
+                        data_std_mse_splm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
+                            fillcolor = smooth_versions_colors_std[version],
                             line_color = "transparent",
                             showlegend = false
                         )
 
-                        push!(data_mse, data_mse_plm)#, data_std_mse_plm)
+                        push!(data_mse, data_mse_splm)#, data_std_mse_splm)
 
+                        prob.epoch_counter = Int[1]
+
+                        if compare
+                            temp = hcat([reg_stats.solver_specific[:Fhist][end], reg_stats.solver_specific[:Hhist][end],reg_stats.objective, acc(r2train), acc(r2test), nr2, ngr2, sum(reg_stats.solver_specific[:SubsolverCounter]), reg_stats.elapsed_time],
+                                [LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
+                                [LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
+                                #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
+                                [SProb_LM_out.objective, 0.0, SProb_LM_out.objective, acc(splmtrain), acc(splmtest), nsplm, ngsplm, sum(SProb_LM_out.solver_specific[:SubsolverCounter]), SProb_LM_out.elapsed_time])
+
+                            temp = temp'
+
+                            df = DataFrame(temp, [:f, :h, :fh, :x, :xt, :n, :g, :p, :s])
+                            T = []
+                            for i = 1:nrow(df)
+                            push!(T, Tuple(df[i, [:x, :xt]]))
+                            end
+                            select!(df, Not(:xt))
+                            df[!, :x] = T
+                            df[!, :Alg] = ["R2", "LM", "LMTR", "SPLM-$(prob_versions_names[version])"]
+                            select!(df, :Alg, Not(:Alg), :)
+                            fmt_override = Dict(:Alg => "%s",
+                                :f => "%10.2f",
+                                :h => "%10.2f",
+                                :fh => "%10.2f",
+                                :x => "%10.2f, %10.2f",
+                                :n => "%10.2f",
+                                :g => "%10.2f",
+                                :p => "%10.2f",
+                                :s => "%02.2f")
+                            hdr_override = Dict(:Alg => "Alg",
+                                :f => "\$ f \$",
+                                :h => "\$ h \$",
+                                :fh => "\$ f+h \$",
+                                :x => "(Train, Test)",
+                                :n => "\\# epoch",
+                                :g => "\\# \$ \\nabla f \$",
+                                :p => "\\# inner",
+                                :s => "\$t \$ (s)")
+                            open("svm-lhalf-$digits.tex", "w") do io
+                                SolverBenchmark.pretty_latex_stats(io, df,
+                                    col_formatters=fmt_override,
+                                    hdr_override=hdr_override)
+                            end
+                        end
                     end
-
-
-                    #=if compare
-                        temp = hcat([R2_stats.solver_specific[:Fhist][end], R2_stats.solver_specific[:Hhist][end],R2_stats.objective, acc(r2train), acc(r2test), nr2, ngr2, sum(R2_stats.solver_specific[:SubsolverCounter]), R2_stats.elapsed_time],
-                            #[LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
-                            #[LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
-                            #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
-                            [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
-
-                        if smooth
-                            temp = hcat(temp,
-                            [SProb_LM_out.objective, 0.0, SProb_LM_out.objective, acc(splmtrain), acc(splmtest), nsplm, ngsplm, sum(SProb_LM_out.solver_specific[:SubsolverCounter]), SProb_LM_out.elapsed_time]
-                            )
-                        end
-
-                        temp = temp'
-
-                        df = DataFrame(temp, [:f, :h, :fh, :x, :xt, :n, :g, :p, :s])
-                        T = []
-                        for i = 1:nrow(df)
-                        push!(T, Tuple(df[i, [:x, :xt]]))
-                        end
-                        select!(df, Not(:xt))
-                        df[!, :x] = T
-                        df[!, :Alg] = ["R2", "LM", "LMTR", "PLM-$(prob_versions_names[version])"]
-                        select!(df, :Alg, Not(:Alg), :)
-                        fmt_override = Dict(:Alg => "%s",
-                            :f => "%10.2f",
-                            :h => "%10.2f",
-                            :fh => "%10.2f",
-                            :x => "%10.2f, %10.2f",
-                            :n => "%10.2f",
-                            :g => "%10.2f",
-                            :p => "%10.2f",
-                            :s => "%02.2f")
-                        hdr_override = Dict(:Alg => "Alg",
-                            :f => "\$ f \$",
-                            :h => "\$ h \$",
-                            :fh => "\$ f+h \$",
-                            :x => "(Train, Test)",
-                            :n => "\\# epoch",
-                            :g => "\\# \$ \\nabla f \$",
-                            :p => "\\# inner",
-                            :s => "\$t \$ (s)")
-                        open("svm-lhalf-$digits.tex", "w") do io
-                            SolverBenchmark.pretty_latex_stats(io, df,
-                                col_formatters=fmt_override,
-                                hdr_override=hdr_override)
-                        end
-                    end=#
                 end
-
                 if selected_prob == "ijcnn1"
                     prob_name = "ijcnn1-ls"
                 elseif selected_prob == "mnist"
@@ -751,28 +696,14 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                             bgcolor="rgba(255,255,255,.4)"
                         ),
                         font=attr(size=13))
-
-                layout_sr = Layout(title="$prob_name - $n_exec runs - h = $selected_h-norm",
-                        xaxis_title="iter",
-                        yaxis_title="sample rate",
-                        template="simple_white",
-                        legend = attr(
-                            xanchor="right",
-                            bgcolor="rgba(255,255,255,.4)"
-                        ),
-                        font=attr(size=13))
                 
                 plt_obj = PlotlyJS.plot(data_obj, layout_obj)
                 plt_metr = PlotlyJS.plot(data_metr, layout_metr)
                 plt_mse = PlotlyJS.plot(data_mse, layout_mse)
-                plt_sr = PlotlyJS.plot(data_sr, layout_sr)
-                plt_sre = PlotlyJS.plot(data_sr_e, layout_sr)
 
                 display(plt_obj)
                 display(plt_metr)
                 display(plt_mse)
-                display(plt_sr)
-                display(plt_sre)
 
                 #=if selected_prob == "ijcnn1"
                     PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.pdf"; format = "pdf")

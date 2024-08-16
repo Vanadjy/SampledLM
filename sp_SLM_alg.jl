@@ -75,6 +75,7 @@ function Sto_LM(
   metric = options.metric
 
   nobs = nls.nls_meta.nequ ÷ 2
+  m = nls.nls_meta.nequ
 
   # Initializes epoch_counter
   epoch_count = 0
@@ -114,7 +115,6 @@ function Sto_LM(
   local exact_ξcp
   local ξ
   k = 0
-  X_hist = []
   Fobj_hist = zeros(maxIter)
   exact_Fobj_hist = zeros(maxIter)
   Hobj_hist = zeros(maxIter)
@@ -137,16 +137,7 @@ function Sto_LM(
   Fk = zeros(eltype(xk), nls.nls_meta.nequ)
   residual!(nls, xk, Fk)
   Fkn = similar(Fk)
-  exact_Fk = similar(Fk)
-
-  meta_nls = nls_meta(nls)
-  rows = Vector{Int}(undef, meta_nls.nnzj)
-  cols = Vector{Int}(undef, meta_nls.nnzj)
-  vals = similar(xk, meta_nls.nnzj)
-  jac_structure_residual!(nls.adnls, rows, cols)
-  jac_coord_residual!(nls.adnls, xk, vals)
-
-  fk = dot(Fk, Fk) / 2 #objective estimated without noise
+  exact_Fk = zeros(1:m)
 
   #sampled Jacobian
   ∇fk = similar(xk)
@@ -154,10 +145,16 @@ function Sto_LM(
   Jt_Fk = similar(∇fk)
   exact_Jt_Fk = similar(∇fk)
 
-  jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
-  #Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+  rows = Vector{Int}(undef, nls.nls_meta.nnzj)
+  cols = Vector{Int}(undef, nls.nls_meta.nnzj)
+  vals = similar(xk, nls.nls_meta.nnzj)
+  jac_structure_residual!(nls.adnls, rows, cols)
+  jac_coord_residual!(nls.adnls, nls.meta.x0, vals)
 
-  μmax = norm(vals)
+  fk = dot(Fk[1:2*length(nls.sample)], Fk[1:2*length(nls.sample)]) / 2 #objective estimated without noise
+  jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
+
+  μmax = norm(vals, 2)
   νcpInv = (1 + θ) * (μmax^2 + μmin)
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
@@ -171,7 +168,6 @@ function Sto_LM(
   while !(optimal || tired)
     k = k + 1
     elapsed_time = time() - start_time
-    push!(X_hist, xk)
     Fobj_hist[k] = fk
     Hobj_hist[k] = hk
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
@@ -217,7 +213,7 @@ function Sto_LM(
       ϵ_increment = ϵr * metric
       ϵ += ϵ_increment  # make stopping test absolute and relative
       ϵ_subsolver += ϵ_increment
-      μk = 1 / metric
+      μk = 1e-3 / metric
     end
 
     if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
@@ -258,7 +254,7 @@ function Sto_LM(
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2 + ψ(d)
     end
   
-    νInv = (1 + θ) * (μmax^2 + σk) # μmax^2 + σk = ||Jmk||² + σk 
+    νInv = (1 + θ) * (μmax^2 + σk) # μmax^2 + σk = ||Jmk||² + σk
     ν = 1 / νInv
     subsolver_options.ν = ν
 
@@ -280,7 +276,7 @@ function Sto_LM(
     xkn .= xk .+ s
 
     residual!(nls, xkn, Fkn)
-    fkn = dot(Fkn, Fkn) / 2
+    fkn = dot(Fkn[1:2*length(nls.sample)], Fkn[1:2*length(nls.sample)]) / 2
     hkn = h(xkn[selected])
     hkn == -Inf && error("nonsmooth term is not proper")
     mks = mk(s)
@@ -315,11 +311,11 @@ function Sto_LM(
       exact_fk = dot(exact_Fk, exact_Fk) / 2
 
       exact_φcp(d) = begin
-        jtprod_residual!(nls, rows, cols, vals, exact_Fk, exact_Jt_Fk)
+        jtprod_residual!(nls.adnls, rows, cols, vals, exact_Fk, exact_Jt_Fk)
         dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
       end
 
-      exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
+      exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
       exact_metric = sqrt(abs(exact_ξcp * νcpInv))
       exact_Metric_hist[k] = exact_metric
 
@@ -337,6 +333,7 @@ function Sto_LM(
     end
 
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
+      #@info "step accepted and f(x+s) - f(x) = $(fkn - fk)"
       xk .= xkn
 
       if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
@@ -397,7 +394,6 @@ function Sto_LM(
   set_residuals!(stats, zero(eltype(xk)), ξcp ≥ 0 ? sqrt(ξcp * νcpInv) : ξcp)
   set_iter!(stats, k)
   set_time!(stats, elapsed_time)
-  set_solver_specific!(stats, :Xhist, X_hist[1:k])
   set_solver_specific!(stats, :Fhist, Fobj_hist[1:k])
   set_solver_specific!(stats, :ExactFhist, exact_Fobj_hist[1:k])
   set_solver_specific!(stats, :Hhist, Hobj_hist[1:k])

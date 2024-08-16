@@ -4,9 +4,11 @@ function load_mnist_r2()
     R2_out = load_object("R2_out-mnist-lhalf.jld2")
     R2_stats = load_object("R2_stats-mnist-lhalf.jld2")
     r2_metric_hist = load_object("r2_metric_hist-mnist-lhalf.jld2")
+    r2_obj_hist = load_object("r2_obj_hist-mnist-lhalf.jld2")
+    r2_numjac_hist = load_object("r2_numjac_hist-mnist-lhalf.jld2")
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages\SampledLM")
 
-    return k_R2, R2_out, R2_stats, r2_metric_hist
+    return k_R2, R2_out, R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist
 end
 
 function load_mnist_lm_lmtr()
@@ -36,9 +38,11 @@ function load_mnist_plm(version, selected_h)
     nplm = load_object("nplm-mnist-PLM-$version.jld2")
     ngplm = load_object("ngplm-mnist-PLM-$version.jld2")
 
+    epoch_counters_plm = load_object("epoch_counters_plm-$(prob_versions_names[version])-mnist-$selected_h.jld2")
+
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages\SampledLM")
 
-    return med_obj_prob_mnist, med_metr_prob_mnist, med_mse_prob_mnist, std_obj_prob_mnist, std_metr_prob_mnist, std_mse_prob_mnist, PLM_outs, plm_trains, nplm, ngplm
+    return med_obj_prob_mnist, med_metr_prob_mnist, med_mse_prob_mnist, std_obj_prob_mnist, std_metr_prob_mnist, std_mse_prob_mnist, PLM_outs, plm_trains, nplm, ngplm, epoch_counters_plm
 end
 
 function load_mnist_splm(version, selected_h)
