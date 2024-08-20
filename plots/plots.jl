@@ -34,8 +34,8 @@ Random.seed!(seed)
 
 # ---------------- Hyperbolic SVM Models ---------------- #
 
-n_exec = 1
-selected_probs = ["ijcnn1"]
+n_exec = 10
+selected_probs = ["mnist"]
 MaxEpochs = 0
 MaxTime = 0.0
 
@@ -53,7 +53,7 @@ if selected_probs == ["ijcnn1"]
     compare = false
 elseif selected_probs == ["mnist"]
     sample_rate0 = .05
-    sample_rates = [1.0]#, .05]
+    sample_rates = [1.0, .05]
     selected_digits = [(1, 7)]
     versions = [2, 9]
     #version = versions[end]
@@ -68,7 +68,7 @@ end
 abscissas = ["epoch", "CPU time"]
 abscissa = abscissas[1]
 
-#svm_plot_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, sample_rate0 = sample_rate0, compare = compare, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
+svm_plot_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, sample_rate0 = sample_rate0, compare = compare, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
 
 # -- Plots for MNIST grey map -- #
 
@@ -126,7 +126,7 @@ Jac_lop = false
 
 #plot_Sto_LM_BA(sample_rates, versions, name_list, selected_hs; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
 Random.seed!(seed)
-demo_ba_sto(name_list; sample_rate = sample_rate, sample_rate0 = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-l1", compare = false, smooth = smooth, Jac_lop = Jac_lop)
+#demo_ba_sto(name_list; sample_rate = sample_rate, sample_rate0 = sample_rate0, n_runs = n_exec, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, suffix = "$filter_name-l1", compare = false, smooth = smooth, Jac_lop = Jac_lop)
 
 #=ba_3d_scatter(name_list; sample_rate = sample_rate, n_runs = n_exec)
 for name in name_list

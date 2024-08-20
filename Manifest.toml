@@ -1761,7 +1761,9 @@ version = "1.2.2"
 
 [[deps.RegularizedOptimization]]
 deps = ["LinearAlgebra", "LinearOperators", "Logging", "NLPModels", "NLPModelsModifiers", "Printf", "ProximalOperators", "RegularizedProblems", "ShiftedProximalOperators", "SolverCore", "TSVD"]
-path = "C:\\Users\\valen\\Desktop\\Polytechnique_Montreal\\_maitrise\\Packages\\RegularizedOptimization.jl"
+git-tree-sha1 = "08bb2c358837d637a2681c6543ac5e5db5afd1f2"
+repo-rev = "master"
+repo-url = "https://github.com/JuliaSmoothOptimizers/RegularizedOptimization.jl"
 uuid = "196f2941-2d58-45ba-9f13-43a2532b2fa8"
 version = "0.1.0"
 
