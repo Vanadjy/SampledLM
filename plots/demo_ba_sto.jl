@@ -105,7 +105,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
             for k in 1:n_runs
                 reset!(sampled_nls)
                 sampled_nls.epoch_counter = Int[1]
-                Prob_LM_out_k = SPLM(sampled_nls, sampled_options, x0=guess_0, subsolver_options = suboptions, sample_rate0 = sample_rate0, version = version, Jac_lop = Jac_lop)
+                Prob_LM_out_k = SPLM(sampled_nls, sampled_options, version; x0=guess_0, subsolver_options = suboptions, sample_rate0 = sample_rate0, Jac_lop = Jac_lop)
                 push!(PLM_outs, Prob_LM_out_k)
                 push!(plm_obj, Prob_LM_out_k.objective)
     
@@ -408,7 +408,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         for k in 1:n_runs
             reset!(sampled_nls)
             sampled_nls.epoch_counter = Int[1]
-            Prob_LM_out_k = Prob_LM(sampled_nls, h, sampled_options, x0=guess_0, sample_rate0 = sample_rate0, subsolver_options = suboptions, version = version)
+            Prob_LM_out_k = PLM(sampled_nls, h, sampled_options, version; x0=guess_0, sample_rate0 = sample_rate0, subsolver_options = suboptions)
             push!(PLM_outs, Prob_LM_out_k)
             push!(plm_obj, Prob_LM_out_k.objective)
             push!(nplms, length(sampled_nls.epoch_counter))
@@ -499,10 +499,10 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
         fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
         fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
-        display(fig_ba)
-        display(fig_ba0)
-        #PlotlyJS.savefig(fig_ba, "PLM-ND-ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
-        #PlotlyJS.savefig(fig_ba0, "PLM-ND-x0-ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        #display(fig_ba)
+        #display(fig_ba0)
+        PlotlyJS.savefig(fig_ba, "PLM-ND-ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(fig_ba0, "PLM-ND-x0-ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
 
         #println("Press enter")
         #n = readline()
@@ -688,13 +688,13 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         plt_metr = PlotlyJS.plot(data_metr, layout_metr)
         plt_mse = PlotlyJS.plot(data_mse, layout_mse)
 
-        display(plt_obj)
-        display(plt_metr)
-        display(plt_mse)
+        #display(plt_obj)
+        #display(plt_metr)
+        #display(plt_mse)
 
-        #PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
-        #PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
-        #PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
 
         ## ---------------------------------------------------------------------------------------------------##
         ## ----------------------------------- CONSTANT SAMPLE RATE -------------------------------------------##
@@ -702,19 +702,19 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
 
         @info "using SLM to solve with" h
 
-        sampled_nls_ba = BAmodel_sto(name; sample_rate = 1.0)
-        meta_nls_ba = nls_meta(sampled_nls_ba)
-        function F!(Fx, x)
-            residual!(sampled_nls_ba, x, Fx)
+        sampled_nls_ba_slm = BAmodel_sto(name; sample_rate = 1.0)
+        meta_nls_ba_slm = nls_meta(sampled_nls_ba_slm)
+        function F_slm!(Fx, x)
+            residual!(sampled_nls_ba_slm, x, Fx)
         end
 
-        adnls = ADNLSModel!(F!, sampled_nls_ba.meta.x0,  meta_nls_ba.nequ, sampled_nls_ba.meta.lvar, sampled_nls_ba.meta.uvar, jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+        adnls = ADNLSModel!(F_slm!, sampled_nls_ba_slm.meta.x0,  meta_nls_ba_slm.nequ, sampled_nls_ba_slm.meta.lvar, sampled_nls_ba_slm.meta.uvar, jacobian_residual_backend = ADNLPModels.SparseADJacobian,
             jacobian_backend = ADNLPModels.EmptyADbackend,
             hessian_backend = ADNLPModels.EmptyADbackend,
             hessian_residual_backend = ADNLPModels.EmptyADbackend,
             matrix_free = true)
 
-        sampled_nls = SADNLSModel(adnls, sampled_nls_ba)
+        sampled_nls = SADNLSModel(adnls, sampled_nls_ba_slm)
 
         SLM_outs = []
         slm_obj = []
@@ -727,7 +727,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         for k in 1:n_runs
             reset!(sampled_nls)
             sampled_nls.epoch_counter = Int[1]
-            Prob_LM_out_k = Sto_LM(sampled_nls, h, sampled_options; x0=guess_0, subsolver_options = suboptions)
+            Prob_LM_out_k = PLM(sampled_nls, h, sampled_options; x0=guess_0, subsolver_options = suboptions)
             push!(SLM_outs, Prob_LM_out_k)
             push!(slm_obj, Prob_LM_out_k.objective)
 
@@ -787,8 +787,8 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         
         #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
         fig_ba = PlotlyJS.Plot(plt3d_slm, layout_3d)#; config = options)
-        display(fig_ba)
-        #PlotlyJS.savefig(fig_ba, "ba-SLM-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        #display(fig_ba)
+        PlotlyJS.savefig(fig_ba, "ba-SLM-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
 
         #println("Press enter")
         #n = readline()
@@ -924,13 +924,13 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         plt_metr = PlotlyJS.plot(data_metr, layout_metr)
         plt_mse = PlotlyJS.plot(data_mse, layout_mse)
 
-        display(plt_obj)
-        display(plt_metr)
-        display(plt_mse)
+        #display(plt_obj)
+        #display(plt_metr)
+        #display(plt_mse)
 
-        #PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
-        #PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
-        #PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-$h_name.pdf"; format = "pdf")
     end
 
     if smooth

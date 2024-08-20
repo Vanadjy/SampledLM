@@ -1,21 +1,17 @@
 # base dependencies
-using LinearAlgebra, Logging, Printf
+using LinearAlgebra, Logging, Printf, Plots, DataFrames
 
 # external dependencies
-using ProximalOperators#, TSVD
+using ProximalOperators, FastClosures
 
 # dependencies from us
 using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov, ADNLPModels, JSOSolvers
+using RegularizedProblems, RegularizedOptimization, BundleAdjustmentModels
 
+# stochastic packages dependencies
 using Random, Test, Statistics, OnlineStats, Distributions, Noise
-using RegularizedProblems, RegularizedOptimization
-using FastClosures
-using Plots
 using MLDatasets:MNIST
-using LIBSVMdata
-using DataFrames, BundleAdjustmentModels
-using JSON
-using JLD2
+using JSON, JLD2
 
 seed = 1234
 
@@ -25,19 +21,15 @@ include("input_struct_sto.jl")
 include("Problems/Sto_LM_Problems.jl")
 
 #PLM-Cst variants
-include("Sto_LM_alg.jl")
-include("sp_SLM_alg.jl")
-include("Sto_LM_algv3.jl")
-include("Sto_LM_guided_alg.jl")
-include("Sto_LM_cp.jl")
-include("smooth_SLM.jl")
+include("SLM_alg.jl")
+include("SLM_sp_alg.jl")
+include("SLM_smooth_alg.jl")
 
 #PLM-ND and PLM-AD variants
-include("Prob_LM_alg.jl")
-include("Prob_LM_sparse_alg.jl")
-include("smooth_PLM.jl")
-include("sp_smooth_PLM.jl")
-include("Prob_LM_sparse_alg.jl")
+include("PLM_alg.jl")
+include("PLM_sp_alg.jl")
+include("PLM_smooth_alg.jl")
+include("PLM_sp_smooth_alg.jl")
 
 #tests
 #=@testset "Probabilistic LM tests" begin

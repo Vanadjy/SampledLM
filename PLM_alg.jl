@@ -1,12 +1,15 @@
+#export PLM
+
 """
-    Prob_LM(nls, h, options; kwargs...)
+    PLM(nls, h, options; kwargs...)
 
 A Levenberg-Marquardt method for the problem
 
     min ½ ‖F(x)‖² + h(x)
 
 where F: ℝⁿ → ℝᵐ and its Jacobian J are Lipschitz continuous and h: ℝⁿ → ℝ is
-lower semi-continuous, proper and prox-bounded.
+lower semi-continuous, proper and prox-bounded. This method uses different variable sample rate schemes
+each corresponding to a different number.
 
 At each iteration, a step s is computed as an approximate solution of
 
@@ -15,14 +18,14 @@ At each iteration, a step s is computed as an approximate solution of
 where F(x) and J(x) are the residual and its Jacobian at x, respectively, ψ(s; x) = h(x + s),
 and σ > 0 is a regularization parameter.
 
-In this version of the algorithm, the smooth part of both the objective and the model are estimations as 
-the quantities are sampled ones from the original data of the Problem.
+The smooth part of both the objective and the model are estimations as F ad J are sampled.
 
 ### Arguments
 
-* `nls::SampledBAModel`: a smooth nonlinear least-squares problem associated to a Bundle Adjustment Problem
+* `nls::AbstractNLSModel`: a smooth nonlinear least-squares problem
 * `h`: a regularizer such as those defined in ProximalOperators
 * `options::ROSolverOptions`: a structure containing algorithmic parameters
+* `version::Int`: integer specifying the sampling strategy
 
 ### Keyword arguments
 
@@ -30,26 +33,28 @@ the quantities are sampled ones from the original data of the Problem.
 * `subsolver_logger::AbstractLogger`: a logger to pass to the subproblem solver
 * `subsolver`: the procedure used to compute a step (`PG` or `R2`)
 * `subsolver_options::ROSolverOptions`: default options to pass to the subsolver.
-* `selected::AbstractVector{<:Integer}`: list of selected indexes for the sampling 
+* `selected::AbstractVector{<:Integer}`: list of selected indexes for the sampling
+* `sample_rate0::Float64`: first sample rate used for the method
 
 ### Return values
+Generic solver statistics including among others
 
 * `xk`: the final iterate
 * `Fobj_hist`: an array with the history of values of the smooth objective
 * `Hobj_hist`: an array with the history of values of the nonsmooth objective
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
-function Prob_LM(
-  nls::SampledADNLSModel,
+function PLM(
+  nls::SampledNLSModel,
   h::H,
-  options::ROSolverOptions;
+  options::ROSolverOptions,
+  version::Int;
   x0::AbstractVector = nls.meta.x0,
   subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
   subsolver = RegularizedOptimization.R2,
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
   selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
   sample_rate0::Float64 = .05,
-  version::Int = 1,
 ) where {H}
 
   # initializes epoch counting and progression
@@ -64,10 +69,8 @@ function Prob_LM(
   epoch_limits = [1, 2, 5, 10]
   @assert length(sample_rates_collec) == length(epoch_limits)
   nls.sample_rate = sample_rate0
-
-  nobs = nls.nls_meta.nequ ÷ 2
-  ζk = Int(ceil(nls.sample_rate * nobs))
-  nls.sample = sort(randperm(nobs)[1:ζk])
+  ζk = Int(ceil(nls.sample_rate * nls.nls_meta.nequ))
+  nls.sample = sort(randperm(nls.nls_meta.nequ)[1:ζk])
 
   sample_counter = 1
   change_sample_rate = false
@@ -77,7 +80,7 @@ function Prob_LM(
   elapsed_time = 0.0
 
   # initialize passed options
-  ϵ = options.ϵa
+  ϵ = options.ϵr
   ϵ_subsolver = subsolver_options.ϵa
   ϵr = options.ϵr
   verbose = options.verbose
@@ -96,9 +99,11 @@ function Prob_LM(
   σmax = options.σmax
   μmin = options.μmin
   metric = options.metric
-  M = options.M
+  balance = 10^(ceil(log10(nls.nls_meta.nequ / nls.meta.nvar)))
+  threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # < 1 if more equations than variables
 
   m = nls.nls_meta.nequ
+  ζk = Int(ceil(balance))
 
   # store initial values of the subsolver_options fields that will be modified
   ν_subsolver = subsolver_options.ν
@@ -136,13 +141,15 @@ function Prob_LM(
   local ξ
   local ξ_mem
 
-  μ_inc_count = 0
-  μ_dec_count = 0
-  μ_stab_count = 0
+  count_fail = 0
+  count_big_succ = 0
+  count_succ = 0
   δ_sample = .05
   buffer = .05
-  distance_indic = zero(eltype(xk))
+  dist_succ = zero(eltype(xk))
   k = 0
+
+  #X_hist = []
   Fobj_hist = zeros(maxIter * 100)
   exact_Fobj_hist = zeros(maxIter * 100)
   Hobj_hist = zeros(maxIter * 100)
@@ -159,39 +166,33 @@ function Prob_LM(
   if verbose > 0
     #! format: off
     @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "rate"
+    #! format: on
   end
 
-  # meta_nls = nls_meta(nls)
-
   #creating required objects
-  Fk = zeros(eltype(xk), nls.nls_meta.nequ)
-  residual!(nls, xk, Fk)
+  Fk = residual(nls, xk)
   Fkn = similar(Fk)
   exact_Fk = zeros(1:m)
 
+  Jk = jac_op_residual(nls, xk)
+
+  fk = dot(Fk, Fk) / 2 #objective estimated without noise
+
   #sampled Jacobian
   ∇fk = similar(xk)
-  JdFk = similar(Fk) #temporary storage
+  exact_∇fk = similar(∇fk)
+  jtprod_residual!(nls, xk, Fk, ∇fk)
+  JdFk = similar(Fk) # temporary storage
   Jt_Fk = similar(∇fk)
   exact_Jt_Fk = similar(∇fk)
 
-  rows = Vector{Int}(undef, nls.nls_meta.nnzj)
-  cols = Vector{Int}(undef, nls.nls_meta.nnzj)
-  vals = similar(xk, nls.nls_meta.nnzj)
-  jac_structure_residual!(nls.adnls, rows, cols)
-  jac_coord_residual!(nls.adnls, nls.meta.x0, vals)
-  #Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
-
-  fk = dot(Fk[1:2*length(nls.sample)], Fk[1:2*length(nls.sample)]) / 2 #objective estimated without noise
-  jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
-
-  #μmax = opnorm(Jk)
-  μmax = norm(vals, 2)
+  μmax = opnorm(Jk)
   νcpInv = (1 + θ) * (μmax^2 + μmin)
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
   s = zero(xk)
   scp = similar(s)
+  exact_scp = similar(scp)
 
   optimal = false
   tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
@@ -200,6 +201,7 @@ function Prob_LM(
   while !(optimal || tired)
     k = k + 1
     elapsed_time = time() - start_time
+    #push!(X_hist, xk)
     Fobj_hist[k] = fk
     Hobj_hist[k] = hk
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
@@ -218,10 +220,10 @@ function Prob_LM(
       push!(nls.epoch_counter, k)
       epoch_progress -= 1
     end
-
+    
     # model for the Cauchy-Point decrease
     φcp(d) = begin
-      jtprod_residual!(nls.adnls, rows, cols, vals, Fk, Jt_Fk)
+      jtprod_residual!(nls, xk, Fk, Jt_Fk)
       dot(Fk, Fk) / 2 + dot(Jt_Fk, d)
     end
 
@@ -234,10 +236,9 @@ function Prob_LM(
     # take first proximal gradient step s1 and see if current xk is nearly stationary
     # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
     prox!(scp, ψ, ∇fk, νcp)
-    #replace!(scp, NaN=>0.0)
-    ξcp = fk + hk - mkcp(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
+    ξcp = fk + hk - mkcp(scp) + max(1, abs(fk + hk)) * 10 * eps()
 
-    #ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
+    #ξcp > 0 || error("PLM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
     
     if ξcp ≤ 0
       ξcp = - ξcp
@@ -250,7 +251,8 @@ function Prob_LM(
       ϵ_increment = ϵr * metric
       ϵ += ϵ_increment  # make stopping test absolute and relative
       ϵ_subsolver += ϵ_increment
-      μk = 1e-3 / metric
+      μk = 1 / metric
+      ϵ = options.ϵa  # ϵa containing the last callback of the first algorithm used to solve the problem
     end
 
     if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
@@ -259,40 +261,41 @@ function Prob_LM(
       if nls.sample_rate == 1.0
         optimal = true
       else
-        if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+        if (length(nls.opt_counter) ≥ 5) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
           optimal = true
         end
       end
     end
 
-    subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, ξcp / 10))
+    subsolver_options.ϵa = (length(nls.epoch_counter) ≤ 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric / 10)))
 
     #update of σk
     σk = min(max(μk * metric, σmin), σmax)
 
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
+
     φ(d) = begin
-      jprod_residual!(nls.adnls, rows, cols, vals, d, JdFk)
+      jprod_residual!(nls, xk, d, JdFk)
       JdFk .+= Fk
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
     end
 
     ∇φ!(g, d) = begin
-      jprod_residual!(nls.adnls, rows, cols, vals, d, JdFk)
+      jprod_residual!(nls, xk, d, JdFk)
       JdFk .+= Fk
-      jtprod_residual!(nls.adnls, rows, cols, vals, JdFk, g)
+      jtprod_residual!(nls, xk, JdFk, g)
       g .+= σk * d
       return g
     end
 
     mk(d) = begin
-      jprod_residual!(nls.adnls, rows, cols, vals, d, JdFk)
+      jprod_residual!(nls, xk, d, JdFk)
       JdFk .+= Fk
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2 + ψ(d)
     end
   
-    νInv = (1 + θ) * (μmax^2 + σk) # μmax^2 + σk = ||Jmk||² + σk
+    νInv = (1 + θ) * (μmax^2 + σk) # μmax^2 + σk = ||Jmk||² + σk 
     ν = 1 / νInv
     subsolver_options.ν = ν
 
@@ -305,17 +308,16 @@ function Prob_LM(
     subsolver_options.ϵa = ϵa_subsolver
 
     Complex_hist[k] = iter
-
     # additionnal condition on step s
     if norm(s) > β * norm(scp)
-      println("cauchy step used")
+      @info "cauchy step used"
       s .= scp
     end
-
+    
     xkn .= xk .+ s
 
-    residual!(nls, xkn, Fkn)
-    fkn = dot(Fkn[1:2*length(nls.sample)], Fkn[1:2*length(nls.sample)]) / 2
+    Fkn = residual(nls, xkn)
+    fkn = dot(Fkn, Fkn) / 2
     hkn = h(xkn[selected])
     hkn == -Inf && error("nonsmooth term is not proper")
     mks = mk(s)
@@ -331,6 +333,7 @@ function Prob_LM(
 
     Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
     #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
+    Δobj = (Δobj < 0 ? - Δobj : Δobj)
     ρk = Δobj / ξ
 
     #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
@@ -343,23 +346,24 @@ function Prob_LM(
       #! format: off
     end
     
-    
     #-- to compute exact quantities --#
     if nls.sample_rate < 1.0
-      nls.sample = collect(1:nobs)
+      nls.sample = 1:nls.nls_meta.nequ
       residual!(nls, xk, exact_Fk)
       exact_fk = dot(exact_Fk, exact_Fk) / 2
 
       exact_φcp(d) = begin
-        jtprod_residual!(nls.adnls, rows, cols, vals, exact_Fk, exact_Jt_Fk)
+        jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
         dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
       end
 
-      exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
+      jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
+      prox!(exact_scp, ψ, exact_∇fk, νcp)
+      exact_ξcp = exact_fk + hk - exact_φcp(exact_scp) - ψ(exact_scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
       exact_metric = sqrt(abs(exact_ξcp * νcpInv))
-      exact_Metric_hist[k] = exact_metric
 
       exact_Fobj_hist[k] = exact_fk
+      exact_Metric_hist[k] = exact_metric
     elseif nls.sample_rate == 1.0
       exact_Fobj_hist[k] = fk
       exact_Metric_hist[k] = metric
@@ -385,10 +389,9 @@ function Prob_LM(
 
     # Version 2: List of predetermined - switch with arbitrary epochs #
     if version == 2
-      if nls.sample_rate < sample_rates_collec[end]
+      if nls.sample_rate < 1.0
         if epoch_count > epoch_limits[sample_counter]
           nls.sample_rate = sample_rates_collec[sample_counter]
-          nls.ba.sample_rate = sample_rates_collec[sample_counter]
           sample_counter += 1
           change_sample_rate = true
         end
@@ -400,8 +403,8 @@ function Prob_LM(
       # ζk = Int(ceil(k / (1e8 * min(1, 1 / μk^4))))
       p = .75
       q = .75
-      ζk = Int(ceil((log(1 / (1-p)) * max(μk^4, μk^2) + log(1 / (1-q)) * μk^4)))
-      nls.sample_rate = min(1.0, (ζk / nobs) * (nls.meta.nvar + 1))
+      ζk = Int(ceil(100 * (log(1 / (1-p)) * max(μk^4, μk^2) + log(1 / (1-q)) * μk^4)))
+      nls.sample_rate = min(1.0, (ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))
       change_sample_rate = true
     end
 
@@ -472,86 +475,82 @@ function Prob_LM(
     end
 
     if version == 7
-      if (μ_inc_count == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+      if (count_fail == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
         sample_counter = max(0, sample_counter - 1) # sample_counter-1 < length(sample_rates_collec)
         nls.sample_rate = (sample_counter == 0) ? sample_rate0 : sample_rates_collec[sample_counter]
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
-      elseif (μ_dec_count == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+        count_fail = 0
+        count_big_succ = 0
+      elseif (count_big_succ == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
         sample_counter = min(length(sample_rates_collec), sample_counter + 1) # sample_counter + 1 > 0
         nls.sample_rate = sample_rates_collec[sample_counter]
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
+        count_fail = 0
+        count_big_succ = 0
       end
     end
 
     if version == 8
-      if (μ_inc_count == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+      if (count_fail == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
         nls.sample_rate -= δ_sample
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
-      elseif (μ_dec_count == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+        count_fail = 0
+        count_big_succ = 0
+      elseif (count_big_succ == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
         nls.sample_rate += δ_sample
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
+        count_fail = 0
+        count_big_succ = 0
       end
     end
 
     if (version == 9)
-      p = .75
-      q = .75
-      if (μ_inc_count == 1) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
-        ζk = Int(ceil(M * λ^4 * (log(1 / (1-p)) + log(1 / (1-q)))))
+      if (count_fail == 2) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+        ζk *= λ^4
         @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
         nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
-        μ_stab_count = 0
-        distance_indic = zero(eltype(xk))
-      elseif (μ_dec_count == 1) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
-        ζk = Int(ceil(M * λ^(-4) * (log(1 / (1-p)) + log(1 / (1-q)))))
+        count_fail = 0
+        count_big_succ = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
+      elseif (count_big_succ == 2) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+        ζk *= λ^(-4)
         @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
         nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
-        μ_stab_count = 0
-        distance_indic = zero(eltype(xk))
+        count_fail = 0
+        count_big_succ = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
       end
-      if (nls.sample_rate < sample_rates_collec[end]) && ((distance_indic > (norm(x0) / (1.5 * nls.sample_rate))) || (μ_stab_count > 10)) # if μ did not change for too long, increase the buffer value
+      if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
         @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
         buffer = sample_rates_collec[sample_counter]
         nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
         sample_counter += 1
         change_sample_rate = true
-        μ_stab_count = 0
-        distance_indic = zero(eltype(xk))
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
       end
     end
 
     #changes sample with new sample rate
-    nls.sample = sort(randperm(nls.nobs)[1:Int(ceil(nls.sample_rate * nls.nobs))])
+    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
     if nls.sample_rate == 1.0
-      nls.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
+      nls.sample == 1:nls.nls_meta.nequ || error("Sample Error : Sample should be full for 100% sampling")
     end
 
-    # mandatory updates whenever the sample_rate chages #
     if change_sample_rate
-      #display("Went here for epoch_count = $epoch_count and sample_rate = $(nls.sample_rate)")
-      residual!(nls, xk, Fk)
+      # mandatory updates whenever the sample_rate chages #
+      Fk = residual(nls, xk)
       Fkn = similar(Fk)
       JdFk = similar(Fk)
-      fk = dot(Fk[1:2*length(nls.sample)], Fk[1:2*length(nls.sample)]) / 2
-      jac_coord_residual!(nls.adnls, xk, vals)
-      #Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+      fk = dot(Fk, Fk) / 2
 
-      jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
-      μmax = norm(vals, 2)
+      Jk = jac_op_residual(nls, xk)
+      jtprod_residual!(nls, xk, Fk, ∇fk)
+      μmax = opnorm(Jk)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
 
       #change_sample_rate = false
@@ -559,53 +558,58 @@ function Prob_LM(
 
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
+      #=μk = max(μk / λ, μmin)
+      count_big_succ += 1
+      count_fail = 0=#
 
       if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
         μk = max(μk / λ, μmin)
-        μ_dec_count += 1
-        μ_inc_count = 0
-        μ_stab_count = 0
-        distance_indic = zero(eltype(xk))
+        count_big_succ += 1
+        count_fail = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
       elseif (nls.sample_rate == 1.0) && (η2 ≤ ρk < Inf)
         μk = max(μk / λ, μmin)
-        μ_dec_count += 1
-        μ_inc_count = 0
-        μ_stab_count = 0
-        distance_indic = zero(eltype(xk))
+        count_big_succ += 1
+        count_fail = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
       else
-        distance_indic += norm(s)
-        μ_stab_count += 1
+        dist_succ += norm(s)
+        count_succ += 1
       end
 
       if (!change_sample_rate) && (nls.sample_rate == 1.0)
         Fk .= Fkn
       else
-        residual!(nls, xk, Fk)
+        Fk = residual(nls, xk)
       end
-      fk = dot(Fk[1:2*length(nls.sample)], Fk[1:2*length(nls.sample)]) / 2
+      fk = dot(Fk, Fk) / 2
+
       hk = hkn
       shift!(ψ, xk)
-      jac_coord_residual!(nls.adnls, xk, vals)
-      #Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
 
-      jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
+      # update gradient & Hessian
+      Jk = jac_op_residual(nls, xk)
+      jtprod_residual!(nls, xk, Fk, ∇fk)
 
-      μmax = norm(vals, 2)
+      μmax = opnorm(Jk)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
 
       Complex_hist[k] += 1
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
       μk = λ * μk
-      μ_dec_count = 0
-      μ_inc_count += 1
-      μ_stab_count = 0
-      distance_indic = zero(eltype(xk))
+      count_big_succ = 0
+      count_fail += 1
+      count_succ = 0
+      dist_succ = zero(eltype(xk))
     end
 
     if change_sample_rate
       change_sample_rate = false
     end
+
     tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
   end
 
@@ -636,6 +640,7 @@ function Prob_LM(
   set_residuals!(stats, zero(eltype(xk)), (ξcp ≥ 0 ? sqrt(ξcp * νcpInv) : ξcp))
   set_iter!(stats, k)
   set_time!(stats, elapsed_time)
+  #set_solver_specific!(stats, :Xhist, X_hist)
   set_solver_specific!(stats, :Fhist, Fobj_hist[1:k])
   set_solver_specific!(stats, :ExactFhist, exact_Fobj_hist[1:k])
   set_solver_specific!(stats, :Hhist, Hobj_hist[1:k])

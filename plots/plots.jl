@@ -34,8 +34,8 @@ Random.seed!(seed)
 
 # ---------------- Hyperbolic SVM Models ---------------- #
 
-n_exec = 2
-selected_probs = ["mnist"]
+n_exec = 1
+selected_probs = ["ijcnn1"]
 MaxEpochs = 0
 MaxTime = 0.0
 
@@ -46,8 +46,8 @@ if selected_probs == ["ijcnn1"]
     versions = [2, 9]
     #version = versions[end]
     ϵ = 1e-16
-    selected_hs = ["l1"]#, "lhalf", "smooth"]
-    MaxEpochs = 20
+    selected_hs = ["l1"]# "smooth"]
+    MaxEpochs = 50
     MaxTime = 3600.0
     smooth = false
     compare = false
@@ -68,8 +68,6 @@ end
 abscissas = ["epoch", "CPU time"]
 abscissa = abscissas[1]
 
-#plot_Sto_LM_SVM(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, param = param, compare = false, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
-
 #svm_plot_epoch(sample_rates, versions, selected_probs, selected_hs, selected_digits; abscissa = abscissa, n_exec = n_exec, sample_rate0 = sample_rate0, compare = compare, MaxEpochs = MaxEpochs, MaxTime = MaxTime, precision = ϵ)
 
 # -- Plots for MNIST grey map -- #
@@ -78,6 +76,8 @@ Random.seed!(seed)
 #=for digits in selected_digits
     demo_svm_sto(;sample_rate = sample_rate0, n_runs = n_exec, digits = digits, MaxEpochs = MaxEpochs, MaxTime = MaxTime, version = version, smooth = true)
 end=#
+
+# local plots #
 
 #=if selected_probs == ["ijcnn1"]
     plot_ijcnn1(sample_rates, versions, selected_hs; n_runs = n_exec, MaxEpochs = MaxEpochs)
@@ -92,7 +92,7 @@ end=#
 
 Random.seed!(seed)
 
-n_exec = 10
+n_exec = 1
 sample_rates = []
 versions = [1, 2, 3, 4, 5, 6]
 version = versions[2]
@@ -101,27 +101,27 @@ df = problems_df()
 filter_name = "dubrovnik"
 
 filter_df = df[ df.group .== filter_name, :]
-sample_rate = .05
+sample_rate = 1.0
 #name1 = filter_df[1, :name]
 name_list = ["problem-49-7776-pre", "problem-16-22106-pre", "problem-52-64053-pre", "problem-21-11315-pre", "problem-88-64298-pre", "problem-89-110973-pre"]
 name_list = [filter_df[i, :name] for i in [1]]
 
 selected_hs = ["l1"]
-sample_rate0 = .05
+sample_rate0 = 1.0
 plot_parameter = ["objective", "metric", "MSE", "accuracy"]
 param = plot_parameter[1]
 
 MaxEpochs = 0
 MaxTime = 0.0
 if abscissa == "epoch"
-    MaxEpochs = 100
+    MaxEpochs = 1000
     MaxTime = 2e4
 elseif abscissa == "CPU time"
     MaxEpochs = 1000
     MaxTime = 10.0
 end
 
-smooth = false
+smooth = true
 Jac_lop = false
 
 #plot_Sto_LM_BA(sample_rates, versions, name_list, selected_hs; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)

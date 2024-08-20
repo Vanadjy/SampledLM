@@ -3,6 +3,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
     include("plot-configuration.jl")
 
     acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100
+    local atol
 
     for selected_prob in selected_probs
         for selected_h in selected_hs
@@ -21,7 +22,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                     mnist_nlp_test, mnist_nls_test, mnist_sol_test = RegularizedProblems.svm_test_model()
                     A_ijcnn1, b_ijcnn1 = ijcnn1_generate_data_tr()
                     ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
-                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 1, σmin = 1e-5, maxIter = MaxEpochs, maxTime = MaxTime;)
+                    sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, σmin = 1e-5, maxIter = MaxEpochs, maxTime = MaxTime;)
                     subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
 
                     if selected_prob == "ijcnn1"
@@ -58,10 +59,12 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                                                     solver.Hobj_hist[stats.iter+1] = stats.solver_specific[:xi]
                                                     solver.Complex_hist[stats.iter+1] = NLPModels.neval_grad(reg_prob)
                                                     end
-                    RegularizedOptimization.solve!(reg_solver, reg_prob, reg_stats; callback = cb, verbose = 1, ν = 1.0, atol = precision, rtol = precision, σmin = 1e-5, max_iter = MaxEpochs, max_time = MaxTime)
+                    RegularizedOptimization.solve!(reg_solver, reg_prob, reg_stats; callback = cb, verbose = 10, ν = 1.0, atol = precision, rtol = precision, σmin = 1e-5, max_iter = MaxEpochs, max_time = MaxTime)
                     r2_metric_hist = filter(!iszero, reg_solver.Hobj_hist)
                     r2_obj_hist = filter(!iszero, reg_solver.Fobj_hist)
                     r2_numjac_hist = filter(!iszero, reg_solver.Complex_hist)
+
+                    atol = reg_stats.solver_specific[:xi]
 
                     nr2 = reg_stats.iter
                     ngr2 = NLPModels.neval_grad(reg_prob)
@@ -167,7 +170,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                 for sample_rate in sample_rates
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, M = (selected_prob == "mnist" ? 100.0 : 10000.0);)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = (selected_prob == "mnist" ? atol : precision), ϵr = (selected_prob == "mnist" ? 0.0 : precision), verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, M = (selected_prob == "mnist" ? 100.0 : 10000.0);)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -208,13 +211,13 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         ngslms = []
 
                         for k in 1:n_exec
-                            # executes n_exec times Sto_LM with the same inputs
+                            # executes n_exec times PLM with the same inputs
                             x0 = digits[1] * ones(prob.meta.nvar)
                             #p = randperm(prob.meta.nvar)[1:nz]
                             #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
                             reset!(prob)
                             #try
-                            PLM_out = Sto_LM(prob, h, sampled_options; x0 = x0, subsolver_options = subsolver_options)
+                            PLM_out = PLM(prob, h, sampled_options; x0 = x0, subsolver_options = subsolver_options)
                             push!(SLM_outs, PLM_out)
                             push!(slm_trains, residual(prob, PLM_out.solution))
                             push!(nslms, length(prob.epoch_counter)-1)
@@ -259,10 +262,10 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                             end
                         end
 
-                        Prob_LM_out = SLM_outs[origin_ind]
-                        slmtrain = residual(prob, Prob_LM_out.solution)
+                        PLM_out = SLM_outs[origin_ind]
+                        slmtrain = residual(prob, PLM_out.solution)
                         if prob_name == "mnist-train-ls"
-                            slmtest = residual(mnist_nls_test, Prob_LM_out.solution)
+                            slmtest = residual(mnist_nls_test, PLM_out.solution)
                             @show acc(slmtrain), acc(slmtest)
                         end
                         #nplm = neval_residual(sampled_nls_tr)
@@ -271,7 +274,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         ngslm = ngslms[origin_ind]
                         save_object("ngslm-mnist-PLM-$(100*sample_rate)%.jld2", ngslm)
                         if prob_name == "mnist-train-ls"
-                            slmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "sto-lm-$(100*sample_rate)%-lhalf-$digits")
+                            slmdec = plot_svm(PLM_out, PLM_out.solution, "sto-lm-$(100*sample_rate)%-lhalf-$digits")
                         end
 
                         med_obj_sto = zeros(axes(Obj_Hists_epochs_sto, 1))
@@ -405,7 +408,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                 for version in versions
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, μmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, M = (selected_prob == "mnist" ? 100.0 : 10000.0);)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, μmin = 1e-5, ϵa = (selected_prob == "mnist" ? atol : precision), ϵr = (selected_prob == "mnist" ? 0.0 : precision), verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, M = (selected_prob == "mnist" ? 100.0 : 10000.0);)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate0)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -453,7 +456,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                             #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
                             reset!(prob)
                             prob.epoch_counter = Int[1]
-                            PLM_out = Prob_LM(prob, h, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version)
+                            PLM_out = PLM(prob, h, sampled_options, version; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0)
                             push!(PLM_outs, PLM_out)
                             push!(plm_trains, residual(prob, PLM_out.solution))
                             push!(nplms, length(prob.epoch_counter))
@@ -494,22 +497,22 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                             end
                         end
 
-                        Prob_LM_out = PLM_outs[origin_ind]
+                        PLM_out = PLM_outs[origin_ind]
 
-                        data_sr_plm = PlotlyJS.scatter(; x = 1:length(Prob_LM_out.solver_specific[:SampleRateHist]), y = Prob_LM_out.solver_specific[:SampleRateHist], mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
+                        data_sr_plm = PlotlyJS.scatter(; x = 1:length(PLM_out.solver_specific[:SampleRateHist]), y = PLM_out.solver_specific[:SampleRateHist], mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
                             color = prob_versions_colors[version], width = 1
                             )
                         )
-                        data_sr_plm_epoch = PlotlyJS.scatter(; x = 1:length(Prob_LM_out.solver_specific[:SampleRateHist][epoch_counters_plm[origin_ind]]), y = Prob_LM_out.solver_specific[:SampleRateHist][epoch_counters_plm[origin_ind]], mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
+                        data_sr_plm_epoch = PlotlyJS.scatter(; x = 1:length(PLM_out.solver_specific[:SampleRateHist][epoch_counters_plm[origin_ind]]), y = PLM_out.solver_specific[:SampleRateHist][epoch_counters_plm[origin_ind]], mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
                             color = prob_versions_colors[version], width = 1
                             )
                         )
                         push!(data_sr_e, data_sr_plm_epoch)
                         push!(data_sr, data_sr_plm)
 
-                        plmtrain = residual(prob, Prob_LM_out.solution)
+                        plmtrain = residual(prob, PLM_out.solution)
                         if prob_name == "mnist-train-ls"
-                            plmtest = residual(mnist_nls_test_sto, Prob_LM_out.solution)
+                            plmtest = residual(mnist_nls_test_sto, PLM_out.solution)
                             @show acc(plmtrain), acc(plmtest)
                         end
                         #nplm = neval_residual(sampled_nls_tr)
@@ -518,7 +521,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         ngplm = ngplms[origin_ind]
                         save_object("ngplm-mnist-PLM-$(prob_versions_names[version]).jld2", ngplm)
                         if prob_name == "mnist-train-ls"
-                            plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$(prob_versions_names[version])-lhalf-$digits")
+                            plmdec = plot_svm(PLM_out, PLM_out.solution, "prob-lm-$(prob_versions_names[version])-lhalf-$digits")
                         end
 
                         med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
@@ -652,12 +655,12 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         temp = hcat([R2_stats.solver_specific[:Fhist][end], R2_stats.solver_specific[:Hhist][end],R2_stats.objective, acc(r2train), acc(r2test), nr2, ngr2, sum(R2_stats.solver_specific[:SubsolverCounter]), R2_stats.elapsed_time],
                             #[LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
                             #[LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
-                            #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
-                            [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+                            #[PLM_out.solver_specific[:ExactFhist][end], PLM_out.solver_specific[:Hhist][end], PLM_out.solver_specific[:ExactFhist][end] + PLM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(PLM_out.solver_specific[:SubsolverCounter]), PLM_out.elapsed_time],
+                            [PLM_out.solver_specific[:Fhist][end], PLM_out.solver_specific[:Hhist][end], PLM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm, sum(PLM_out.solver_specific[:SubsolverCounter]), PLM_out.elapsed_time])
 
                         if smooth
                             temp = hcat(temp,
-                            [SProb_LM_out.objective, 0.0, SProb_LM_out.objective, acc(splmtrain), acc(splmtest), nsplm, ngsplm, sum(SProb_LM_out.solver_specific[:SubsolverCounter]), SProb_LM_out.elapsed_time]
+                            [SPLM_out.objective, 0.0, SPLM_out.objective, acc(splmtrain), acc(splmtest), nsplm, ngsplm, sum(SPLM_out.solver_specific[:SubsolverCounter]), SPLM_out.elapsed_time]
                             )
                         end
 

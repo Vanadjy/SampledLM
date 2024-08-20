@@ -1,7 +1,7 @@
-#export Prob_LM
+#export PLM
 
 """
-    Prob_LM(nls, h, options; kwargs...)
+    PLM(nls, h, options; kwargs...)
 
 A Levenberg-Marquardt method for the problem
 
@@ -17,14 +17,14 @@ At each iteration, a step s is computed as an approximate solution of
 where F(x) and J(x) are the residual and its Jacobian at x, respectively, ψ(s; x) = h(x + s),
 and σ > 0 is a regularization parameter.
 
-In this version of the algorithm, the smooth part of both the objective and the model are estimations as 
-the quantities are sampled ones from the original data of the Problem.
+The smooth part of both the objective and the model are estimations as F ad J are sampled.
 
 ### Arguments
 
-* `nls::AbstractNLSModel`: a smooth nonlinear least-squares problem
+* `nls::SampledADNLSModel`: a smooth nonlinear least-squares problem using AD Backend
 * `h`: a regularizer such as those defined in ProximalOperators
 * `options::ROSolverOptions`: a structure containing algorithmic parameters
+* `version::Int`: integer specifying the sampling strategy
 
 ### Keyword arguments
 
@@ -33,25 +33,27 @@ the quantities are sampled ones from the original data of the Problem.
 * `subsolver`: the procedure used to compute a step (`PG` or `R2`)
 * `subsolver_options::ROSolverOptions`: default options to pass to the subsolver.
 * `selected::AbstractVector{<:Integer}`: list of selected indexes for the sampling 
+* `sample_rate0::Float64`: first sample rate used for the method
 
 ### Return values
+Generic solver statistics including among others
 
 * `xk`: the final iterate
 * `Fobj_hist`: an array with the history of values of the smooth objective
 * `Hobj_hist`: an array with the history of values of the nonsmooth objective
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
-function Prob_LM(
-  nls::SampledNLSModel,
+function PLM(
+  nls::SampledADNLSModel,
   h::H,
-  options::ROSolverOptions;
+  options::ROSolverOptions,
+  version::Int;
   x0::AbstractVector = nls.meta.x0,
   subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
   subsolver = RegularizedOptimization.R2,
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
   selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
   sample_rate0::Float64 = .05,
-  version::Int = 1
 ) where {H}
 
   # initializes epoch counting and progression
@@ -66,8 +68,10 @@ function Prob_LM(
   epoch_limits = [1, 2, 5, 10]
   @assert length(sample_rates_collec) == length(epoch_limits)
   nls.sample_rate = sample_rate0
-  ζk = Int(ceil(nls.sample_rate * nls.nls_meta.nequ))
-  nls.sample = sort(randperm(nls.nls_meta.nequ)[1:ζk])
+
+  nobs = nls.nls_meta.nequ ÷ 2
+  ζk = Int(ceil(nls.sample_rate * nobs))
+  nls.sample = sort(randperm(nobs)[1:ζk])
 
   sample_counter = 1
   change_sample_rate = false
@@ -143,8 +147,6 @@ function Prob_LM(
   buffer = .05
   distance_indic = zero(eltype(xk))
   k = 0
-
-  #X_hist = []
   Fobj_hist = zeros(maxIter * 100)
   exact_Fobj_hist = zeros(maxIter * 100)
   Hobj_hist = zeros(maxIter * 100)
@@ -161,33 +163,39 @@ function Prob_LM(
   if verbose > 0
     #! format: off
     @info @sprintf "%6s %8s %8s %8s %7s %7s %8s %7s %7s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "h(x)" "√ξcp/νcp" "√ξ/ν" "ρ" "σ" "μ" "ν" "‖x‖" "‖s‖" "‖Jₖ‖²" "reg" "rate"
-    #! format: on
   end
 
+  # meta_nls = nls_meta(nls)
+
   #creating required objects
-  Fk = residual(nls, xk)
+  Fk = zeros(eltype(xk), nls.nls_meta.nequ)
+  residual!(nls, xk, Fk)
   Fkn = similar(Fk)
   exact_Fk = zeros(1:m)
 
-  Jk = jac_op_residual(nls, xk)
-
-  fk = dot(Fk, Fk) / 2 #objective estimated without noise
-
   #sampled Jacobian
   ∇fk = similar(xk)
-  exact_∇fk = similar(∇fk)
-  jtprod_residual!(nls, xk, Fk, ∇fk)
-  JdFk = similar(Fk) # temporary storage
+  JdFk = similar(Fk) #temporary storage
   Jt_Fk = similar(∇fk)
   exact_Jt_Fk = similar(∇fk)
 
-  μmax = opnorm(Jk)
+  rows = Vector{Int}(undef, nls.nls_meta.nnzj)
+  cols = Vector{Int}(undef, nls.nls_meta.nnzj)
+  vals = similar(xk, nls.nls_meta.nnzj)
+  jac_structure_residual!(nls.adnls, rows, cols)
+  jac_coord_residual!(nls.adnls, nls.meta.x0, vals)
+  #Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+
+  fk = dot(Fk[1:2*length(nls.sample)], Fk[1:2*length(nls.sample)]) / 2 #objective estimated without noise
+  jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
+
+  #μmax = opnorm(Jk)
+  μmax = norm(vals, 2)
   νcpInv = (1 + θ) * (μmax^2 + μmin)
   νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
 
   s = zero(xk)
   scp = similar(s)
-  exact_scp = similar(scp)
 
   optimal = false
   tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
@@ -196,7 +204,6 @@ function Prob_LM(
   while !(optimal || tired)
     k = k + 1
     elapsed_time = time() - start_time
-    #push!(X_hist, xk)
     Fobj_hist[k] = fk
     Hobj_hist[k] = hk
     Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
@@ -215,10 +222,10 @@ function Prob_LM(
       push!(nls.epoch_counter, k)
       epoch_progress -= 1
     end
-    
+
     # model for the Cauchy-Point decrease
     φcp(d) = begin
-      jtprod_residual!(nls, xk, Fk, Jt_Fk)
+      jtprod_residual!(nls.adnls, rows, cols, vals, Fk, Jt_Fk)
       dot(Fk, Fk) / 2 + dot(Jt_Fk, d)
     end
 
@@ -231,9 +238,10 @@ function Prob_LM(
     # take first proximal gradient step s1 and see if current xk is nearly stationary
     # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
     prox!(scp, ψ, ∇fk, νcp)
+    #replace!(scp, NaN=>0.0)
     ξcp = fk + hk - mkcp(scp) + max(1, abs(fk + hk)) * 10 * eps()  # TODO: isn't mk(s) returned by subsolver?
 
-    #ξcp > 0 || error("Prob_LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
+    #ξcp > 0 || error("LM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
     
     if ξcp ≤ 0
       ξcp = - ξcp
@@ -246,7 +254,7 @@ function Prob_LM(
       ϵ_increment = ϵr * metric
       ϵ += ϵ_increment  # make stopping test absolute and relative
       ϵ_subsolver += ϵ_increment
-      μk = 1 / metric
+      μk = 1e-3 / metric
     end
 
     if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
@@ -255,41 +263,40 @@ function Prob_LM(
       if nls.sample_rate == 1.0
         optimal = true
       else
-        if (length(nls.opt_counter) ≥ 5) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+        if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
           optimal = true
         end
       end
     end
 
-    subsolver_options.ϵa = (length(nls.epoch_counter) ≤ 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric / 10)))
+    subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, ξcp / 10))
 
     #update of σk
     σk = min(max(μk * metric, σmin), σmax)
 
     # TODO: reuse residual computation
     # model for subsequent prox-gradient iterations
-
     φ(d) = begin
-      jprod_residual!(nls, xk, d, JdFk)
+      jprod_residual!(nls.adnls, rows, cols, vals, d, JdFk)
       JdFk .+= Fk
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
     end
 
     ∇φ!(g, d) = begin
-      jprod_residual!(nls, xk, d, JdFk)
+      jprod_residual!(nls.adnls, rows, cols, vals, d, JdFk)
       JdFk .+= Fk
-      jtprod_residual!(nls, xk, JdFk, g)
+      jtprod_residual!(nls.adnls, rows, cols, vals, JdFk, g)
       g .+= σk * d
       return g
     end
 
     mk(d) = begin
-      jprod_residual!(nls, xk, d, JdFk)
+      jprod_residual!(nls.adnls, rows, cols, vals, d, JdFk)
       JdFk .+= Fk
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2 + ψ(d)
     end
   
-    νInv = (1 + θ) * (μmax^2 + σk) # μmax^2 + σk = ||Jmk||² + σk 
+    νInv = (1 + θ) * (μmax^2 + σk) # μmax^2 + σk = ||Jmk||² + σk
     ν = 1 / νInv
     subsolver_options.ν = ν
 
@@ -302,16 +309,17 @@ function Prob_LM(
     subsolver_options.ϵa = ϵa_subsolver
 
     Complex_hist[k] = iter
+
     # additionnal condition on step s
     if norm(s) > β * norm(scp)
-      @info "cauchy step used"
+      println("cauchy step used")
       s .= scp
     end
-    
+
     xkn .= xk .+ s
 
-    Fkn = residual(nls, xkn)
-    fkn = dot(Fkn, Fkn) / 2
+    residual!(nls, xkn, Fkn)
+    fkn = dot(Fkn[1:2*length(nls.sample)], Fkn[1:2*length(nls.sample)]) / 2
     hkn = h(xkn[selected])
     hkn == -Inf && error("nonsmooth term is not proper")
     mks = mk(s)
@@ -327,7 +335,6 @@ function Prob_LM(
 
     Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
     #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
-    Δobj = (Δobj < 0 ? - Δobj : Δobj)
     ρk = Δobj / ξ
 
     #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
@@ -339,25 +346,23 @@ function Prob_LM(
       @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat nls.sample_rate
       #! format: off
     end
-    
+        
     #-- to compute exact quantities --#
     if nls.sample_rate < 1.0
-      nls.sample = 1:nls.nobs
+      nls.sample = collect(1:nobs)
       residual!(nls, xk, exact_Fk)
       exact_fk = dot(exact_Fk, exact_Fk) / 2
 
       exact_φcp(d) = begin
-        jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
+        jtprod_residual!(nls.adnls, rows, cols, vals, exact_Fk, exact_Jt_Fk)
         dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
       end
 
-      jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
-      prox!(exact_scp, ψ, exact_∇fk, νcp)
-      exact_ξcp = exact_fk + hk - exact_φcp(exact_scp) - ψ(exact_scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
+      exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
       exact_metric = sqrt(abs(exact_ξcp * νcpInv))
+      exact_Metric_hist[k] = exact_metric
 
       exact_Fobj_hist[k] = exact_fk
-      exact_Metric_hist[k] = exact_metric
     elseif nls.sample_rate == 1.0
       exact_Fobj_hist[k] = fk
       exact_Metric_hist[k] = metric
@@ -383,9 +388,10 @@ function Prob_LM(
 
     # Version 2: List of predetermined - switch with arbitrary epochs #
     if version == 2
-      if nls.sample_rate < 1.0
+      if nls.sample_rate < sample_rates_collec[end]
         if epoch_count > epoch_limits[sample_counter]
           nls.sample_rate = sample_rates_collec[sample_counter]
+          nls.ba.sample_rate = sample_rates_collec[sample_counter]
           sample_counter += 1
           change_sample_rate = true
         end
@@ -397,8 +403,8 @@ function Prob_LM(
       # ζk = Int(ceil(k / (1e8 * min(1, 1 / μk^4))))
       p = .75
       q = .75
-      ζk = Int(ceil(100 * (log(1 / (1-p)) * max(μk^4, μk^2) + log(1 / (1-q)) * μk^4)))
-      nls.sample_rate = min(1.0, (ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))
+      ζk = Int(ceil((log(1 / (1-p)) * max(μk^4, μk^2) + log(1 / (1-q)) * μk^4)))
+      nls.sample_rate = min(1.0, (ζk / nobs) * (nls.meta.nvar + 1))
       change_sample_rate = true
     end
 
@@ -532,21 +538,23 @@ function Prob_LM(
     end
 
     #changes sample with new sample rate
-    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
+    nls.sample = sort(randperm(nls.nobs)[1:Int(ceil(nls.sample_rate * nls.nobs))])
     if nls.sample_rate == 1.0
-      nls.sample == 1:nls.nls_meta.nequ || error("Sample Error : Sample should be full for 100% sampling")
+      nls.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
     end
 
+    # mandatory updates whenever the sample_rate chages #
     if change_sample_rate
-      # mandatory updates whenever the sample_rate chages #
-      Fk = residual(nls, xk)
+      #display("Went here for epoch_count = $epoch_count and sample_rate = $(nls.sample_rate)")
+      residual!(nls, xk, Fk)
       Fkn = similar(Fk)
       JdFk = similar(Fk)
-      fk = dot(Fk, Fk) / 2
+      fk = dot(Fk[1:2*length(nls.sample)], Fk[1:2*length(nls.sample)]) / 2
+      jac_coord_residual!(nls.adnls, xk, vals)
+      #Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
 
-      Jk = jac_op_residual(nls, xk)
-      jtprod_residual!(nls, xk, Fk, ∇fk)
-      μmax = opnorm(Jk)
+      jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
+      μmax = norm(vals, 2)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
 
       #change_sample_rate = false
@@ -554,9 +562,6 @@ function Prob_LM(
 
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
-      #=μk = max(μk / λ, μmin)
-      μ_dec_count += 1
-      μ_inc_count = 0=#
 
       if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
         μk = max(μk / λ, μmin)
@@ -578,18 +583,17 @@ function Prob_LM(
       if (!change_sample_rate) && (nls.sample_rate == 1.0)
         Fk .= Fkn
       else
-        Fk = residual(nls, xk)
+        residual!(nls, xk, Fk)
       end
-      fk = dot(Fk, Fk) / 2
-
+      fk = dot(Fk[1:2*length(nls.sample)], Fk[1:2*length(nls.sample)]) / 2
       hk = hkn
       shift!(ψ, xk)
+      jac_coord_residual!(nls.adnls, xk, vals)
+      #Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
 
-      # update gradient & Hessian
-      Jk = jac_op_residual(nls, xk)
-      jtprod_residual!(nls, xk, Fk, ∇fk)
+      jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
 
-      μmax = opnorm(Jk)
+      μmax = norm(vals, 2)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
 
       Complex_hist[k] += 1
@@ -605,7 +609,6 @@ function Prob_LM(
     if change_sample_rate
       change_sample_rate = false
     end
-
     tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
   end
 
@@ -636,7 +639,6 @@ function Prob_LM(
   set_residuals!(stats, zero(eltype(xk)), (ξcp ≥ 0 ? sqrt(ξcp * νcpInv) : ξcp))
   set_iter!(stats, k)
   set_time!(stats, elapsed_time)
-  #set_solver_specific!(stats, :Xhist, X_hist)
   set_solver_specific!(stats, :Fhist, Fobj_hist[1:k])
   set_solver_specific!(stats, :ExactFhist, exact_Fobj_hist[1:k])
   set_solver_specific!(stats, :Hhist, Hobj_hist[1:k])

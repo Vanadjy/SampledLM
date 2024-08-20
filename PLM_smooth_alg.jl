@@ -1,30 +1,29 @@
-#export Prob_LM
+#export SPLM
 
 """
-    Prob_LM(nls, h, options; kwargs...)
+    SPLM(nls, options, version; kwargs...)
 
 A Levenberg-Marquardt method for the problem
 
-    min ½ ‖F(x)‖² + h(x)
+    min ½ ‖F(x)‖²
 
-where F: ℝⁿ → ℝᵐ and its Jacobian J are Lipschitz continuous and h: ℝⁿ → ℝ is
-lower semi-continuous, proper and prox-bounded.
+where F: ℝⁿ → ℝᵐ and its Jacobian J are Lipschitz continuous. This method uses different variable 
+ample rate schemes each corresponding to a different number.
 
 At each iteration, a step s is computed as an approximate solution of
 
-    min  ½ ‖J(x) s + F(x)‖² + ½ σ ‖s‖² + ψ(s; x)
+    min  ½ ‖J(x) s + F(x)‖² + ½ σ ‖s‖²
 
-where F(x) and J(x) are the residual and its Jacobian at x, respectively, ψ(s; x) = h(x + s),
+where F(x) and J(x) are the residual and its Jacobian at x, respectively
 and σ > 0 is a regularization parameter.
 
-In this version of the algorithm, the smooth part of both the objective and the model are estimations as 
-the quantities are sampled ones from the original data of the Problem.
+Both the objective and the model are estimations as F ad J are sampled.
 
 ### Arguments
 
 * `nls::AbstractNLSModel`: a smooth nonlinear least-squares problem
-* `h`: a regularizer such as those defined in ProximalOperators
 * `options::ROSolverOptions`: a structure containing algorithmic parameters
+* `version::Int`: integer specifying the sampling strategy
 
 ### Keyword arguments
 
@@ -32,9 +31,11 @@ the quantities are sampled ones from the original data of the Problem.
 * `subsolver_logger::AbstractLogger`: a logger to pass to the subproblem solver
 * `subsolver`: the procedure used to compute a step (`PG` or `R2`)
 * `subsolver_options::ROSolverOptions`: default options to pass to the subsolver.
-* `selected::AbstractVector{<:Integer}`: list of selected indexes for the sampling 
+* `selected::AbstractVector{<:Integer}`: list of selected indexes for the sampling
+* `sample_rate0::Float64`: first sample rate used for the method
 
 ### Return values
+Generic solver statistics including among others
 
 * `xk`: the final iterate
 * `Fobj_hist`: an array with the history of values of the smooth objective
@@ -43,14 +44,14 @@ the quantities are sampled ones from the original data of the Problem.
 """
 function SPLM(
   nls::SampledNLSModel,
-  options::ROSolverOptions;
+  options::ROSolverOptions,
+  version::Int;
   x0::AbstractVector = nls.meta.x0,
   subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
   subsolver = RegularizedOptimization.R2,
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
   selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
   sample_rate0::Float64 = .05,
-  version::Int = 1,
   Jac_lop::Bool = false
 )
 

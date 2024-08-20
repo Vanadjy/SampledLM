@@ -109,9 +109,20 @@ end
 ROSolverOptions(args...; kwargs...) = ROSolverOptions{Float64}(args...; kwargs...)
 
 # ------------------------------------------------------------------------------------------------ #
-# ------------------------------ NEW COUNTERS STRUCTURE ------------------------------------------ #
+# ------------------------------ FLOAT COUNTERS STRUCTURE ---------------------------------------- #
 # ------------------------------------------------------------------------------------------------ #
 
+"""
+    NLSGeneralCounters
+
+Struct for storing the number of function evaluations as floats for allowing weited countering (for SampledNLSModels for instance).
+
+---
+
+    NLSGeneralCounters()
+
+Creates an instance of empty NLSGeneralCounters struct.
+"""
 mutable struct NLSGeneralCounters
   counters::Counters
   neval_residual::Float64
@@ -134,7 +145,7 @@ function Base.getproperty(c::NLSGeneralCounters, f::Symbol)
       getfield(c, f)
     end
 end
-  
+
 function Base.setproperty!(c::NLSGeneralCounters, f::Symbol, x)
     if f in fieldnames(Counters)
       setfield!(c.counters, f, x)
@@ -152,6 +163,45 @@ function NLPModels.sum_counters(c::NLSGeneralCounters)
     return s
 end
 
+"""
+    SampledNLSModel
+
+Struct for NLS Models with additionnal tools for allowing sampled operations on the residuals and the Jacobian products
+
+---
+
+    SampledNLSModel{T, S, R, J, Jt}(
+      r::R,
+      jv::J,
+      jtv::Jt,
+      nequ::Int,
+      x::S,
+      sample::AbstractVector{<:Integer},
+      data_mem::AbstractVector{<:Integer},
+      sample_rate::Real;
+      kwargs...,
+  )
+
+Creates an instance of SampledNLSModel struct.
+
+### Arguments
+
+* `meta::NLPModelMeta{T, S}`: metadata related to general NLP Models structure 
+* `nls_meta::NLSMeta{T, S}`: metadata related to nonlinear least squares structure
+* `counters::NLSGeneralCounters`: counter structure allowing float countering
+* `r::Function`: Function computing sampled residuals
+* `jv::Function`: Function computing sampled Jacobian product
+* `jtv::Function`: Function computing sampled transposed Jacobian product
+* `sample::AbstractVector{<:Integer}`: Current sample of the model
+* `data_mem::AbstractVector{<:Integer}`: Memorized indexes for the current epoch
+* `sample_rate::Real`: Current sample rate of the model
+
+### Keyword Arguments
+See NLPModels.jl
+
+### Return values
+* `nls::SampledNLSModel`: An instance of a nonlinear least squares structure allowing sampled operations
+"""
 mutable struct SampledNLSModel{T, S, R, J, Jt} <: AbstractNLSModel{T, S}
   meta::NLPModelMeta{T, S}
   nls_meta::NLSMeta{T, S}
@@ -202,11 +252,14 @@ SampledNLSModel{eltype(S), S, typeof(r), typeof(jv), typeof(jtv)}(
   )
 
   """
-Represent a bundle adjustement problem in the form
+      SampledBAModel
+
+Struct representing a bundle adjustement problem in the form
 
     minimize   ½ ‖F(x)‖²
 
-where `F(x)` is the vector of residuals.
+where `F(x)` is the vector of residuals and operations related to nonlinear least squares can be computed with a sample.
+
 """
 mutable struct SampledBAModel{T, S} <: AbstractNLSModel{T, S}
   # Meta and counters are required in every model
@@ -250,9 +303,9 @@ mutable struct SampledBAModel{T, S} <: AbstractNLSModel{T, S}
 end
 
 """
-    BundleAdjustmentModel(name::AbstractString; T::Type=Float64)
+    BAmodel_sto(name::AbstractString; T::Type=Float64)
 
-Constructor of BundleAdjustmentModel, creates an NLSModel with name `name` from a BundleAdjustment archive with precision `T`.
+Constructor of SampledBAModel, creates a sampled NLSModel with name `name` from a BundleAdjustment archive with precision `T`.
 """
 function BAmodel_sto(name::AbstractString; T::Type = Float64, sample_rate = 1.0)
   filename = get_filename(name)
@@ -317,11 +370,21 @@ function BAmodel_sto(name::AbstractString; T::Type = Float64, sample_rate = 1.0)
   )
 end
 
+"""
+    SampledADNLSModel
+
+Strucure wrapping an ADNLSModel and a SampledBAModel to use Automatic Differentiation backend on sampled Bundle Adjustment problems.
+"""
 mutable struct SampledADNLSModel{T, S, Si} <: AbstractNLSModel{T, S}
   adnls::ADNLSModel{T, S, Si}
   ba::SampledBAModel{T, S}
 end
 
+"""
+    SADNLSModel
+
+Constructor of a SampledADNLSModel taking in arguments an ADNLSModel and a SampledBAModel.
+"""
 function SADNLSModel(adnls::ADNLSModel{T, S, Si}, ba::SampledBAModel{T, S}) where {T, S, Si}
   return SampledADNLSModel(adnls, ba)
 end
@@ -348,33 +411,16 @@ function Base.setproperty!(model::SampledADNLSModel, f::Symbol, x)
   end
 end
 
-function NLPModels.residual(model::SampledADNLSModel, x)
+function NLPModels.residual(model::SampledADNLSModel{T, S}, x::AbstractVector{T}) where {T, S}
   return residual(model.adnls, x)
 end
 
-function NLPModels.residual!(model::SampledADNLSModel, x, Fx)
+function NLPModels.residual!(model::SampledADNLSModel{T, S}, x::AbstractVector{T}, Fx::AbstractVector{T}) where {T, S}
   return residual!(model.adnls, x, Fx)
 end
 
-#=function NLPModels.jprod_residual!(model::SampledADNLSModel, rows::AbstractVector{<:Integer}, cols::AbstractVector{<:Integer}, vals::AbstractVector, v::AbstractVector, Jv::AbstractVector)
-  return jprod_residual!(model.adnls, rows, cols, vals, v, Jv)
-end
 
-function NLPModels.jtprod_residual!(model::SampledADNLSModel, rows::AbstractVector{<:Integer}, cols::AbstractVector{<:Integer}, vals::AbstractVector, v::AbstractVector, Jtv::AbstractVector)
-  return jtprod_residual!(model.adnls, rows, cols, vals, v, Jtv)
-end
-
-function NLPModels.jac_structure_residual!(nls::SampledADNLSModel, rows::AbstractVector{<:Integer}, cols::AbstractVector{<:Integer})
-  return jac_structure_residual!(nls.adnls, rows, cols)
-end
-
-function NLPModels.jac_coord_residual!(nls::SampledADNLSModel, x::AbstractVector, vals::AbstractVector)
-  return jac_coord_residual!(nls.adnls, x, vals)
-end
-
-function NLPModels.jac_op_residual!(nls::SampledADNLSModel, rows::AbstractVector{<:Integer}, cols::AbstractVector{<:Integer}, vals::AbstractVector, Jv::AbstractVector, Jtv::AbstractVector)
-  jac_op_residual!(nls.adnls, rows, cols, vals, Jv, Jtv)
-end=#
+## Residual function adapted to sampled Bundle Adjustment structure ##
 
 function NLPModels.residual!(nls::SampledBAModel, x::AbstractVector, rx::AbstractVector)
   increment!(nls, :neval_residual)
@@ -405,7 +451,6 @@ function residuals!(
   pt2d::AbstractVector,
   sample::AbstractVector,
 )
-  #@info "Length of the current sample = $(length(sample))"
   @simd for i in eachindex(sample)
     cam_index = cam_indices[sample[i]]
     pnt_index = pnt_indices[sample[i]]
@@ -535,6 +580,7 @@ end
     return nls_counters
   end
 
+# Residual function adapted to sampled Bundle Adjustment structure
 function NLPModels.residual!(
     nls::SampledNLSModel, 
     x::AbstractVector, 
@@ -564,7 +610,9 @@ end
 
 include("api-sampled-Jacobian.jl")
 
-## API for SampledBAModel ##
+
+## ------------------------------------ OBSOLETE WITH ADNLS BACKEND ------------------------------------------------ ##
+## ------------------------------------ API for SampledBAModel ------------------------------------------------------##
 
 function NLPModels.jac_structure_residual!(
   nls::SampledBAModel,

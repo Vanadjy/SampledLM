@@ -1,14 +1,14 @@
-#export Sto_LM
+#export PLM
 
 """
-    Sto_LM(nls, h, options; kwargs...)
+    PLM(nls, h, options; kwargs...)
 
 A Levenberg-Marquardt method for the problem
 
     min ½ ‖F(x)‖² + h(x)
 
 where F: ℝⁿ → ℝᵐ and its Jacobian J are Lipschitz continuous and h: ℝⁿ → ℝ is
-lower semi-continuous, proper and prox-bounded.
+lower semi-continuous, proper and prox-bounded. This method exploits a constant sample rate scheme.
 
 At each iteration, a step s is computed as an approximate solution of
 
@@ -17,8 +17,7 @@ At each iteration, a step s is computed as an approximate solution of
 where F(x) and J(x) are the residual and its Jacobian at x, respectively, ψ(s; x) = h(x + s),
 and σ > 0 is a regularization parameter.
 
-In this version of the algorithm, the smooth part of both the objective and the model are estimations as 
-the quantities are sampled ones from the original data of the Problem.
+The smooth part of both the objective and the model are estimations as F ad J are sampled.
 
 ### Arguments
 
@@ -35,13 +34,14 @@ the quantities are sampled ones from the original data of the Problem.
 * `selected::AbstractVector{<:Integer}`: list of selected indexes for the sampling 
 
 ### Return values
+Generic solver statistics including among others
 
 * `xk`: the final iterate
 * `Fobj_hist`: an array with the history of values of the smooth objective
 * `Hobj_hist`: an array with the history of values of the nonsmooth objective
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
-function Sto_LM(
+function PLM(
   nls::SampledNLSModel,
   h::H,
   options::ROSolverOptions;

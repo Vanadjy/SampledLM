@@ -1,13 +1,58 @@
+#export SPLM
+
+"""
+    SPLM(nls, options, version; kwargs...)
+
+A Levenberg-Marquardt method for the problem
+
+    min ½ ‖F(x)‖²
+
+where F: ℝⁿ → ℝᵐ and its Jacobian J are Lipschitz continuous. This method uses different variable 
+ample rate schemes each corresponding to a different number.
+
+At each iteration, a step s is computed as an approximate solution of
+
+    min  ½ ‖J(x) s + F(x)‖² + ½ σ ‖s‖²
+
+where F(x) and J(x) are the residual and its Jacobian at x, respectively
+and σ > 0 is a regularization parameter.
+
+Both the objective and the model are estimations as F ad J are sampled.
+
+### Arguments
+
+* `nls::SampledADNLSModel`: a smooth nonlinear least-squares problem using AD backend
+* `options::ROSolverOptions`: a structure containing algorithmic parameters
+* `version::Int`: integer specifying the sampling strategy
+
+### Keyword arguments
+
+* `x0::AbstractVector`: an initial guess (default: `nls.meta.x0`)
+* `subsolver_logger::AbstractLogger`: a logger to pass to the subproblem solver
+* `subsolver`: the procedure used to compute a step (`PG` or `R2`)
+* `subsolver_options::ROSolverOptions`: default options to pass to the subsolver.
+* `selected::AbstractVector{<:Integer}`: list of selected indexes for the sampling
+* `sample_rate0::Float64`: first sample rate used for the method
+* `Jac_lop::Bool`: indicator to exploit the Jacobian as a LinearOperator 
+
+### Return values
+Generic solver statistics including among others
+
+* `xk`: the final iterate
+* `Fobj_hist`: an array with the history of values of the smooth objective
+* `Hobj_hist`: an array with the history of values of the nonsmooth objective
+* `Complex_hist`: an array with the history of number of inner iterations.
+"""
 function SPLM(
-    nls::SampledBAModel,
-    options::ROSolverOptions;
+    nls::SampledADNLSModel,
+    options::ROSolverOptions,
+    version::Int;
     x0::AbstractVector = nls.meta.x0,
     subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
     subsolver = RegularizedOptimization.R2,
     subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
     selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
     sample_rate0::Float64 = .05,
-    version::Int = 1,
     Jac_lop::Bool = false
   )
   
@@ -104,8 +149,6 @@ function SPLM(
     Fk = residual(nls, xk)
     Fkn = similar(Fk)
     exact_Fk = zeros(1:m)
-  
-    fk = dot(Fk, Fk) / 2 #objective estimated without noise
     
     #sampled Jacobian
     ∇fk = similar(xk)
@@ -113,21 +156,22 @@ function SPLM(
     Jt_Fk = similar(∇fk)
     exact_Jt_Fk = similar(∇fk)
   
-    meta_nls = nls_meta(nls)
-    rows = Vector{Int}(undef, meta_nls.nnzj)
-    cols = Vector{Int}(undef, meta_nls.nnzj)
-    vals = similar(xk, meta_nls.nnzj)
-    jac_structure_residual!(nls, rows, cols)
-    jac_coord_residual!(nls, nls.meta.x0, vals)
-    jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
+    rows = Vector{Int}(undef, nls.nls_meta.nnzj)
+    cols = Vector{Int}(undef, nls.nls_meta.nnzj)
+    vals = similar(xk, nls.nls_meta.nnzj)
+    jac_structure_residual!(nls.adnls, rows, cols)
+    jac_coord_residual!(nls.adnls, nls.meta.x0, vals)
+
+    fk = dot(Fk, Fk) / 2 #objective estimated without noise
+    jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
     qrm_init()
   
     if Jac_lop
-      Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+      Jk = jac_op_residual!(nls.adnls, rows, cols, vals, JdFk, Jt_Fk)
       μmax = opnorm(Jk)
     else
       sparse_sample = sp_sample(rows, nls.sample)
-      μmax = norm(vals)
+      μmax = norm(vals, 2)
     end
   
     νcpInv = (1 + θ) * (μmax^2 + μmin)
@@ -152,9 +196,24 @@ function SPLM(
       else
         push!(TimeHist, elapsed_time)
       end
+
+      #updating the indexes of the sampling
+      epoch_progress += nls.sample_rate
+      if epoch_progress >= 1 #we passed on all the data
+        epoch_count += 1
+        push!(nls.epoch_counter, k)
+        epoch_progress -= 1
+      end
       
       metric = norm(∇fk)
       Metric_hist[k] = metric
+
+      if k == 1
+        ϵ_increment = ϵr * metric
+        ϵ += ϵ_increment  # make stopping test absolute and relative
+        ϵ_subsolver += ϵ_increment
+        μk = 1e-3 / metric
+      end
       
       if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
         # the current xk is approximately first-order stationary
@@ -177,7 +236,7 @@ function SPLM(
       # model for subsequent prox-gradient iterations
   
       mk_smooth(d) = begin
-        jprod_residual!(nls, rows, cols, vals, d, JdFk)
+        jprod_residual!(nls.adnls, rows, cols, vals, d, JdFk)
         JdFk .+= Fk
         return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
       end
@@ -188,29 +247,24 @@ function SPLM(
         Complex_hist[k] = stats.niter
       else
         if nls.sample_rate == 1.0
-          n = meta_nls.nvar
-          rows_qrm = vcat(rows, (meta_nls.nequ+1):(meta_nls.nequ + n))
+          n = nls.meta.nvar
+          rows_qrm = vcat(rows, (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
           cols_qrm = vcat(cols, 1:n)
           vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
 
           @assert length(rows_qrm) == length(cols_qrm)
           @assert length(rows_qrm) == length(vals_qrm)
-          @assert meta_nls.nequ + n ≥ maximum(rows_qrm)
+          @assert nls.nls_meta.nequ + n ≥ maximum(rows_qrm)
           @assert n ≥ maximum(cols_qrm)
 
-          spmat = qrm_spmat_init(meta_nls.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
+          spmat = qrm_spmat_init(nls.nls_meta.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
         else
           n = maximum(cols[sparse_sample])
           m = maximum(rows[sparse_sample])
-          rows_qrm = vcat(rows[sparse_sample], (meta_nls.nequ+1):(meta_nls.nequ + n))
+          rows_qrm = vcat(rows[sparse_sample], (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
           cols_qrm = vcat(cols[sparse_sample], 1:n)
           vals_qrm = vcat(vals[sparse_sample], sqrt(σk) .* ones(n))
-
-          display(nls.sample_rate)
-          display(m)
-          display(n)
-          display(length(Fk))
 
           spmat = qrm_spmat_init(length(Fk) + n, n, rows_qrm, cols_qrm, vals_qrm)
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
@@ -226,7 +280,7 @@ function SPLM(
   
       xkn .= xk .+ s
   
-      Fkn = residual(nls, xkn)
+      residual!(nls, xkn, Fkn)
       fkn = dot(Fkn, Fkn) / 2
       mks = mk_smooth(s)
       Δobj = fk - fkn
@@ -234,7 +288,7 @@ function SPLM(
       ρk = Δobj / ξ
   
       #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
-      μ_stat = ρk < η1 ? "↘" : ((metric ≥ η3 / μk) ? "↗" : "↘")
+      μ_stat = ρk < η1 ? "↘" : ((nls.sample_rate==1.0 && (metric > η2))||(nls.sample_rate<1.0 && (metric ≥ η3 / μk)) ? "↗" : "=")
       #μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
   
       if (verbose > 0) && (k % ptf == 0)
@@ -243,35 +297,27 @@ function SPLM(
         #! format: off
       end
       
-      #-- to compute exact quantities --#
-      #=if nls.sample_rate < 1.0
-        nls.sample = 1:nls.nobs
-        residual!(nls, xk, exact_Fk)
-        exact_fk = dot(exact_Fk, exact_Fk) / 2
-  
-        exact_φcp(d) = begin
-          jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
-          dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
-        end
-  
-        exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(fk + hk)) * 10 * eps()
-        exact_metric = sqrt(abs(exact_ξcp * νcpInv))
-  
-        exact_Fobj_hist[k] = exact_fk
-        exact_Metric_hist[k] = exact_metric
-      elseif nls.sample_rate == 1.0
-        exact_Fobj_hist[k] = fk
-        exact_Metric_hist[k] = metric
-      end=#
-      # -- -- #
-  
-      #updating the indexes of the sampling
-      epoch_progress += nls.sample_rate
-      if epoch_progress >= 1 #we passed on all the data
-        epoch_count += 1
-        push!(nls.epoch_counter, k)
-        epoch_progress -= 1
+    #-- to compute exact quantities --#
+    #=if nls.sample_rate < 1.0
+      nls.sample = collect(1:nobs)
+      residual!(nls, xk, exact_Fk)
+      exact_fk = dot(exact_Fk, exact_Fk) / 2
+
+      exact_φcp(d) = begin
+        jtprod_residual!(nls.adnls, rows, cols, vals, exact_Fk, exact_Jt_Fk)
+        dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
       end
+
+      exact_ξcp = exact_fk + hk - exact_φcp(scp) - ψ(scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
+      exact_metric = sqrt(abs(exact_ξcp * νcpInv))
+      exact_Metric_hist[k] = exact_metric
+
+      exact_Fobj_hist[k] = exact_fk
+    elseif nls.sample_rate == 1.0
+      exact_Fobj_hist[k] = fk
+      exact_Metric_hist[k] = metric
+    end=#
+    # -- -- #
   
       # Version 1: List of predetermined - switch with mobile average #
       if version == 1
@@ -392,8 +438,8 @@ function SPLM(
         fk = dot(Fk, Fk) / 2
   
         #Jk = jac_op_residual(nls, xk)
-        jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
-        jac_coord_residual!(nls, nls.meta.x0, vals)
+        jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
+        jac_coord_residual!(nls.adnls, nls.meta.x0, vals)
         μmax = norm(vals)
         νcpInv = (1 + θ) * (μmax^2 + μmin)
   
@@ -418,8 +464,8 @@ function SPLM(
   
         # update gradient & Hessian
         # Jk = jac_op_residual(nls, xk)
-        jac_coord_residual!(nls, xk, vals)
-        jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
+        jac_coord_residual!(nls.adnls, xk, vals)
+        jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
   
         μmax = norm(vals)
         #μmax = opnorm(Jk)
