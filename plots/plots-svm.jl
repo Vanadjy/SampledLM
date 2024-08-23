@@ -108,10 +108,10 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
                     end
 
-                    #save_object("R2_stats-$selected_prob-$selected_h.jld2", R2_stats)
-                    #save_object("r2_metric_hist-$selected_prob-$selected_h.jld2", r2_metric_hist)
-                    #save_object("r2_obj_hist-$selected_prob-$selected_h.jld2", r2_obj_hist)
-                    #save_object("r2_numjac_hist-$selected_prob-$selected_h.jld2", r2_numjac_hist)
+                    save_object("R2_stats-$selected_prob-$selected_h.jld2", reg_stats)
+                    save_object("r2_metric_hist-$selected_prob-$selected_h.jld2", r2_metric_hist)
+                    save_object("r2_obj_hist-$selected_prob-$selected_h.jld2", r2_obj_hist)
+                    save_object("r2_numjac_hist-$selected_prob-$selected_h.jld2", r2_numjac_hist)
                     #save_object("LM_out-$selected_prob-$selected_h.jld2", LM_out)
                     #save_object("LMTR_out-$selected_prob-$selected_h.jld2", LMTR_out)
 

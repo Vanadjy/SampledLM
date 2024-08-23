@@ -1,7 +1,7 @@
-#export Sto_LM
+#export PLM
 
 """
-    Sto_LM(nls, h, options; kwargs...)
+    PLM(nls, h, options; kwargs...)
 
 A Levenberg-Marquardt method for the problem
 
@@ -41,7 +41,7 @@ the quantities are sampled ones from the original data of the Problem.
 * `Hobj_hist`: an array with the history of values of the nonsmooth objective
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
-function Sto_LM(
+function PLM(
   nls::SampledADNLSModel,
   h::H,
   options::ROSolverOptions;
@@ -361,7 +361,7 @@ function Sto_LM(
     #end
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
-      μk = λ * μk
+      μk = max(λ * μk, μmin)
     end
 
     tired = k ≥ maxIter || elapsed_time > maxTime

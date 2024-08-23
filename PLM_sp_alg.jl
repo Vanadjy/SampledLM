@@ -70,8 +70,10 @@ function PLM(
   nls.sample_rate = sample_rate0
 
   nobs = nls.nls_meta.nequ ÷ 2
-  ζk = Int(ceil(nls.sample_rate * nobs))
-  nls.sample = sort(randperm(nobs)[1:ζk])
+  balance = 10^(ceil(log10(nls.nls_meta.nequ / nls.meta.nvar)))
+  threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # < 1 if more equations than variables
+
+  ζk = Int(ceil(balance))
 
   sample_counter = 1
   change_sample_rate = false
@@ -140,13 +142,14 @@ function PLM(
   local ξ
   local ξ_mem
 
-  μ_inc_count = 0
-  μ_dec_count = 0
-  μ_stab_count = 0
+  count_fail = 0
+  count_big_succ = 0
+  count_succ = 0
   δ_sample = .05
   buffer = .05
-  distance_indic = zero(eltype(xk))
+  dist_succ = zero(eltype(xk))
   k = 0
+  
   Fobj_hist = zeros(maxIter * 100)
   exact_Fobj_hist = zeros(maxIter * 100)
   Hobj_hist = zeros(maxIter * 100)
@@ -183,7 +186,7 @@ function PLM(
   cols = Vector{Int}(undef, nls.nls_meta.nnzj)
   vals = similar(xk, nls.nls_meta.nnzj)
   jac_structure_residual!(nls.adnls, rows, cols)
-  jac_coord_residual!(nls.adnls, nls.meta.x0, vals)
+  jac_coord_residual!(nls.adnls, xk, vals)
   #Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
 
   fk = dot(Fk[1:2*length(nls.sample)], Fk[1:2*length(nls.sample)]) / 2 #objective estimated without noise
@@ -257,16 +260,9 @@ function PLM(
       μk = 1e-3 / metric
     end
 
-    if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
+    if (metric < ϵ) && nls.sample_rate == 1.0 #checks if the optimal condition is satisfied and if all of the data have been visited
       # the current xk is approximately first-order stationary
-      push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
-      if nls.sample_rate == 1.0
-        optimal = true
-      else
-        if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
-          optimal = true
-        end
-      end
+      optimal = true
     end
 
     subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, ξcp / 10))
@@ -475,65 +471,63 @@ function PLM(
     end
 
     if version == 7
-      if (μ_inc_count == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+      if (count_fail == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
         sample_counter = max(0, sample_counter - 1) # sample_counter-1 < length(sample_rates_collec)
         nls.sample_rate = (sample_counter == 0) ? sample_rate0 : sample_rates_collec[sample_counter]
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
-      elseif (μ_dec_count == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+        count_fail = 0
+        count_big_succ = 0
+      elseif (count_big_succ == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
         sample_counter = min(length(sample_rates_collec), sample_counter + 1) # sample_counter + 1 > 0
         nls.sample_rate = sample_rates_collec[sample_counter]
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
+        count_fail = 0
+        count_big_succ = 0
       end
     end
 
     if version == 8
-      if (μ_inc_count == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+      if (count_fail == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
         nls.sample_rate -= δ_sample
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
-      elseif (μ_dec_count == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+        count_fail = 0
+        count_big_succ = 0
+      elseif (count_big_succ == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
         nls.sample_rate += δ_sample
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
+        count_fail = 0
+        count_big_succ = 0
       end
     end
 
     if (version == 9)
-      p = .75
-      q = .75
-      if (μ_inc_count == 1) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
-        ζk = Int(ceil(M * λ^4 * (log(1 / (1-p)) + log(1 / (1-q)))))
+      if (count_fail == 2) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+        ζk *= λ^4
         @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
         nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
-        μ_stab_count = 0
-        distance_indic = zero(eltype(xk))
-      elseif (μ_dec_count == 1) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
-        ζk = Int(ceil(M * λ^(-4) * (log(1 / (1-p)) + log(1 / (1-q)))))
+        count_fail = 0
+        count_big_succ = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
+      elseif (count_big_succ == 2) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+        ζk *= λ^(-4)
         @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
         nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
         change_sample_rate = true
-        μ_inc_count = 0
-        μ_dec_count = 0
-        μ_stab_count = 0
-        distance_indic = zero(eltype(xk))
+        count_fail = 0
+        count_big_succ = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
       end
-      if (nls.sample_rate < sample_rates_collec[end]) && ((distance_indic > (norm(x0) / (1.5 * nls.sample_rate))) || (μ_stab_count > 10)) # if μ did not change for too long, increase the buffer value
+      if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
         @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
         buffer = sample_rates_collec[sample_counter]
         nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
         sample_counter += 1
         change_sample_rate = true
-        μ_stab_count = 0
-        distance_indic = zero(eltype(xk))
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
       end
     end
 
@@ -565,19 +559,19 @@ function PLM(
 
       if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
         μk = max(μk / λ, μmin)
-        μ_dec_count += 1
-        μ_inc_count = 0
-        μ_stab_count = 0
-        distance_indic = zero(eltype(xk))
+        count_big_succ += 1
+        count_fail = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
       elseif (nls.sample_rate == 1.0) && (η2 ≤ ρk < Inf)
         μk = max(μk / λ, μmin)
-        μ_dec_count += 1
-        μ_inc_count = 0
-        μ_stab_count = 0
-        distance_indic = zero(eltype(xk))
+        count_big_succ += 1
+        count_fail = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
       else
-        distance_indic += norm(s)
-        μ_stab_count += 1
+        dist_succ += norm(s)
+        count_succ += 1
       end
 
       if (!change_sample_rate) && (nls.sample_rate == 1.0)
@@ -599,11 +593,11 @@ function PLM(
       Complex_hist[k] += 1
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
-      μk = λ * μk
-      μ_dec_count = 0
-      μ_inc_count += 1
-      μ_stab_count = 0
-      distance_indic = zero(eltype(xk))
+      μk = max(λ * μk, μmin)
+      count_big_succ = 0
+      count_fail += 1
+      count_succ = 0
+      dist_succ = zero(eltype(xk))
     end
 
     if change_sample_rate

@@ -12,12 +12,12 @@ smooth_versions_colors_std = Dict([(1, "rgba(65,105,225, 0.2)"), (2, "rgba(255,2
 line_style_sto = Dict([(1.0, "default"), (.2, "dot"), (.1, "dash"), (.05, "dashdot"), (.01, "solid")])
 line_style_plm = Dict([(2, "default"), (5, "dash"), (6, "dashdot"), (4, "dot"), (7, "dashdot"), (8, "dot"), (9, "solid")])
 
-line_style_sto_pgf = Dict([(1.0, "solid"), (.2, "dashdotted"), (.1, "dashed"), (.05, "dashdotted"), (.01, "densely dashdotdotted")])
+line_style_sto_pgf = Dict([(1.0, "solid"), (.2, "solid"), (.1, "solid"), (.05, "solid"), (.01, "solid")])
 line_style_plm_pgf = Dict([(2, "solid"), (5, "solid"), (6, "solid"), (4, "solid"), (7, "solid"), (8, "solid"), (9, "solid")])
-prob_versions_colors_pgf = Dict([(1, "blue"), (2, "orange"), (3, "yellow"), (4, "pink"), (5, "violet"), (6, "purple"), (7, "magenta"), (8, "teal")])
+prob_versions_colors_pgf = Dict([(1, "blue"), (2, "orange"), (3, "yellow"), (4, "pink"), (5, "violet"), (6, "purple"), (7, "magenta"), (8, "teal"), (9, "teal")])
 color_scheme_pgf = Dict([(1.0, "black"), (.2, "rgb(30,144,255)"), (.05, "red"), (.1, "blue"), (.01, "brown")])
 symbols_cst_pgf = Dict([(1.0, "x"), (.2, "dashdotted"), (.1, "+"), (.05, "star"), (.01, "asterisk")])
-symbols_nd_pgf = Dict([(2, "square"), (5, "triangle"), (6, "diamond"), (4, "halfcircle"), (7, "diamond"), (8, "circle")])
+symbols_nd_pgf = Dict([(2, "square"), (5, "triangle"), (6, "diamond"), (4, "halfcircle"), (7, "o"), (8, "circle"), (9, "diamond")])
 
 Confidence = Dict([("95%", 1.96), ("99%", 2.58)])
 conf = "95%"

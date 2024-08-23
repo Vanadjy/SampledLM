@@ -14,7 +14,7 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
 
     ## ------------------------------------ R2, LM, LMTR ----------------------------------------- ##
 
-    k_R2, R2_out, R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist = load_mnist_r2()
+    R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist = load_mnist_r2()
     LM_out, LMTR_out = load_mnist_lm_lmtr()
     m = mnist_nls.nls_meta.nequ
 
@@ -31,30 +31,30 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
     end
     
     # --------------- MSE DATA -------------------- #
-    data_mse_r2 = PGFPlots.Plots.Linear(1:k_R2, 0.5*(r2_obj_hist)/m, mark="none", style="cyan, dashed", legendentry = "R2")
+    data_mse_r2 = PGFPlots.Plots.Linear(1:length(r2_obj_hist), 0.5*(r2_obj_hist)/m, mark="none", style="cyan, solid", legendentry = "R2")
     data_mse_lm = PGFPlots.Plots.Linear(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, mark="none", style="black, dotted", legendentry = "LM")
-    data_mse_lmtr = PGFPlots.Plots.Linear(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, mark="none", style="black, dashed", legendentry = "LMTR")
+    data_mse_lmtr = PGFPlots.Plots.Linear(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, mark="none", style="black, solid", legendentry = "LMTR")
 
     push!(data_mse, data_mse_r2)#, data_mse_lm, data_mse_lmtr)
 
     # --------------- OBJECTIVE DATA -------------------- #
-    data_obj_r2 = PGFPlots.Plots.Linear(1:length(r2_obj_hist), r2_obj_hist, mark="none", style="cyan, dashed")
+    data_obj_r2 = PGFPlots.Plots.Linear(1:length(r2_obj_hist), r2_obj_hist, mark="none", style="cyan, solid")
     data_obj_lm = PGFPlots.Plots.Linear(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], mark="none", style="black, dotted")
-    data_obj_lmtr = PGFPlots.Plots.Linear(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], mark="none", style="black, dashed")
+    data_obj_lmtr = PGFPlots.Plots.Linear(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], mark="none", style="black, solid")
 
     push!(data_obj, data_obj_r2)#, data_obj_lm, data_obj_lmtr)
 
     # --------------- METRIC DATA -------------------- #
-    data_metr_r2 = PGFPlots.Plots.Linear(1:length(r2_metric_hist), r2_metric_hist, mark="none", style="cyan, dashed")
+    data_metr_r2 = PGFPlots.Plots.Linear(1:length(r2_metric_hist), r2_metric_hist, mark="none", style="cyan, solid")
 
     push!(data_metr, data_metr_r2)
 
     # --------------- NEVAL_F DATA -------------------- #
-    data_neval_f_r2 = PGFPlots.Plots.Linear(1:length(r2_metric_hist), 1:length(r2_metric_hist), mark="none", style="cyan, dashed")
+    data_neval_f_r2 = PGFPlots.Plots.Linear(1:length(r2_metric_hist), 1:length(r2_metric_hist), mark="none", style="cyan, solid")
     push!(data_neval_f, data_neval_f_r2)
 
     # --------------- NEVAL_JAC_DATA -------------------- #
-    data_neval_jac_r2 = PGFPlots.Plots.Linear(1:length(r2_numjac_hist), r2_numjac_hist, mark="none", style="cyan, dashed")
+    data_neval_jac_r2 = PGFPlots.Plots.Linear(1:length(r2_numjac_hist), r2_numjac_hist, mark="none", style="cyan, solid")
     push!(data_neval_jac, data_neval_jac_r2)
 
 
@@ -105,15 +105,18 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
 
             SLM_out = SLM_outs[origin_ind]
             ecs = epoch_counter_slm(length(SLM_out.solver_specific[:NLSGradHist]), sample_rate)
-            
 
             # --------------- NEVAL_F DATA -------------------- #
-            data_neval_f_slm = PGFPlots.Plots.Linear(1:length(SLM_out.solver_specific[:ResidHist][ecs]), SLM_out.solver_specific[:ResidHist][ecs], mark="none", style="cyan, dashed")
-            push!(data_neval_f, data_neval_f_slm)
+            markers_neval_f = vcat(filter(!>=(length(SLM_out.solver_specific[:ResidHist][ecs])), scatter_log), length(SLM_out.solver_specific[:ResidHist][ecs]))
+            data_neval_f_slm = PGFPlots.Plots.Linear(1:length(SLM_out.solver_specific[:ResidHist][ecs]), SLM_out.solver_specific[:ResidHist][ecs], mark="none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
+            markers_neval_f_slm = PGFPlots.Plots.Scatter(markers_neval_f, SLM_out.solver_specific[:ResidHist][ecs][markers_neval_f], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate])", onlyMarks = true, markSize = 1.5)
+            push!(data_neval_f, data_neval_f_slm, markers_neval_f_slm)
 
             # --------------- NEVAL_JAC_DATA -------------------- #
-            data_neval_jac_slm = PGFPlots.Plots.Linear(1:length(SLM_out.solver_specific[:NLSGradHist][ecs]), SLM_out.solver_specific[:NLSGradHist][ecs], mark="none", style="cyan, dashed")
-            push!(data_neval_jac, data_neval_jac_slm)
+            markers_neval_jac = vcat(filter(!>=(length(SLM_out.solver_specific[:NLSGradHist][ecs])), scatter_log), length(SLM_out.solver_specific[:NLSGradHist][ecs]))
+            data_neval_jac_slm = PGFPlots.Plots.Linear(1:length(SLM_out.solver_specific[:NLSGradHist][ecs]), SLM_out.solver_specific[:NLSGradHist][ecs], mark="none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
+            markers_neval_jac_slm = PGFPlots.Plots.Scatter(markers_neval_jac, SLM_out.solver_specific[:NLSGradHist][ecs][markers_neval_jac], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate])", onlyMarks = true, markSize = 1.5)
+            push!(data_neval_jac, data_neval_jac_slm, markers_neval_jac_slm)
         end
 
         ## -------------------------------- DYNAMIC SAMPLE RATE ------------------------------------- ##
@@ -157,19 +160,23 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
             end
 
             PLM_out = PLM_outs[origin_ind]
-            ecp = epoch_counters_plm
+            ecp = epoch_counters_plm[origin_ind]
             adjusted_neval_f = similar(PLM_out.solver_specific[:ResidHist])
-            adjusted_neval_f .= PLM_out.solver_specific[:ResidHist] .- 1:length(PLM_out.solver_specific[:ResidHist])
+            adjusted_neval_f .= PLM_out.solver_specific[:ResidHist] .- collect(1:length(PLM_out.solver_specific[:ResidHist]))
             adjusted_neval_jac = similar(PLM_out.solver_specific[:NLSGradHist])
-            adjusted_neval_jac .= PLM_out.solver_specific[:NLSGradHist] .- (2 .* 1:length(PLM_out.solver_specific[:NLSGradHist]))
+            adjusted_neval_jac .= PLM_out.solver_specific[:NLSGradHist] .- (2 .* collect(1:length(PLM_out.solver_specific[:NLSGradHist])))
 
             # --------------- NEVAL_F DATA -------------------- #
-            data_neval_f_slm = PGFPlots.Plots.Linear(1:length(adjusted_neval_f[ecp]), adjusted_neval_f[ecp], mark="none", style="cyan, dashed")
-            push!(data_neval_f, data_neval_f_slm)
+            markers_neval_f = vcat(filter(!>=(length(adjusted_neval_f[ecp])), scatter_log), length(adjusted_neval_f[ecp]))
+            data_neval_f_slm = PGFPlots.Plots.Linear(1:length(adjusted_neval_f[ecp]), adjusted_neval_f[ecp], mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
+            markers_neval_f_plm = PGFPlots.Plots.Scatter(markers_neval_f, adjusted_neval_f[ecp][markers_neval_f], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version])", onlyMarks = true, markSize = 1.5)
+            push!(data_neval_f, data_neval_f_slm, markers_neval_f_plm)
 
             # --------------- NEVAL_JAC_DATA -------------------- #
-            data_neval_jac_slm = PGFPlots.Plots.Linear(1:length(adjusted_neval_jac[ecp]), adjusted_neval_jac[ecp], mark="none", style="cyan, dashed")
-            push!(data_neval_jac, data_neval_jac_slm)
+            markers_neval_jac = vcat(filter(!>=(length(adjusted_neval_jac[ecp])), scatter_log), length(adjusted_neval_jac[ecp]))
+            data_neval_jac_slm = PGFPlots.Plots.Linear(1:length(adjusted_neval_jac[ecp]), adjusted_neval_jac[ecp], mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
+            markers_neval_jac_plm = PGFPlots.Plots.Scatter(markers_neval_jac, adjusted_neval_jac[ecp][markers_neval_jac], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version])", onlyMarks = true, markSize = 1.5)
+            push!(data_neval_jac, data_neval_jac_slm, markers_neval_jac_plm)
         end
 
     plt_obj = PGFPlots.Axis(
@@ -195,6 +202,22 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
         ymax = 0.6
     )
 
+    plt_neval_f = PGFPlots.Axis(
+        data_neval_f,
+        xlabel="\$ j^{th}\$   epoch",
+        ylabel="\$ j^{th} f \$ Call",
+        ymode="log",
+        xmode="log",
+    )
+
+    plt_neval_jac = PGFPlots.Axis(
+        data_neval_jac,
+        xlabel="\$ j^{th}\$   epoch",
+        ylabel="\$ j^{th} \nabla f \$ Call",
+        ymode="log",
+        xmode="log",
+    )
+
     #display(plt_obj)
     #display(plt_metr)
     #display(plt_mse)
@@ -203,6 +226,8 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
     PGFPlots.save("mnist-exactobj-$digits-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.tikz", plt_obj)
     PGFPlots.save("mnist-metric-$digits-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.tikz", plt_metr)
     PGFPlots.save("mnist-MSE-$digits-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.tikz", plt_mse)
+    PGFPlots.save("mnist-neval_f-$digits-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.tikz", plt_neval_f)
+    PGFPlots.save("mnist-neval_jac-$digits-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.tikz", plt_neval_jac)
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
     end
 end

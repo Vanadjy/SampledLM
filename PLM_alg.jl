@@ -255,16 +255,9 @@ function PLM(
       ϵ = options.ϵa  # ϵa containing the last callback of the first algorithm used to solve the problem
     end
 
-    if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
+    if (metric < ϵ) && nls.sample_rate == 1.0 #checks if the optimal condition is satisfied and if all of the data have been visited
       # the current xk is approximately first-order stationary
-      push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
-      if nls.sample_rate == 1.0
-        optimal = true
-      else
-        if (length(nls.opt_counter) ≥ 5) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
-          optimal = true
-        end
-      end
+      optimal = true
     end
 
     subsolver_options.ϵa = (length(nls.epoch_counter) ≤ 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric / 10)))
@@ -599,7 +592,7 @@ function PLM(
       Complex_hist[k] += 1
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
-      μk = λ * μk
+      μk = max(λ * μk, μmin)
       count_big_succ = 0
       count_fail += 1
       count_succ = 0

@@ -11,19 +11,19 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
         scatter_log = log_scale(MaxEpochs)
 
         for sample_rate in sample_rates
-            med_obj_sto, med_metr_sto, med_mse_sto, std_obj_sto, std_metr_sto, std_mse_sto = load_ijcnn1_sto(sample_rate, selected_h)
+            med_obj_sto, med_metr_sto, med_mse_sto = load_ijcnn1_sto(sample_rate, selected_h)
             legend_mse_slm = PGFPlots.Plots.Linear(1:2, [1e16 for i in 1:2], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", legendentry = "Cst\\_batch=$(Int(sample_rate*100))\\%")
             push!(data_mse, legend_mse_slm)
         end
 
         for version in versions
-            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob = load_ijcnn1_plm(version, selected_h)
+            med_obj_prob, med_metr_prob, med_mse_prob = load_ijcnn1_plm(version, selected_h)
             legend_mse_plm = PGFPlots.Plots.Linear(1:2, [1e16 for i in 1:2], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", legendentry = "$(prob_versions_names[version])")
             push!(data_mse, legend_mse_plm)
         end
 
         for sample_rate in sample_rates
-            med_obj_sto, med_metr_sto, med_mse_sto, std_obj_sto, std_metr_sto, std_mse_sto = load_ijcnn1_sto(sample_rate, selected_h)
+            med_obj_sto, med_metr_sto, med_mse_sto = load_ijcnn1_sto(sample_rate, selected_h)
 
             # --------------- OBJECTIVE DATA -------------------- #
             data_obj_slm = PGFPlots.Plots.Linear(1:length(med_obj_sto), (med_obj_sto), mark = "none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
@@ -115,8 +115,8 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
 
         ## -------------------------------- DYNAMIC SAMPLE RATE ------------------------------------- ##
 
-        for version in versions
-            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob = load_ijcnn1_plm(version, selected_h)
+        for version in versions #plot ND versions of PLM
+            med_obj_prob, med_metr_prob, med_mse_prob = load_ijcnn1_plm(version, selected_h)
             # --------------- OBJECTIVE DATA -------------------- #
 
             data_obj_plm = PGFPlots.Plots.Linear(1:length(med_obj_prob), (med_obj_prob), mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
@@ -207,13 +207,6 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
             push!(data_mse, data_mse_plm, markers_mse_plm)#, data_std_mse_plm)
         end
 
-        #=layout_o = layout_obj("ijcnn1", n_runs)
-        layout_me = layout_metr("ijcnn1", n_runs)
-        layout_ms = layout_mse("ijcnn1", n_runs)
-        plt_obj = PlotlyJS.plot(data_obj, layout_o)
-        plt_metr = PlotlyJS.plot(data_metr, layout_me)
-        plt_mse = PlotlyJS.plot(data_mse, layout_ms)=#
-
         plt_obj = PGFPlots.Axis(
             data_obj,
             xlabel="\$ j^{th}\$   epoch",
@@ -241,16 +234,23 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
         #display(plt_metr)
         #display(plt_mse)
 
-        if isempty(sample_rates)
-            cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\ijcnn1_graphs\PLM_only")
-            PGFPlots.save("ijcnn1-exactobj-plm_only-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_obj)
-            PGFPlots.save("ijcnn1-metric-plm_only-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_metr)
-            PGFPlots.save("ijcnn1-MSE-plm_only-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_mse)
+        if length(sample_rates) == 1
+            if 2 in versions
+                cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\ijcnn1_graphs\PLM_nd")
+                PGFPlots.save("ijcnn1-exactobj-plm_nd-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_obj)
+                PGFPlots.save("ijcnn1-metric-plm_nd-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_metr)
+                PGFPlots.save("ijcnn1-MSE-plm_nd-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_mse)
+            else
+                cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\ijcnn1_graphs\PLM_ad")
+                PGFPlots.save("ijcnn1-exactobj-plm_ad-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_obj)
+                PGFPlots.save("ijcnn1-metric-plm_ad-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_metr)
+                PGFPlots.save("ijcnn1-MSE-plm_ad-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_mse)
+            end
         elseif isempty(versions)
-            cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\ijcnn1_graphs\SLM_only")
-            PGFPlots.save("ijcnn1-exactobj-slm_only-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_obj)
-            PGFPlots.save("ijcnn1-metric-slm_only-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_metr)
-            PGFPlots.save("ijcnn1-MSE-slm_only-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_mse)
+            cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\ijcnn1_graphs\PLM_cst")
+            PGFPlots.save("ijcnn1-exactobj-plm_cst-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_obj)
+            PGFPlots.save("ijcnn1-metric-plm_cst-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_metr)
+            PGFPlots.save("ijcnn1-MSE-plm_cst-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_mse)
         else
             cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\ijcnn1_graphs\SLM_and_PLM")
             PGFPlots.save("ijcnn1-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-$selected_h.tikz", plt_obj)

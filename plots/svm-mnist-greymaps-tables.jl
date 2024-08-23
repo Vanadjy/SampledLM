@@ -1,13 +1,13 @@
-function greymaps_tables_mnist(version, sample_rates, sample_rate0; digits = (1, 7), selected_h = "lhalf", smooth = false)
+function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1, 7), selected_h = "lhalf", smooth = false)
     local mnist, mnist_nls, mnist_nls_sol = RegularizedProblems.svm_train_model()
     local mnist_nlp_test, mnist_nls_test, mnist_sol_test = RegularizedProblems.svm_test_model()
 
-    k_R2, R2_out, R2_stats = load_mnist_r2()
+    R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist = load_mnist_r2()
     LM_out, LMTR_out = load_mnist_lm_lmtr()
 
     acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100
 
-    @info "using R2 to solve with $selected_h"
+    @info " R2 with $selected_h"
     reset!(mnist)
     mnist = LSR1Model(mnist)
     nr2 = NLPModels.neval_obj(mnist)
@@ -17,23 +17,23 @@ function greymaps_tables_mnist(version, sample_rates, sample_rate0; digits = (1,
     @show acc(r2train), acc(r2test)
 
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps\tikz_and_dats")
-    r2dec = plot_svm(R2_stats, R2_stats.solution, "r2-$version-lhalf-$digits")
+    r2dec = plot_svm(R2_stats, R2_stats.solution, "r2-lhalf-$digits")
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
-    @info " using LM to solve with $selected_h"
+    @info " LM with $selected_h"
     lmtrain = residual(mnist_nls, LM_out.solution)
     lmtest = residual(mnist_nls_test, LM_out.solution)
     @show acc(lmtrain), acc(lmtest)
 
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps\tikz_and_dats")
-    lmdec = plot_svm(LM_out, LM_out.solution, "lm-$version-lhalf-$digits")
+    lmdec = plot_svm(LM_out, LM_out.solution, "lm-lhalf-$digits")
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
     #nlm = NLPModels.neval_residual(nls_tr)
     nlm = LM_out.iter
     nglm = NLPModels.neval_jtprod_residual(mnist_nls) + NLPModels.neval_jprod_residual(mnist_nls)
 
-    @info " using LMTR to solve with $selected_h" NormLinf(1.0)
+    @info " LMTR with $selected_h" NormLinf(1.0)
     reset!(mnist_nls)
     lmtrtrain = residual(mnist_nls, LMTR_out.solution)
     lmtrtest = residual(mnist_nls_test, LMTR_out.solution)
@@ -43,78 +43,50 @@ function greymaps_tables_mnist(version, sample_rates, sample_rate0; digits = (1,
     nglmtr = NLPModels.neval_jtprod_residual(mnist_nls) + NLPModels.neval_jprod_residual(mnist_nls)
 
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps\tikz_and_dats")
-    lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-$version-lhalf-$digits")
+    lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-lhalf-$digits")
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
     @info "using PLM to solve with $selected_h"
     local mnist_sto, mnist_nls_sto, mnist_sol = MNIST_train_model_sto(sample_rate0; digits = digits)
     local mnist_nlp_test_sto, mnist_nls_test_sto, mnist_sto_sol_test = MNIST_test_model_sto(sample_rate0; digits = digits)
 
-    med_obj_prob_mnist, med_metr_prob_mnist, med_mse_prob_mnist, std_obj_prob_mnist, std_metr_prob_mnist, std_mse_prob_mnist, PLM_outs, plm_trains, nplm, ngplm = load_mnist_plm(version, selected_h)
+    temp = [R2_stats.solver_specific[:smooth_obj], R2_stats.solver_specific[:nonsmooth_obj], R2_stats.objective, acc(r2train), acc(r2test), nr2, ngr2, R2_stats.iter, R2_stats.elapsed_time]
 
-    if n_exec%2 == 1
-        med_ind = (n_exec ÷ 2) + 1
-    else
-        med_ind = (n_exec ÷ 2)
-    end
-    acc_vec = acc.(plm_trains)
-    sorted_acc_vec = sort(acc_vec)
-    ref_value = sorted_acc_vec[med_ind]
-    origin_ind = 0
-    for i in eachindex(PLM_outs)
-        if acc_vec[i] == ref_value
-            origin_ind = i
-        end
-    end
+    for version in versions
+        med_obj_prob_mnist, med_metr_prob_mnist, med_mse_prob_mnist, std_obj_prob_mnist, std_metr_prob_mnist, std_mse_prob_mnist, PLM_outs, plm_trains, nplm, ngplm = load_mnist_plm(version, selected_h)
 
-    Prob_LM_out = PLM_outs[origin_ind]
-    plmtrain = residual(mnist_nls, Prob_LM_out.solution)
-    plmtest = residual(mnist_nls_test, Prob_LM_out.solution)
-    @show acc(plmtrain), acc(plmtest)
-    #nplm = neval_residual(sampled_nls_tr)
-    #nplm = length(mnist_nls.epoch_counter)
-    #ngplm = (neval_jtprod_residual(mnist_nls) + neval_jprod_residual(mnist_nls))
-
-    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps\tikz_and_dats")
-    plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-lhalf-$digits")
-    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
-
-    temp = hcat([R2_stats.solver_specific[:Fhist][end], R2_stats.solver_specific[:Hhist][end],R2_stats.objective, acc(r2train), acc(r2test), nr2, ngr2, sum(R2_stats.solver_specific[:SubsolverCounter]), R2_stats.elapsed_time],
-    [LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
-    [LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
-    #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
-    [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
-
-    if smooth
-        med_obj_prob_mnist_smooth, med_metr_prob_mnist_smooth, med_mse_prob_mnist_smooth, std_obj_prob_mnist_smooth, std_metr_prob_mnist_smooth, std_mse_prob_mnist_smooth, SPLM_outs, splm_trains, nsplm, ngsplm = load_mnist_splm(version, selected_h)
-
-        @info "using SPLM to solve"
         if n_exec%2 == 1
             med_ind = (n_exec ÷ 2) + 1
         else
             med_ind = (n_exec ÷ 2)
         end
-        acc_vec = acc.(splm_trains)
+        acc_vec = acc.(plm_trains)
         sorted_acc_vec = sort(acc_vec)
         ref_value = sorted_acc_vec[med_ind]
         origin_ind = 0
-        for i in eachindex(SPLM_outs)
+        for i in eachindex(PLM_outs)
             if acc_vec[i] == ref_value
                 origin_ind = i
             end
         end
 
-        SProb_LM_out = SPLM_outs[origin_ind]
-        splmtrain = residual(mnist_nls, SProb_LM_out.solution)
-        splmtest = residual(mnist_nls_test, SProb_LM_out.solution)
-        @show acc(splmtrain), acc(splmtest)
+        Prob_LM_out = PLM_outs[origin_ind]
+        plmtrain = residual(mnist_nls, Prob_LM_out.solution)
+        plmtest = residual(mnist_nls_test, Prob_LM_out.solution)
+        @show acc(plmtrain), acc(plmtest)
         #nplm = neval_residual(sampled_nls_tr)
-        #nsplm = length(mnist_nls.epoch_counter)
-        #ngsplm = (neval_jtprod_residual(mnist_nls) + neval_jprod_residual(mnist_nls))
+        #nplm = length(mnist_nls.epoch_counter)
+        #ngplm = (neval_jtprod_residual(mnist_nls) + neval_jprod_residual(mnist_nls))
 
-        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps")
-        plmdec = plot_svm(SProb_LM_out, SProb_LM_out.solution, "smooth-prob-lm-$version-lhalf-$digits")
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps\tikz_and_dats")
+        plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-lhalf-$digits")
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
+        
+        temp = hcat(temp,
+        #[LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
+        #[LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
+        #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
+        [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm - 2 * Prob_LM_out.iter, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
     end
 
     for sample_rate in sample_rates
@@ -148,13 +120,7 @@ function greymaps_tables_mnist(version, sample_rates, sample_rate0; digits = (1,
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
         temp = hcat(temp,
-        [SLM_out.solver_specific[:ExactFhist][end], SLM_out.solver_specific[:Hhist][end], SLM_out.solver_specific[:ExactFhist][end] + SLM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
-        )
-    end
-
-    if smooth
-        temp = hcat(temp,
-        [SProb_LM_out.objective, 0.0, SProb_LM_out.objective, acc(splmtrain), acc(splmtest), nsplm, ngsplm, sum(SProb_LM_out.solver_specific[:SubsolverCounter]), SProb_LM_out.elapsed_time]
+        [SLM_out.solver_specific[:ExactFhist][end], SLM_out.solver_specific[:Hhist][end], SLM_out.solver_specific[:ExactFhist][end] + SLM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm - 2*SLM_out.iter, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
         )
     end
 
@@ -167,7 +133,7 @@ function greymaps_tables_mnist(version, sample_rates, sample_rate0; digits = (1,
     end
     select!(df, Not(:xt))
     df[!, :x] = T
-    df[!, :Alg] = !smooth ? vcat(["R2", "LM", "LMTR", "PLM-$(prob_versions_names[version])"], ["PLM-$(sample_rate*100)" for sample_rate in sample_rates]) : vcat(["R2", "LM", "LMTR", "PLM-$(prob_versions_names[version])", "SPLM-$(prob_versions_names[version])"], ["PLM-$(sample_rate*100)" for sample_rate in sample_rates])
+    df[!, :Alg] = vcat(["R2"], ["PLM-$(prob_versions_names[version])" for version in versions], ["PLM-$(sample_rate*100)" for sample_rate in sample_rates])
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
         :f => "%10.2f",
@@ -189,7 +155,7 @@ function greymaps_tables_mnist(version, sample_rates, sample_rate0; digits = (1,
         :s => "\$t \$ (s)")
 
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\tables")
-    open("svm-lhalf-$version-$digits.tex", "w") do io
+    open("svm-lhalf-$digits.tex", "w") do io
         SolverBenchmark.pretty_latex_stats(io, df,
             col_formatters=fmt_override,
             hdr_override=hdr_override)

@@ -200,16 +200,9 @@ function SPLM(
       μk = 1 / metric
     end
     
-    if (metric < ϵ) #checks if the optimal condition is satisfied and if all of the data have been visited
+    if (metric < ϵ) && nls.sample_rate == 1.0 #checks if the optimal condition is satisfied and if all of the data have been visited
       # the current xk is approximately first-order stationary
-      push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
-      if nls.sample_rate == 1.0
-        optimal = true
-      else
-        if (length(nls.opt_counter) ≥ 3) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
-          optimal = true
-        end
-      end
+      optimal = true
     end
 
     subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric^2 / 10))
@@ -440,7 +433,7 @@ function SPLM(
       Complex_hist[k] += 1
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
-      μk = λ * μk
+      μk = max(λ * μk, μmin)
     end
 
     if change_sample_rate

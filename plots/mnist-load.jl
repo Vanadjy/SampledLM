@@ -1,14 +1,14 @@
 function load_mnist_r2()
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
-    k_R2 = load_object(raw"k_R2-mnist-lhalf.jld2")
-    R2_out = load_object("R2_out-mnist-lhalf.jld2")
+    #k_R2 = load_object(raw"k_R2-mnist-lhalf.jld2")
+    #R2_out = load_object("R2_out-mnist-lhalf.jld2")
     R2_stats = load_object("R2_stats-mnist-lhalf.jld2")
     r2_metric_hist = load_object("r2_metric_hist-mnist-lhalf.jld2")
     r2_obj_hist = load_object("r2_obj_hist-mnist-lhalf.jld2")
     r2_numjac_hist = load_object("r2_numjac_hist-mnist-lhalf.jld2")
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages\SampledLM")
 
-    return k_R2, R2_out, R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist
+    return R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist
 end
 
 function load_mnist_lm_lmtr()
@@ -35,8 +35,8 @@ function load_mnist_plm(version, selected_h)
     PLM_outs = load_object("PLM_outs-$(prob_versions_names[version])-mnist-$selected_h.jld2")
     plm_trains = load_object("plm_trains-$(prob_versions_names[version])-mnist-$selected_h.jld2")
 
-    nplm = load_object("nplm-mnist-PLM-$version.jld2")
-    ngplm = load_object("ngplm-mnist-PLM-$version.jld2")
+    nplm = load_object("nplm-mnist-PLM-$(prob_versions_names[version]).jld2")
+    ngplm = load_object("ngplm-mnist-PLM-$(prob_versions_names[version]).jld2")
 
     epoch_counters_plm = load_object("epoch_counters_plm-$(prob_versions_names[version])-mnist-$selected_h.jld2")
 
@@ -59,8 +59,8 @@ function load_mnist_splm(version, selected_h)
     SPLM_outs = load_object("SPLM_outs-$(prob_versions_names[version])-mnist-$selected_h.jld2")
     splm_trains = load_object("splm_trains-$(prob_versions_names[version])-mnist-$selected_h.jld2")
 
-    nsplm = load_object("nsplm-mnist-PLM-$version.jld2")
-    ngsplm = load_object("ngsplm-mnist-PLM-$version.jld2")
+    nsplm = load_object("nsplm-mnist-PLM-$(prob_versions_names[version]).jld2")
+    ngsplm = load_object("ngsplm-mnist-PLM-$(prob_versions_names[version]).jld2")
 
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages\SampledLM")
 

@@ -355,7 +355,7 @@ function PLM(
     #end
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
-      μk = λ * μk
+      μk = max(λ * μk, μmin)
     end
 
     tired = k ≥ maxIter || elapsed_time > maxTime

@@ -69,12 +69,22 @@ function get_filename(name::AbstractString)
 
 function sp_sample(rows::AbstractVector{T}, sample::AbstractVector{<:Integer}) where {T}
   sp_sample = Int[]
+  aux = [vcat(2*i-1, 2*i) for i in sample]
+  row_sample = Int[]
+  for elt in aux row_sample = vcat(row_sample, elt) end
   for i in eachindex(rows)
-    if rows[i] in sample
+    if rows[i] in row_sample
       push!(sp_sample, i)
     end
   end
   return sp_sample
+end
+
+function row_sample_bam(sample::AbstractVector{<:Integer})
+  aux = [vcat(2*i-1, 2*i) for i in sample]
+  row_sample_ba = Int[]
+  for elt in aux row_sample_ba = vcat(row_sample_ba, elt) end
+  return row_sample_ba
 end
 
 function formatting_tickvals_10power(v)

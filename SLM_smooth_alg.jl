@@ -23,7 +23,6 @@ the quantities are sampled ones from the original data of the Problem.
 ### Arguments
 
 * `nls::AbstractNLSModel`: a smooth nonlinear least-squares problem
-* `h`: a regularizer such as those defined in ProximalOperators
 * `options::ROSolverOptions`: a structure containing algorithmic parameters
 
 ### Keyword arguments
@@ -41,9 +40,8 @@ the quantities are sampled ones from the original data of the Problem.
 * `Hobj_hist`: an array with the history of values of the nonsmooth objective
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
-function SSLM(
+function SPLM(
   nls::SampledNLSModel,
-  h::H,
   options::ROSolverOptions;
   x0::AbstractVector = nls.meta.x0,
   subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
@@ -51,7 +49,7 @@ function SSLM(
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
   selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
   Jac_lop::Bool = true
-) where {H}
+)
 
   start_time = time()
   elapsed_time = 0.0
@@ -276,7 +274,7 @@ function SSLM(
 
       Complex_hist[k] += 1
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
-      μk = λ * μk
+      μk = max(λ * μk, μmin)
     end
 
     tired = k ≥ maxIter || elapsed_time > maxTime
