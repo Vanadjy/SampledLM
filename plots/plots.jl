@@ -36,7 +36,7 @@ Random.seed!(seed)
 # ---------------- Hyperbolic SVM Models ---------------- #
 
 n_exec = 10
-selected_probs = ["ijcnn1"]
+selected_probs = ["mnist"]
 MaxEpochs = 0
 MaxTime = 0.0
 
@@ -60,10 +60,10 @@ elseif selected_probs == ["mnist"]
     #version = versions[end]
     selected_hs = ["lhalf"]
     ϵ = 1e-4
-    MaxEpochs = 1000
+    MaxEpochs = 500
     MaxTime = 3600.0
-    smooth = false
-    compare = true
+    smooth = true
+    compare = false
 end
 
 abscissas = ["epoch", "CPU time"]

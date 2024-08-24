@@ -279,10 +279,10 @@ function SPLM(
           row_sample_ba = row_sample_bam(nls.sample)
 
           @assert maximum(rows[sparse_sample]) ≤ maximum(row_sample_ba)
-          @assert (length(row_sample_ba) + n) == length(vcat(-Fk[row_sample_ba], zeros(n)))
+          @assert (length(row_sample_ba) + n) == length(vcat(-Fk[1:length(row_sample_ba)], zeros(n)))
 
-          spmat = qrm_spmat_init(length(Fk) + n, n, rows_qrm, cols_qrm, vals_qrm)
-          qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
+          spmat = qrm_spmat_init(length(row_sample_ba) + n, n, rows_qrm, cols_qrm, vals_qrm)
+          qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
         end
         #spmat = qrm_spmat_init(meta_nls.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
         #spmat = qrm_spmat_init(meta_nls.nequ, meta_nls.nvar, rows, cols, vals)
@@ -313,7 +313,7 @@ function SPLM(
       end
       
     #-- to compute exact quantities --#
-    #=if nls.sample_rate < 1.0
+    if nls.sample_rate < 1.0
       nls.sample = collect(1:nobs)
       residual!(nls, xk, exact_Fk)
       exact_fk = dot(exact_Fk, exact_Fk) / 2
@@ -325,7 +325,7 @@ function SPLM(
     elseif nls.sample_rate == 1.0
       exact_Fobj_hist[k] = fk
       exact_Metric_hist[k] = metric
-    end=#
+    end
     # -- -- #
   
       # Version 1: List of predetermined - switch with mobile average #
