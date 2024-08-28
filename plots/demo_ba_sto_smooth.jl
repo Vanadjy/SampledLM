@@ -25,17 +25,17 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
             residual!(sampled_nls_ba, x, Fx)
         end
 
-        #=rows = Vector{Int}(undef, nls.nls_meta.nnzj)
+        rows = Vector{Int}(undef, nls.nls_meta.nnzj)
         cols = Vector{Int}(undef, nls.nls_meta.nnzj)
         vals = ones(Bool, nls.nls_meta.nnzj)
         jac_structure_residual!(nls, rows, cols)
         J = sparse(rows, cols, vals, meta_nls_ba.nequ, meta_nls_ba.nvar)
         
-        jac_back = ADNLPModels.SparseADJacobian(meta_nls_ba.nvar, F!, meta_nls_ba.nequ, nothing, J)=#
-        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\ba\jac_backs")
+        jac_back = ADNLPModels.SparseADJacobian(meta_nls_ba.nvar, F!, meta_nls_ba.nequ, nothing, J)
+        #cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\ba\jac_backs")
         #save_object("jac_back-ba-$(name).jld2", jac_back)
-        jac_back = load_object("jac_back-ba-$(name).jld2")
-        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
+        #jac_back = load_object("jac_back-ba-$(name).jld2")
+        #cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
         adnls = ADNLSModel!(F!, sampled_nls_ba.meta.x0,  meta_nls_ba.nequ, sampled_nls_ba.meta.lvar, sampled_nls_ba.meta.uvar, jacobian_residual_backend = jac_back,
             jacobian_backend = ADNLPModels.EmptyADbackend,
