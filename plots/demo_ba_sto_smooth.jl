@@ -127,7 +127,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
 
         for k in 1:n_runs
             reset!(sampled_nls)
-            #sampled_nls.epoch_counter = Int[1]
+            sampled_nls.epoch_counter = Int[1]
             #io = open("log-ba-$name-$(sample_rate0).txt", "w+")
             #logger = SimpleLogger(io)
             #global_logger(logger)
@@ -151,7 +151,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
 
         if sample_rate0 == 1.0
             save_object("SLM_outs-SLM-ba-$name-$(n_runs)runs-$(sample_rate0*100).jld2", PLM_outs)
-            save_object("slm_obj-SLM-ba-$name-$(n_runs)runs-$(sample_rate*100).jld2", plm_obj)
+            save_object("slm_obj-SLM-ba-$name-$(n_runs)runs-$(sample_rate0*100).jld2", plm_obj)
         else
             save_object("SPLM_outs-SPLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", PLM_outs)
             save_object("splm_obj-SPLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", plm_obj)
@@ -291,8 +291,8 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         filter!(!isnan, std_mse_prob)
 
         if sample_rate0 == 1.0
-            save_object("med_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100).jld2", med_mse_prob)
-            save_object("std_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100).jld2", std_mse_prob)
+            save_object("med_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate0*100).jld2", med_mse_prob)
+            save_object("std_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate0*100).jld2", std_mse_prob)
         else
             save_object("med_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", med_mse_prob)
             save_object("std_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", std_mse_prob)

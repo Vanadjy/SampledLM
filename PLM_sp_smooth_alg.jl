@@ -294,7 +294,6 @@ function SPLM(
           spmat = qrm_spmat_init(nls.nls_meta.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
         else
-          @info "QRMumps at iteration $k"
           n = maximum(cols[sparse_sample])
           m = maximum(rows[sparse_sample])
           #=rows_qrm = vcat(rows[sparse_sample], (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
