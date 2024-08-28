@@ -158,3 +158,12 @@ function epoch_counter_slm(n::Int, τ::Real)
   end
   ecs
 end
+
+function ba_data(name)
+  df = problems_df()
+  filter_df = df[ df.group .== name, :]
+  #name1 = filter_df[1, :name]
+  name_list = ["problem-49-7776-pre", "problem-16-22106-pre", "problem-52-64053-pre", "problem-21-11315-pre", "problem-88-64298-pre", "problem-89-110973-pre"]
+  name_list = [filter_df[i, :name] for i in [1]]
+  return name_list
+end

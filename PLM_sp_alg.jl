@@ -501,7 +501,7 @@ function PLM(
     end
 
     if (version == 9)
-      if (count_fail == 2) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+      if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
         ζk *= λ^4
         @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
         nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
@@ -510,7 +510,7 @@ function PLM(
         count_big_succ = 0
         count_succ = 0
         dist_succ = zero(eltype(xk))
-      elseif (count_big_succ == 2) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+      elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
         ζk *= λ^(-4)
         @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
         nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))

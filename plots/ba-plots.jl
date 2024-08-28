@@ -1,161 +1,68 @@
-function plot_ba(name, sample_rate, version::Int; n_runs = 10, smooth::Bool = false)
+function plot_ba(name, sample_rates, versions; n_runs = 10, smooth::Bool = false)
     include("plot-configuration.jl")
 
-    data_obj = GenericTrace{Dict{Symbol, Any}}[]
-    data_metr = GenericTrace{Dict{Symbol, Any}}[]
-    data_mse = GenericTrace{Dict{Symbol, Any}}[]
+    data_obj = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
+    data_metr = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
+    data_mse = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
 
     ## ---------------------------------------------------------------------------------------------------##
     ## ----------------------------------- CONSTANT SAMPLE RATE ------------------------------------------##
     ## ---------------------------------------------------------------------------------------------------##
 
-    #=SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate; n_runs = n_runs)
+    for sample_rate in sample_rates
+        SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate)
 
-    # --------------- OBJECTIVE DATA -------------------- #
-    data_obj_slm = PlotlyJS.scatter(; x = 1:length(med_obj_sto), y = med_obj_sto, mode="lines", name = "SLM - $(prob_versions_names[version])", line=attr(
-        color = prob_versions_colors[version], width = 1
-        )
-    )
+        # --------------- OBJECTIVE DATA -------------------- #
+        markers_obj = vcat(filter(!>=(length(med_obj_sto)), scatter_log), length(med_obj_sto))
+        data_obj_slm = PGFPlots.Plots.Linear(1:length(med_obj_sto), med_obj_sto, mark="none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
+        markers_obj_slm = PGFPlots.Plots.Scatter(markers_obj, med_obj_sto[markers_obj], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate])", onlyMarks = true, markSize = 1.5)
 
-    data_std_obj_slm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_sto), length(med_obj_sto):-1:1), y = vcat(med_obj_sto + std_obj_sto, reverse!(med_obj_sto - std_obj_sto)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-    fillcolor = prob_versions_colors_std[version],
-    line_color = "transparent",
-    showlegend = false
-    )
+        push!(data_obj, data_obj_slm, markers_obj_slm)#, data_std_obj_slm)
 
-    push!(data_obj, data_obj_slm, data_std_obj_slm)
+        # --------------- METRIC DATA -------------------- #
+        markers_metr = vcat(filter(!>=(length(med_metr_sto)), scatter_log), length(med_metr_sto))
+        data_metr_slm = PGFPlots.Plots.Linear(1:length(med_metr_sto), med_metr_sto, mark="none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
+        markers_metr_slm = PGFPlots.Plots.Scatter(markers_metr, med_metr_sto[markers_metr], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate])", onlyMarks = true, markSize = 1.5)
 
-    # --------------- METRIC DATA -------------------- #
+        push!(data_metr, data_metr_slm, markers_metr_slm)#, data_std_metr_slm)
+        
+        # --------------- MSE DATA -------------------- #
+        markers_mse = vcat(filter(!>=(length(med_mse_sto)), scatter_log), length(med_mse_sto))
+        data_mse_slm = PGFPlots.Plots.Linear(1:length(med_mse_sto), med_mse_sto, mark="none", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])")
+        markers_mse_slm = PGFPlots.Plots.Scatter(markers_mse, med_mse_sto[markers_mse], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate])", onlyMarks = true, markSize = 1.5)
 
-    data_metr_slm = PlotlyJS.scatter(; x = 1:length(med_metr_sto), y = med_metr_sto, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-    color = prob_versions_colors[version], width = 1
-    )
-    )
-
-    data_std_metr_slm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_sto), length(med_metr_sto):-1:1), y = vcat(med_metr_sto + std_metr_sto, reverse!(med_metr_sto - std_metr_sto)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-    fillcolor = prob_versions_colors_std[version],
-    line_color = "transparent",
-    showlegend = false
-    )
-
-    push!(data_metr, data_metr_slm, data_std_metr_slm)
-
-    # --------------- MSE DATA -------------------- #
-
-    data_mse_slm = PlotlyJS.scatter(; x = 1:length(med_mse_sto), y = med_mse_sto, mode="lines", name = "SLM - $(prob_versions_names[version])", line=attr(
-    color = prob_versions_colors[version], width = 1
-    )
-    )
-
-    data_std_mse_slm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_sto), length(med_mse_sto):-1:1), y = vcat(med_mse_sto + std_mse_sto, reverse!(med_mse_sto - std_mse_sto)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-    fillcolor = prob_versions_colors_std[version],
-    line_color = "transparent",
-    showlegend = false
-    )
-
-    push!(data_mse, data_mse_slm, data_std_mse_slm)=#
+        push!(data_mse, data_mse_slm, markers_mse_slm)#, data_std_mse_slm)
+    end
 
     ## ---------------------------------------------------------------------------------------------------##
     ## ----------------------------------- DYNAMIC SAMPLE RATE -------------------------------------------##
     ## ---------------------------------------------------------------------------------------------------##
 
-    PLM_outs, plm_obj, med_obj_prob, std_obj_prob, med_metr_prob, std_metr_prob, med_mse_prob, std_mse_prob, nplm, ngplm = load_ba_plm(name, version; n_runs = n_runs)
-
-    # --------------- OBJECTIVE DATA -------------------- #
-    data_obj_plm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-        color = prob_versions_colors[version], width = 1
-        )
-    )
-
-    data_std_obj_plm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-    fillcolor = prob_versions_colors_std[version],
-    line_color = "transparent",
-    showlegend = false
-    )
-
-    push!(data_obj, data_obj_plm, data_std_obj_plm)
-
-    # --------------- METRIC DATA -------------------- #
-
-    data_metr_plm = PlotlyJS.scatter(; x = 1:length(med_metr_prob), y = med_metr_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-    color = prob_versions_colors[version], width = 1
-    )
-    )
-
-    data_std_metr_plm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse!(med_metr_prob - std_metr_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-    fillcolor = prob_versions_colors_std[version],
-    line_color = "transparent",
-    showlegend = false
-    )
-
-    push!(data_metr, data_metr_plm, data_std_metr_plm)
-
-    # --------------- MSE DATA -------------------- #
-
-    data_mse_plm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines", name = "PLM - $(prob_versions_names[version])", line=attr(
-    color = prob_versions_colors[version], width = 1
-    )
-    )
-
-    data_std_mse_plm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines", name = "PLM - $(prob_versions_names[version])", fill="tozerox",
-    fillcolor = prob_versions_colors_std[version],
-    line_color = "transparent",
-    showlegend = false
-    )
-
-    push!(data_mse, data_mse_plm, data_std_mse_plm)
-
-    ## ---------------------------------------------------------------------------------------------------##
-    ## -------------------------------------- SMOOTH VERSIONS --------------------------------------------##
-    ## ---------------------------------------------------------------------------------------------------##
-
-    if smooth
+    for version in versions
+        SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version)
         # --------------- OBJECTIVE DATA -------------------- #
-        data_obj_splm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
-                            color = smooth_versions_colors[version], width = 1
-                            )
-                        )
+        markers_obj = vcat(filter(!>=(length(med_obj_prob_smooth)), scatter_log), length(med_obj_prob_smooth))
+        data_obj_plm = PGFPlots.Plots.Linear(1:length(med_obj_prob_smooth), med_obj_prob_smooth, mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
+        markers_obj_plm = PGFPlots.Plots.Scatter(markers_obj, med_obj_prob_smooth[markers_obj], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version])", onlyMarks = true, markSize = 1.5)
 
-        data_std_obj_splm = PlotlyJS.scatter(; x = vcat(1:length(med_obj_prob), length(med_obj_prob):-1:1), y = vcat(med_obj_prob + std_obj_prob, reverse!(med_obj_prob - std_obj_prob)), mode="lines", name = "SPLM - $(prob_versions_names[version])", fill="tozerox",
-            fillcolor = smooth_versions_colors_std[version],
-            line_color = "transparent",
-            showlegend = false
-        )
-
-        push!(data_obj, data_obj_splm, data_std_obj_splm)
+        push!(data_obj, data_obj_plm, markers_obj_plm)#, data_std_obj_plm)
 
         # --------------- METRIC DATA -------------------- #
+        markers_metr = vcat(filter(!>=(length(med_metr_prob_smooth)), scatter_log), length(med_metr_prob_smooth))
+        data_metr_plm = PGFPlots.Plots.Linear(1:length(med_metr_prob_smooth), med_metr_prob_smooth, mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
+        markers_metr_plm = PGFPlots.Plots.Scatter(markers_metr, med_metr_prob_smooth[markers_metr], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version])", onlyMarks = true, markSize = 1.5)
 
-        data_metr_splm = PlotlyJS.scatter(; x = 1:length(med_metr_prob), y = med_metr_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
-            color = smooth_versions_colors[version], width = 1
-            )
-        )
-
-        data_std_metr_splm = PlotlyJS.scatter(; x = vcat(1:length(med_metr_prob), length(med_metr_prob):-1:1), y = vcat(med_metr_prob + std_metr_prob, reverse!(med_metr_prob - std_metr_prob)), mode="lines", name = "SPLM - $(prob_versions_names[version])", fill="tozerox",
-            fillcolor = smooth_versions_colors_std[version],
-            line_color = "transparent",
-            showlegend = false
-        )
-
-        push!(data_metr, data_metr_splm, data_std_metr_splm)
+        push!(data_metr, data_metr_plm, markers_metr_plm)#, data_std_metr_plm)
         
         # --------------- MSE DATA -------------------- #
+        markers_metr = vcat(filter(!>=(length(med_mse_prob_smooth)), scatter_log), length(med_mse_prob_smooth))
+        data_mse_plm = PGFPlots.Plots.Linear(1:length(med_mse_prob_smooth), med_mse_prob_smooth, mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
+        markers_mse_plm = PGFPlots.Plots.Scatter(markers_metr, med_mse_prob_smooth[markers_metr], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version])", onlyMarks = true, markSize = 1.5)
 
-        data_mse_splm = PlotlyJS.scatter(; x = 1:length(med_mse_prob), y = med_mse_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
-            color = smooth_versions_colors[version], width = 1
-            )
-        )
-
-        data_std_mse_splm = PlotlyJS.scatter(; x = vcat(1:length(med_mse_prob), length(med_mse_prob):-1:1), y = vcat(med_mse_prob + std_mse_prob, reverse!(med_mse_prob - std_mse_prob)), mode="lines", name = "SPLM - $(prob_versions_names[version])", fill="tozerox",
-            fillcolor = smooth_versions_colors_std[version],
-            line_color = "transparent",
-            showlegend = false
-        )
-
-        push!(data_mse, data_mse_splm, data_std_mse_splm)
+        push!(data_mse, data_mse_plm, markers_mse_plm)#, data_std_mse_plm)
     end
 
-    layout_obj, layout_metr, layout_mse = layout(name_list[1], n_runs, "l1")
+    layout_obj, layout_metr, layout_mse = layout(name_list[1], n_runs, "smooth")
     plt_obj = PlotlyJS.plot(data_obj, layout_obj)
     plt_metr = PlotlyJS.plot(data_metr, layout_metr)
     plt_mse = PlotlyJS.plot(data_mse, layout_mse)
@@ -164,7 +71,7 @@ function plot_ba(name, sample_rate, version::Int; n_runs = 10, smooth::Bool = fa
     display(plt_metr)
     display(plt_mse)
 
-    PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
-    PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
-    PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-l1.pdf"; format = "pdf")
+    PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
+    PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
+    PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
 end

@@ -80,7 +80,7 @@ function PLM(
   elapsed_time = 0.0
 
   # initialize passed options
-  ϵ = options.ϵr
+  ϵ = options.ϵa
   ϵ_subsolver = subsolver_options.ϵa
   ϵr = options.ϵr
   verbose = options.verbose
@@ -99,6 +99,7 @@ function PLM(
   σmax = options.σmax
   μmin = options.μmin
   metric = options.metric
+  ξ0 = options.ξ0
   balance = 10^(ceil(log10(nls.nls_meta.nequ / nls.meta.nvar)))
   threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # < 1 if more equations than variables
 
@@ -248,11 +249,10 @@ function PLM(
     Metric_hist[k] = metric
 
     if ξcp ≥ 0 && k == 1
-      ϵ_increment = ϵr * metric
+      ϵ_increment = (ξ0 ≤ 10 * eps(eltype(xk))) ? ϵr * metric : ϵr * ξ0
       ϵ += ϵ_increment  # make stopping test absolute and relative
       ϵ_subsolver += ϵ_increment
       μk = 1 / metric
-      ϵ = options.ϵa  # ϵa containing the last callback of the first algorithm used to solve the problem
     end
 
     if (metric < ϵ) && nls.sample_rate == 1.0 #checks if the optimal condition is satisfied and if all of the data have been visited
@@ -498,7 +498,7 @@ function PLM(
     end
 
     if (version == 9)
-      if (count_fail == 2) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+      if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
         ζk *= λ^4
         @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
         nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
@@ -507,7 +507,7 @@ function PLM(
         count_big_succ = 0
         count_succ = 0
         dist_succ = zero(eltype(xk))
-      elseif (count_big_succ == 2) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+      elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
         ζk *= λ^(-4)
         @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
         nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))

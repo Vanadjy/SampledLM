@@ -3,6 +3,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
     include("plot-configuration.jl")
 
     acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100
+    ξ0 = eps(Float64)
 
     for selected_prob in selected_probs
         for digits in selected_digits
@@ -14,8 +15,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
             bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound)
             mnist_full, mnist_nls_full, mnist_nls_sol = RegularizedProblems.svm_train_model()
             mnist_nlp_test, mnist_nls_test, mnist_sol_test = RegularizedProblems.svm_test_model()
-            A_ijcnn1, b_ijcnn1 = ijcnn1_generate_data_tr()
-            ijcnn1_full, ijcnn1_nls_full = RegularizedProblems.svm_model(A_ijcnn1', b_ijcnn1)
+            ijcnn1_full, ijcnn1_nls_full, ijcnn1_sol = ijcnn1_train_model()
             sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, σmin = 1e-5, maxIter = MaxEpochs, maxTime = MaxTime;)
             subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
 
@@ -31,106 +31,64 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
             m = prob_nls.nls_meta.nequ
             l_bound = prob.meta.lvar
             u_bound = prob.meta.uvar
+            h = NormL1(0.0)
 
-            #=λ = .1
-            if selected_h == "l0"
-                h = NormL0(λ)
-            elseif selected_h == "l1"
-                h = NormL1(λ)
-            elseif selected_h == "lhalf"
-                h = RootNormLhalf(λ)
-            elseif selected_h == "smooth"
-                h = NormL1(0.0)
-            end=#
             if compare
                 @info "using R2"
                 reset!(prob)
-                xk_R2, k_R2, R2_out = JSOSolvers.R2(prob.f, prob.∇f!, sampled_options_full, x0)
-                prob = LSR1Model(prob)
-                R2_stats = JSOSolvers.R2(prob, sampled_options_full, x0 = x0)
-                nr2 = NLPModels.neval_obj(prob)
-                ngr2 = NLPModels.neval_grad(prob)
-                r2train = residual(prob_nls, R2_stats.solution) #||e - tanh(b * <A, x>)||^2, b ∈ {-1,1}^n
+                reg_prob = RegularizedNLPModel(prob, h)
+                reg_stats = GenericExecutionStats(reg_prob.model)
+                reg_solver = RegularizedOptimization.R2Solver(x0, sampled_options_full, l_bound, u_bound; ψ = shifted(h, x0))
+                cb = (nlp, solver, stats) -> begin
+                                                solver.Fobj_hist[stats.iter+1] = stats.solver_specific[:smooth_obj] + stats.solver_specific[:nonsmooth_obj]
+                                                solver.Hobj_hist[stats.iter+1] = stats.solver_specific[:xi]
+                                                solver.Complex_hist[stats.iter+1] = NLPModels.neval_grad(reg_prob)
+                                                end
+                RegularizedOptimization.solve!(reg_solver, reg_prob, reg_stats; callback = cb, verbose = 10, ν = 1.0, atol = precision, rtol = precision, σmin = 1e-5, max_iter = MaxEpochs, max_time = MaxTime)
+                r2_metric_hist = filter(!iszero, reg_solver.Hobj_hist)
+                r2_obj_hist = filter(!iszero, reg_solver.Fobj_hist)
+                r2_numjac_hist = filter(!iszero, reg_solver.Complex_hist)
+
+                ξ0 = r2_metric_hist[1]
+
+                nr2 = reg_stats.iter
+                ngr2 = NLPModels.neval_grad(reg_prob)
+                r2train = residual(prob_nls, reg_stats.solution) #||e - tanh(b * <A, x>)||^2, b ∈ {-1,1}^n
                 if selected_prob == "mnist"
-                    r2test = residual(mnist_nls_test, R2_stats.solution)
+                    r2test = residual(mnist_nls_test, reg_stats.solution)
                     @show acc(r2train), acc(r2test)
                 end
-                r2dec = plot_svm(R2_stats, R2_stats.solution, "r2-lhalf-$digits")
 
-                @info " using LM"
-                LM_out = LM(prob_nls, h, sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
-                lmtrain = residual(prob_nls, LM_out.solution)
-                if selected_prob == "mnist"
-                    lmtest = residual(mnist_nls_test, LM_out.solution)
-                    @show acc(lmtrain), acc(lmtest)
-                end
-                lmdec = plot_svm(LM_out, LM_out.solution, "lm-lhalf-$digits")
-                #nlm = NLPModels.neval_residual(nls_tr)
-                nlm = LM_out.iter
-                nglm = NLPModels.neval_jtprod_residual(prob_nls) + NLPModels.neval_jprod_residual(prob_nls)
+                r2dec = plot_svm(reg_stats, reg_stats.solution, "r2-lhalf-$digits")
 
-                if (h == NormL0(λ)) || (h == RootNormLhalf(λ))
-                    @info " using LMTR" NormLinf(1.0)
-                    reset!(prob_nls)
-                    LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormLinf(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
-                    lmtrtrain = residual(prob_nls, LMTR_out.solution)
-                    if selected_prob == "mnist"
-                        lmtrtest = residual(mnist_nls_test, LMTR_out.solution)
-                        @show acc(lmtrtrain), acc(lmtrtest)
-                    end
-                    #nlmtr = NLPModels.neval_residual(nls_tr)
-                    nlmtr = LMTR_out.iter
-                    nglmtr = NLPModels.neval_jtprod_residual(prob_nls) + NLPModels.neval_jprod_residual(prob_nls)
-                    lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-lhalf-$digits")
-                elseif h == NormL1(λ)
-                    LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
-                elseif h == NormL1(0.0)
-                    LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
-                end
+                save_object("smooth-R2_stats-$selected_prob.jld2", reg_stats)
 
-                save_object("smooth-k_R2-$selected_prob.jld2", k_R2)
-                save_object("smooth-R2_out-$selected_prob.jld2", R2_out)
-                save_object("smooth-R2_stats-$selected_prob.jld2", R2_stats)
-                save_object("smooth-LM_out-$selected_prob.jld2", LM_out)
-                save_object("smooth-LMTR_out-$selected_prob.jld2", LMTR_out)
+                    # --------------- OBJECTIVE DATA -------------------- #
 
-                # --------------- OBJECTIVE DATA -------------------- #
-
-                data_obj_r2 = PlotlyJS.scatter(; x = 1:k_R2 , y = R2_out[:Fhist] + R2_out[:Hhist], mode="lines", name = "R2", line=attr(
-                    color="rgb(220,20,60)", dash = "dashdot", width = 1
-                    )
-                )
-
-                data_obj_lm = PlotlyJS.scatter(; x = 1:length(LM_out.solver_specific[:Fhist]) , y = LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], mode="lines", name = "LM", line=attr(
-                    color="rgb(255,165,0)", dash = "dot", width = 1
-                    )
-                )
-                
-                data_obj_lmtr = PlotlyJS.scatter(; x = 1:length(LMTR_out.solver_specific[:Fhist]) , y = LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], mode="lines", name = "LMTR", line=attr(
-                        color="black", dash = "dash", width = 1
+                    data_obj_r2 = PlotlyJS.scatter(; x = 1:length(r2_obj_hist) , y = r2_obj_hist, mode="lines", name = "R2", line=attr(
+                        color="rgb(220,20,60)", dash = "dashdot", width = 1
                         )
-                )
-
-                push!(data_obj, data_obj_r2, data_obj_lm, data_obj_lmtr)
-                
-                # --------------- MSE DATA -------------------- #
-
-                data_mse_r2 = PlotlyJS.scatter(; x = 1:k_R2 , y = 0.5*(R2_out[:Fhist] + R2_out[:Hhist])/m, mode="lines", name = "R2", line=attr(
-                    color="rgb(220,20,60)", dash = "dashdot", width = 1
                     )
-                )
 
-                data_mse_lm = PlotlyJS.scatter(; x = 1:length(LM_out.solver_specific[:Fhist]) , y = 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, mode="lines", name = "LM", line=attr(
-                    color="rgb(255,165,0)", dash = "dot", width = 1
-                    )
-                )
-                
-                data_mse_lmtr = PlotlyJS.scatter(; x = 1:length(LMTR_out.solver_specific[:Fhist]) , y = 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, mode="lines", name = "LMTR", line=attr(
-                        color="black", dash = "dash", width = 1
+                    push!(data_obj, data_obj_r2)
+
+                    # --------------- METRIC DATA -------------------- #
+
+                    data_metr_r2 = PlotlyJS.scatter(; x = 1:length(r2_metric_hist) , y = r2_metric_hist, mode="lines", name = "R2", line=attr(
+                        color="rgb(220,20,60)", dash = "dashdot", width = 1
                         )
-                )
+                    )
 
-                push!(data_mse, data_mse_r2, data_mse_lm, data_mse_lmtr)
+                    push!(data_metr, data_metr_r2)
+                    
+                    # --------------- MSE DATA -------------------- #
+
+                    data_mse_r2 = PlotlyJS.scatter(; x = 1:length(r2_obj_hist) , y = 0.5*(r2_obj_hist)/m, mode="lines", name = "R2", line=attr(
+                        color="rgb(220,20,60)", dash = "dashdot", width = 1
+                        )
+                    )
+
+                    push!(data_mse, data_mse_r2)
             end
 
 
@@ -143,7 +101,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
             for sample_rate in sample_rates
                 nz = 10 * compound
                 #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, ξ0 = ξ0;)
                 local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                 local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
                 #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -377,7 +335,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
             for version in versions
                 nz = 10 * compound
                 #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, μmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+                sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, μmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, ξ0 = ξ0;)
                 local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                 local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate0)
                 #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -599,7 +557,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
 
                     prob.epoch_counter = Int[1]
 
-                    if compare
+                    #=if compare
                         temp = hcat([reg_stats.solver_specific[:Fhist][end], reg_stats.solver_specific[:Hhist][end],reg_stats.objective, acc(r2train), acc(r2test), nr2, ngr2, sum(reg_stats.solver_specific[:SubsolverCounter]), reg_stats.elapsed_time],
                             [LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
                             [LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
@@ -640,7 +598,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                                 col_formatters=fmt_override,
                                 hdr_override=hdr_override)
                         end
-                    end
+                    end=#
                 end
             end
             if selected_prob == "ijcnn1"

@@ -1,5 +1,9 @@
 function load_mnist_r2()
-    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+    if selected_h == "smooth"
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\smooth_jld2")
+    else
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+    end
     #k_R2 = load_object(raw"k_R2-mnist-lhalf.jld2")
     #R2_out = load_object("R2_out-mnist-lhalf.jld2")
     R2_stats = load_object("R2_stats-mnist-lhalf.jld2")
@@ -12,7 +16,11 @@ function load_mnist_r2()
 end
 
 function load_mnist_lm_lmtr()
-    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+    if selected_h == "smooth"
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\smooth_jld2")
+    else
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+    end
     LM_out = load_object("LM_out-mnist-lhalf.jld2")
     LMTR_out = load_object("LMTR_out-mnist-lhalf.jld2")
 
@@ -22,7 +30,11 @@ function load_mnist_lm_lmtr()
 end
 
 function load_mnist_plm(version, selected_h)
-    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+    if selected_h == "smooth"
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\smooth_jld2")
+    else
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+    end
 
     med_obj_prob_mnist = load_object("med_obj_prob-$(prob_versions_names[version])-mnist-$selected_h.jld2")
     med_metr_prob_mnist = load_object("med_metr_prob-$(prob_versions_names[version])-mnist-$selected_h.jld2")
@@ -46,7 +58,11 @@ function load_mnist_plm(version, selected_h)
 end
 
 function load_mnist_splm(version, selected_h)
-    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+    if selected_h == "smooth"
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\smooth_jld2")
+    else
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+    end
 
     med_obj_prob_mnist_smooth = load_object("med_obj_prob_smooth-$(prob_versions_names[version])-mnist-$selected_h.jld2")
     med_metr_prob_mnist_smooth = load_object("med_metr_prob_smooth-$(prob_versions_names[version])-mnist-$selected_h.jld2")
@@ -68,7 +84,11 @@ function load_mnist_splm(version, selected_h)
 end
 
 function load_mnist_sto(sample_rate, selected_h)
-    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+    if selected_h == "smooth"
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\smooth_jld2")
+    else
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+    end
 
     med_obj_sto_mnist = load_object("med_obj_sto-$(sample_rate*100)-mnist-train-ls-$selected_h.jld2")
     med_metr_sto_mnist = load_object("med_metr_sto-$(sample_rate*100)-mnist-$selected_h.jld2")

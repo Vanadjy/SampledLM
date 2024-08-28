@@ -419,15 +419,10 @@ function SPLM(
       end
       fk = dot(Fk, Fk) / 2
 
-      # update gradient & Hessian
-      # Jk = jac_op_residual(nls, xk)
-      #jac_coord_residual!(nls, xk, vals)
-      #rows, cols, vals = jac_residual(nls)
       Jk = jac_op_residual(nls, xk)
       jtprod_residual!(nls, xk, Fk, ∇fk)
 
       μmax = opnorm(Jk)
-      #μmax = opnorm(Jk)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
 
       Complex_hist[k] += 1
@@ -441,6 +436,7 @@ function SPLM(
     end
 
     tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
+    @info "finished iteration $k"
   end
 
   if verbose > 0

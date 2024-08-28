@@ -2,7 +2,7 @@
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "9155a43d3bed82a05b161f456aee0e7f0105333f"
+project_hash = "7302b3ce721efc343892729dde6f32150b142a5c"
 
 [[deps.ADNLPModels]]
 deps = ["ADTypes", "ForwardDiff", "LinearAlgebra", "NLPModels", "Requires", "ReverseDiff", "SparseArrays", "SparseConnectivityTracer", "SparseMatrixColorings"]
@@ -1699,6 +1699,12 @@ git-tree-sha1 = "e237232771fdafbae3db5c31275303e056afaa9f"
 uuid = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
 version = "2.10.1"
 
+[[deps.QuadraticModels]]
+deps = ["LinearAlgebra", "LinearOperators", "NLPModels", "NLPModelsModifiers", "Requires", "SolverCore", "SparseArrays", "SparseMatricesCOO"]
+git-tree-sha1 = "66a8a58ec582cc755265ac1e072f3a508e9c2b21"
+uuid = "f468eda6-eac5-11e8-05a5-ff9e497bcd19"
+version = "0.9.7"
+
 [[deps.Quaternions]]
 deps = ["LinearAlgebra", "Random", "RealDot"]
 git-tree-sha1 = "994cc27cdacca10e68feb291673ec3a76aa2fae9"
@@ -1926,6 +1932,12 @@ deps = ["ADTypes", "DocStringExtensions", "FillArrays", "LinearAlgebra", "NNlib"
 git-tree-sha1 = "1c2c4fe587a804116d409d8964efda83dfa156ab"
 uuid = "9f842d2f-2579-4b1d-911e-f412cf18a3f5"
 version = "0.6.2"
+
+[[deps.SparseMatricesCOO]]
+deps = ["LinearAlgebra", "SparseArrays", "Test", "UnicodePlots"]
+git-tree-sha1 = "b5ca894173efe08725d376063cccb5fa2bcb7a5a"
+uuid = "fa32481b-f100-4b48-8dc8-c62f61b13870"
+version = "0.2.3"
 
 [[deps.SparseMatrixColorings]]
 deps = ["ADTypes", "Compat", "DataStructures", "DocStringExtensions", "LinearAlgebra", "Random", "SparseArrays"]

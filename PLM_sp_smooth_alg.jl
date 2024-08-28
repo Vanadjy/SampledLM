@@ -1,6 +1,34 @@
 #export SPLM
 
 """
+    SPLM(
+    nls::SampledADNLSModel,
+    options::ROSolverOptions,
+    version::Int;
+    x0::AbstractVector = nls.meta.x0,
+    subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
+    subsolver = RegularizedOptimization.R2,
+    subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
+    selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
+    sample_rate0::Float64 = .05,
+    Jac_lop::Bool = true
+  )
+
+
+    SPLM(
+    nls::SampledADNLSModel,
+    options::ROSolverOptions,
+    version::Int;
+    x0::AbstractVector = nls.meta.x0,
+    subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
+    subsolver = RegularizedOptimization.R2,
+    subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
+    selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
+    sample_rate0::Float64 = .05,
+    Jac_lop::Bool = true
+  )
+
+
     SPLM(nls, options, version; kwargs...)
 
 A Levenberg-Marquardt method for the problem
@@ -53,7 +81,7 @@ function SPLM(
     subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
     selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
     sample_rate0::Float64 = .05,
-    Jac_lop::Bool = false
+    Jac_lop::Bool = true
   )
   
     # initializes epoch counting and progression
@@ -73,7 +101,7 @@ function SPLM(
     balance = 10^(ceil(log10(nls.nls_meta.nequ / nls.meta.nvar)))
     threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # < 1 if more equations than variables
 
-    ζk = Int(ceil(balance))
+    ζk = Int((balance))
     #nls.sample = sort(randperm(nls.nls_meta.nequ)[1:ζk])
   
     sample_counter = 1
@@ -269,20 +297,20 @@ function SPLM(
           @info "QRMumps at iteration $k"
           n = maximum(cols[sparse_sample])
           m = maximum(rows[sparse_sample])
-          rows_qrm = vcat(rows[sparse_sample], (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
+          #=rows_qrm = vcat(rows[sparse_sample], (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
           cols_qrm = vcat(cols[sparse_sample], 1:n)
-          vals_qrm = vcat(vals[sparse_sample], sqrt(σk) .* ones(n))
-          #=rows_qrm = vcat(rows, (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
+          vals_qrm = vcat(vals[sparse_sample], sqrt(σk) .* ones(n))=#
+          rows_qrm = vcat(rows, (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
           cols_qrm = vcat(cols, 1:n)
-          vals_qrm = vcat(vals, sqrt(σk) .* ones(n))=#
+          vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
 
           row_sample_ba = row_sample_bam(nls.sample)
 
-          @assert maximum(rows[sparse_sample]) ≤ maximum(row_sample_ba)
-          @assert (length(row_sample_ba) + n) == length(vcat(-Fk[1:length(row_sample_ba)], zeros(n)))
+          @assert m ≤ maximum(row_sample_ba)
+          @assert (m + n) == length(vcat(-Fk[1:m], zeros(n)))
 
-          spmat = qrm_spmat_init(length(row_sample_ba) + n, n, rows_qrm, cols_qrm, vals_qrm)
-          qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
+          spmat = qrm_spmat_init(m + n, n, rows_qrm, cols_qrm, vals_qrm)
+          qrm_least_squares!(spmat, vcat(-Fk[1:m], zeros(n)), s)
         end
         #spmat = qrm_spmat_init(meta_nls.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
         #spmat = qrm_spmat_init(meta_nls.nequ, meta_nls.nvar, rows, cols, vals)
@@ -463,19 +491,20 @@ function SPLM(
       end
   
       if (version == 9)
-        if (count_fail == 2) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
-          ζk *= λ^4
+        if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased twice in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+          #=ζk *= λ^4
           @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-          nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
+          nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))=#
+          nls.sample_rate = min(1.0, max(nls.sample_rate * 2, buffer))
           change_sample_rate = true
           count_fail = 0
           count_big_succ = 0
           count_succ = 0
           dist_succ = zero(eltype(xk))
-        elseif (count_big_succ == 2) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
-          ζk *= λ^(-4)
-          @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-          nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
+        elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased twice in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+          #ζk *= λ^(-4)
+          #@info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
+          nls.sample_rate = min(1.0, max(nls.sample_rate / 2, buffer))
           change_sample_rate = true
           count_fail = 0
           count_big_succ = 0
@@ -494,7 +523,7 @@ function SPLM(
       end
   
       #changes sample with new sample rate
-      nls.sample = sort(randperm(nobs)[1:Int(ceil(sample_rate * nobs))])
+      nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
       sparse_sample = sp_sample(rows, nls.sample)
       if nls.sample_rate == 1.0
         nls.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
@@ -521,7 +550,7 @@ function SPLM(
       if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
         xk .= xkn
   
-        if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
+        if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step for 
           μk = max(μk / λ, μmin)
           count_big_succ += 1
           count_fail = 0
@@ -533,6 +562,9 @@ function SPLM(
           count_fail = 0
           count_succ = 0
           dist_succ = zero(eltype(xk))
+        else
+          dist_succ += norm(s)
+          count_succ += 1
         end
   
         if (!change_sample_rate) && (nls.sample_rate == 1.0)

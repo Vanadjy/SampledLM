@@ -1,16 +1,16 @@
-function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 6, suffix::String = "dubrovnik-h1", compare::Bool = false, smooth::Bool = false, Jac_lop::Bool = true)
+function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_runs::Int = 1, MaxEpochs::Int = 20, MaxTime = 3600.0, version::Int = 1, suffix::String = "dubrovnik-h1", Jac_lop::Bool = true)
     temp_PLM = []
     temp_PLM_smooth = []
     temp_LM = []
     temp_LMTR = []
 
     camera_settings = Dict(
-        "problem-16-22106-pre" => attr(center = attr(x = 0.2072211130691765, y = -0.10068338752805728, z = -0.048807925112545746), eye = attr(x = 0.16748022386771697, y = -0.3957357535725894, z = 0.5547492387721914), up = attr(x = 0, y = 0, z = 1)),
-        "problem-88-64298-pre" => attr(center = attr(x = -0.0021615530883736145, y = -0.030543602186994832, z = -0.028300153803163062), eye = attr(x = 0.6199398252619821, y = -0.4431229879708768, z = 0.3694699626625795), up = attr(x = -0.13087330856114893, y = 0.5787247595812629, z = 0.8049533090520641)),
-        "problem-52-64053-pre" => attr(center = attr(x = 0.2060347573851926, y = -0.22421275022169654, z = -0.05597905955228791), eye = attr(x = 0.2065816892336426, y = -0.3978440066064094, z = 0.6414786827075296), up = attr(x = 0, y = 0, z = 1)),
-        "problem-89-110973-pre" => attr(center = attr(x = -0.1674117968407976, y = -0.1429803633607516, z = 0.01606765828188431), eye = attr(x = 0.1427370965379074, y = -0.19278139431870447, z = 0.7245395074933954), up = attr(x = 0.02575289497167061, y = 0.9979331596959415, z = 0.05887441872199366)),
-        "problem-21-11315-pre" => attr(center = attr(x = 0, y = 0, z = 1), eye = attr(x = 1.25, y = 1.25, z = 1.2), up = attr(x = 0, y = 0, z = 0)),
-        "problem-49-7776-pre" => attr(center = attr(x = 0.12011665286185144, y = 0.2437548728183421, z = 0.6340730201867651), eye = attr(x = 0.14156235059481262, y = 0.49561706850854814, z = 0.48335380789220556), up = attr(x = 0.9853593274726773, y = 0.01757909714618111, z = 0.169581753458674))
+        "problem-16-22106-pre" => attr(center = attr(x = -0.00020325635111987706, y = -0.11306200606736602, z = 0.033161420134634856), eye = attr(x = 0.3739093733537299, y = -0.4056038526945577, z = 0.5100004866202379), up = attr(x = 0.11632703501712824, y = 0.8846666814500118, z = 0.45147855281989546)),
+        #"problem-88-64298-pre" => attr(center = attr(x = -0.0021615530883736145, y = -0.030543602186994832, z = -0.028300153803163062), eye = attr(x = 0.6199398252619821, y = -0.4431229879708768, z = 0.3694699626625795), up = attr(x = -0.13087330856114893, y = 0.5787247595812629, z = 0.8049533090520641)),
+        #"problem-52-64053-pre" => attr(center = attr(x = 0.2060347573851926, y = -0.22421275022169654, z = -0.05597905955228791), eye = attr(x = 0.2065816892336426, y = -0.3978440066064094, z = 0.6414786827075296), up = attr(x = 0, y = 0, z = 1)),
+        #"problem-89-110973-pre" => attr(center = attr(x = -0.1674117968407976, y = -0.1429803633607516, z = 0.01606765828188431), eye = attr(x = 0.1427370965379074, y = -0.19278139431870447, z = 0.7245395074933954), up = attr(x = 0.02575289497167061, y = 0.9979331596959415, z = 0.05887441872199366)),
+        #"problem-21-11315-pre" => attr(center = attr(x = 0, y = 0, z = 1), eye = attr(x = 1.25, y = 1.25, z = 1.2), up = attr(x = 0, y = 0, z = 0)),
+        #"problem-49-7776-pre" => attr(center = attr(x = 0.12011665286185144, y = 0.2437548728183421, z = 0.6340730201867651), eye = attr(x = 0.14156235059481262, y = 0.49561706850854814, z = 0.48335380789220556), up = attr(x = 0.9853593274726773, y = 0.01757909714618111, z = 0.169581753458674))
     )
 
     include("plot-configuration.jl")
@@ -68,6 +68,43 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate = 1.0, sample
             options=Dict(:showLink => true)
         )
 
+        layout = Layout(scene = attr(
+            xaxis = attr(
+                backgroundcolor="rgb(255, 255, 255)",
+                title_text = "",
+                gridcolor="white",
+                showbackground=false,
+                zerolinecolor="white",
+                tickfont=attr(size=0, color="white")),
+            yaxis = attr(
+                backgroundcolor="rgb(255, 255, 255)",
+                title_text = "",
+                gridcolor="white",
+                showbackground=false,
+                zerolinecolor="white",
+                tickfont=attr(size=0, color="white")),
+            zaxis = attr(
+                backgroundcolor="rgb(255, 255, 255)",
+                title_text = "",
+                gridcolor="white",
+                showbackground=false,
+                zerolinecolor="white",
+                tickfont=attr(size=0, color="white")),
+                margin=attr(
+                    r=10, l=10,
+                    b=10, t=10),
+                aspectmode = "manual",
+                showlegend = false
+                ),
+                scene_camera = camera_settings[name]
+        )
+
+        #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
+        fig_ba0 = PlotlyJS.Plot(plt3d0, layout)#; config = options)
+        display(fig_ba0)
+        #println("Press enter")
+        #n = readline()
+
         data_obj = GenericTrace{Dict{Symbol, Any}}[]
         data_metr = GenericTrace{Dict{Symbol, Any}}[]
         data_mse = GenericTrace{Dict{Symbol, Any}}[]
@@ -77,7 +114,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate = 1.0, sample
 
         sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-8, ϵr = 1e-8, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)    
 
-        @info "using SPLM"
+        @info "using SPLM at starting rate: $(sample_rate0*100)%"
 
         PLM_outs = []
         plm_obj = []
@@ -90,8 +127,13 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate = 1.0, sample
 
         for k in 1:n_runs
             reset!(sampled_nls)
-            sampled_nls.epoch_counter = Int[1]
+            #sampled_nls.epoch_counter = Int[1]
+            #io = open("log-ba-$name-$(sample_rate0).txt", "w+")
+            #logger = SimpleLogger(io)
+            #global_logger(logger)
             Prob_LM_out_k = SPLM(sampled_nls, sampled_options, version; x0=guess_0, subsolver_options = suboptions, sample_rate0 = sample_rate0, Jac_lop = Jac_lop)
+            #close(io)
+
             push!(PLM_outs, Prob_LM_out_k)
             push!(plm_obj, Prob_LM_out_k.objective)
             push!(nplms, length(sampled_nls.epoch_counter))
@@ -107,8 +149,13 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate = 1.0, sample
             @views Metr_Hists_epochs_prob[:, k][1:length(sampled_nls.epoch_counter)] = Prob_LM_out_k.solver_specific[:ExactMetricHist][sampled_nls.epoch_counter]
         end
 
-        save_object("SPLM_outs-SPLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", PLM_outs)
-        save_object("splm_obj-SPLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", plm_obj)
+        if sample_rate0 == 1.0
+            save_object("SLM_outs-SLM-ba-$name-$(n_runs)runs-$(sample_rate0*100).jld2", PLM_outs)
+            save_object("slm_obj-SLM-ba-$name-$(n_runs)runs-$(sample_rate*100).jld2", plm_obj)
+        else
+            save_object("SPLM_outs-SPLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", PLM_outs)
+            save_object("splm_obj-SPLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2", plm_obj)
+        end
 
         if n_runs%2 == 1
             med_ind = (n_runs ÷ 2) + 1
@@ -145,54 +192,24 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate = 1.0, sample
             type="scatter3d",
             options=Dict(:showLink => true)
         )
+    
         
-        layout = Layout(scene = attr(
-            xaxis = attr(
-                backgroundcolor="rgb(255, 255, 255)",
-                title_text = "",
-                gridcolor="white",
-                showbackground=false,
-                zerolinecolor="white",
-                tickfont=attr(size=0, color="white")),
-            yaxis = attr(
-                backgroundcolor="rgb(255, 255, 255)",
-                title_text = "",
-                gridcolor="white",
-                showbackground=false,
-                zerolinecolor="white",
-                tickfont=attr(size=0, color="white")),
-            zaxis = attr(
-                backgroundcolor="rgb(255, 255, 255)",
-                title_text = "",
-                gridcolor="white",
-                showbackground=false,
-                zerolinecolor="white",
-                tickfont=attr(size=0, color="white")),
-                margin=attr(
-                    r=10, l=10,
-                    b=10, t=10),
-                aspectmode = "manual",
-                showlegend = false
-                ),
-                scene_camera = camera_settings[name]
-        )
-        
-        #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showlink = true)
-        fig_ba = PlotlyJS.Plot(plt3d, layout)#; config = options)
-        fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
+        fig_ba = PlotlyJS.Plot(plt3d, layout)
         display(fig_ba)
-        display(fig_ba0)
-        PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
-        PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
-
-        #println("Press enter")
-        #n = readline()
+        #PlotlyJS.savefig(fig_ba, "ba-$name-3D-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
+        #PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
 
         #nplm = neval_residual(sampled_nls)
         nsplm = length(sampled_nls.epoch_counter)
-        save_object("nsplm-SPLM-ba-$name-$version.jld2", nsplm)
         ngsplm = Prob_LM_out.solver_specific[:NLSGradHist][end]
-        save_object("ngsplm-SPLM-ba-$name-$version.jld2", ngsplm)
+
+        if sample_rate0 == 1.0
+            save_object("nslm-SLM-ba-$name-$(sample_rate0*100).jld2", nsplm)
+            save_object("ngslm-SLM-ba-$name-$(sample_rate0*100).jld2", ngsplm)
+        else
+            save_object("nsplm-SPLM-ba-$name-$version.jld2", nsplm)
+            save_object("ngsplm-SPLM-ba-$name-$version.jld2", ngsplm)
+        end
 
         med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
         std_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))
@@ -221,8 +238,13 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate = 1.0, sample
         std_obj_prob *= Confidence[conf]
         filter!(!isnan, std_obj_prob)
 
-        save_object("med_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", med_obj_prob)
-        save_object("std_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", std_obj_prob)
+        if sample_rate0 == 1.0
+            save_object("med_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate0*100).jld2", med_obj_prob)
+            save_object("std_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate0*100).jld2", std_obj_prob)
+        else
+            save_object("med_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", med_obj_prob)
+            save_object("std_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", std_obj_prob)
+        end
 
         # compute median of metric #
         for l in eachindex(med_metr_prob)
@@ -242,8 +264,13 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate = 1.0, sample
         std_metr_prob *= Confidence[conf]
         filter!(!isnan, std_metr_prob)
 
-        save_object("med_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", med_metr_prob)
-        save_object("std_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", std_metr_prob)
+        if sample_rate0 == 1.0
+            save_object("med_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate0*100).jld2", med_metr_prob)
+            save_object("std_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate0*100).jld2", std_metr_prob)
+        else
+            save_object("med_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", med_metr_prob)
+            save_object("std_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", std_metr_prob)
+        end
         
         # compute median of MSE #
         for l in eachindex(med_mse_prob)
@@ -263,8 +290,13 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate = 1.0, sample
         std_mse_prob *= Confidence[conf]
         filter!(!isnan, std_mse_prob)
 
-        save_object("med_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", med_mse_prob)
-        save_object("std_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", std_mse_prob)
+        if sample_rate0 == 1.0
+            save_object("med_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100).jld2", med_mse_prob)
+            save_object("std_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100).jld2", std_mse_prob)
+        else
+            save_object("med_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", med_mse_prob)
+            save_object("std_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2", std_mse_prob)
+        end
 
         # --------------- OBJECTIVE DATA -------------------- #
         data_obj_splm = PlotlyJS.scatter(; x = 1:length(med_obj_prob), y = med_obj_prob, mode="lines", name = "SPLM - $(prob_versions_names[version])", line=attr(
@@ -317,7 +349,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate = 1.0, sample
             temp_PLM_smooth = hcat(temp_PLM_smooth, [Prob_LM_out.solver_specific[:Fhist][end], 0.0, Prob_LM_out.objective, nsplm, ngsplm, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
         end
 
-        layout_obj = Layout(title="$name - $n_runs runs - $suffix",
+        #=layout_obj = Layout(title="$name - $n_runs runs - $suffix",
         xaxis_title="epoch",
         xaxis_type="log",
         yaxis =attr(
@@ -375,7 +407,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate = 1.0, sample
 
         PlotlyJS.savefig(plt_obj, "ba-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
         PlotlyJS.savefig(plt_metr, "ba-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
-        PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
+        PlotlyJS.savefig(plt_mse, "ba-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")=#
 
         temp = temp_PLM_smooth'
         df = DataFrame(temp, [:f, :h, :fh, :n, :g, :p, :s])

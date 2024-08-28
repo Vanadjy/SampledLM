@@ -3,7 +3,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
     include("plot-configuration.jl")
 
     acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100
-    local atol
+    ξ0 = eps(Float64)
 
     for selected_prob in selected_probs
         for selected_h in selected_hs
@@ -64,11 +64,10 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                     r2_obj_hist = filter(!iszero, reg_solver.Fobj_hist)
                     r2_numjac_hist = filter(!iszero, reg_solver.Complex_hist)
 
-                    atol = reg_stats.solver_specific[:xi]
+                    ξ0 = r2_metric_hist[1]
 
                     nr2 = reg_stats.iter
                     ngr2 = NLPModels.neval_grad(reg_prob)
-                    println(ngr2)
                     r2train = residual(prob_nls, reg_stats.solution) #||e - tanh(b * <A, x>)||^2, b ∈ {-1,1}^n
                     if selected_prob == "mnist"
                         r2test = residual(mnist_nls_test, reg_stats.solution)
@@ -170,7 +169,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                 for sample_rate in sample_rates
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = (selected_prob == "mnist" ? atol : precision), ϵr = (selected_prob == "mnist" ? 0.0 : precision), verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, M = (selected_prob == "mnist" ? 100.0 : 10000.0);)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, ξ0 = ξ0;)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 29))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -408,7 +407,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                 for version in versions
                     nz = 10 * compound
                     #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, μmin = 1e-5, ϵa = (selected_prob == "mnist" ? atol : precision), ϵr = (selected_prob == "mnist" ? 0.0 : precision), verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, M = (selected_prob == "mnist" ? 100.0 : 10000.0);)
+                    sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, μmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, ξ0 = ξ0;)
                     local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 29))
                     local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate0)
                     #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)

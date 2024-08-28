@@ -25,12 +25,12 @@ function load_ba_slm(name, sample_rate; n_runs = 10)
     SLM_outs = load_object("SLM_outs-SLM-ba-$name-$(n_runs)runs-$(sample_rate*100).jld2")
     slm_obj = load_object("slm_obj-SLM-ba-$name-$(n_runs)runs-$(sample_rate*100).jld2")
 
-    med_obj_sto = load_object("med_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2")
-    std_obj_sto = load_object("std_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2")
-    med_metr_sto = load_object("med_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2")
-    std_metr_sto = load_object("std_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2")
-    med_mse_sto = load_object("med_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2")
-    std_mse_sto = load_object("std_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2")
+    med_obj_sto = load_object("med_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate*100).jld2")
+    std_obj_sto = load_object("std_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate*100).jld2")
+    med_metr_sto = load_object("med_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate*100).jld2")
+    std_metr_sto = load_object("std_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate*100).jld2")
+    med_mse_sto = load_object("med_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100).jld2")
+    std_mse_sto = load_object("std_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100).jld2")
 
     nslm = load_object("nslm-SLM-ba-$name-$(sample_rate*100).jld2")
     ngslm = load_object("ngslm-SLM-ba-$name-$(sample_rate*100).jld2")
@@ -38,4 +38,25 @@ function load_ba_slm(name, sample_rate; n_runs = 10)
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
     return SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm
+end
+
+function load_ba_splm(name, version; n_runs = 10)
+    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\ba")
+
+    SPLM_outs = load_object("SPLM_outs-SPLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2")
+    splm_obj = load_object("splm_obj-SPLM-ba-$name-$(n_runs)runs-$(prob_versions_names[version]).jld2")
+
+    med_obj_prob_smooth = load_object("med_obj_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2")
+    #std_obj_sto = load_object("std_obj_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2")
+    med_metr_prob_smooth = load_object("med_metr_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2")
+    #std_metr_sto = load_object("std_metr_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2")
+    med_mse_prob_smooth = load_object("med_mse_prob_smooth-$(n_runs)runs-ba-$name-$(prob_versions_names[version]).jld2")
+    #std_mse_sto = load_object("std_mse_sto-$(n_runs)runs-ba-$name-$(sample_rate*100)-l1.jld2")
+
+    nsplm = load_object("nsplm-SPLM-ba-$name-$version.jld2")
+    ngsplm = load_object("ngsplm-SPLM-ba-$name-$version.jld2")
+
+    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
+
+    return SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm
 end
