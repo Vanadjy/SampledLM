@@ -1,9 +1,9 @@
 Random.seed!(seed)
 
-n_exec = 1
-sample_rate0 = 1.0
+n_exec = 10
+sample_rate0 = .05
 sample_rates = []
-versions = [2]
+versions = Int[2, 9]
 
 filter_name = "dubrovnik"
 name_list = ba_data(filter_name)
@@ -29,8 +29,8 @@ else
     end
 end
 
-#=ba_3d_scatter(name_list; sample_rate = sample_rate, n_runs = n_exec)
+#=ba_3d_scatter(name_list, sample_rates, versions; n_runs = n_exec)
 for name in name_list
-    plot_ba(name, sample_rate, version; n_runs = n_exec, smooth = smooth)
-    ba_tables(name, sample_rate, version; smooth = smooth)
+    plot_ba(name, sample_rates, versions; n_runs = n_exec, MaxEpochs = MaxEpochs)
+    ba_tables(name, sample_rates, versions; n_runs = n_exec)
 end=#

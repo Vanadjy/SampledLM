@@ -19,7 +19,7 @@ function load_ba_plm(name, version; n_runs = 10)
     return PLM_outs, plm_obj, med_obj_prob, std_obj_prob, med_metr_prob, std_metr_prob, med_mse_prob, std_mse_prob, nplm, ngplm
 end
 
-function load_ba_slm(name, sample_rate; n_runs = 10)
+function load_ba_slm(name, sample_rate; n_runs = 1)
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\ba")
 
     SLM_outs = load_object("SLM_outs-SLM-ba-$name-$(n_runs)runs-$(sample_rate*100).jld2")

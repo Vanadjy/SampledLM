@@ -1,9 +1,10 @@
-function plot_ba(name, sample_rates, versions; n_runs = 10, smooth::Bool = false)
+function plot_ba(name, sample_rates, versions; n_runs = 10, smooth::Bool = false, MaxEpochs::Int = 100)
     include("plot-configuration.jl")
-
     data_obj = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
     data_metr = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
     data_mse = Union{PGFPlots.Plots.Linear, PGFPlots.Plots.Scatter}[]
+
+    scatter_log = log_scale(MaxEpochs)
 
     ## ---------------------------------------------------------------------------------------------------##
     ## ----------------------------------- CONSTANT SAMPLE RATE ------------------------------------------##
@@ -62,16 +63,36 @@ function plot_ba(name, sample_rates, versions; n_runs = 10, smooth::Bool = false
         push!(data_mse, data_mse_plm, markers_mse_plm)#, data_std_mse_plm)
     end
 
-    layout_obj, layout_metr, layout_mse = layout(name_list[1], n_runs, "smooth")
-    plt_obj = PlotlyJS.plot(data_obj, layout_obj)
-    plt_metr = PlotlyJS.plot(data_metr, layout_metr)
-    plt_mse = PlotlyJS.plot(data_mse, layout_mse)
+    plt_obj = PGFPlots.Axis(
+        data_obj,
+        xlabel="\$ j^{th}\$   epoch",
+        ylabel="\$ (f+h)(x_j) \$",
+        ymode="log",
+        xmode="log",
+    )
+    plt_metr = PGFPlots.Axis(
+        data_metr,
+        xlabel="\$ j^{th}\$   epoch",
+        ylabel="Stationarity measure",
+        ymode="log",
+        xmode="log",
+    )
+    plt_mse = PGFPlots.Axis(
+        data_mse,
+        xlabel="\$ j^{th}\$   epoch",
+        ylabel="MSE",
+        ymode="log",
+        xmode="log",
+        ymax = 250
+    )
 
-    display(plt_obj)
-    display(plt_metr)
-    display(plt_mse)
+    #display(plt_obj)
+    #display(plt_metr)
+    #display(plt_mse)
 
-    PlotlyJS.savefig(plt_obj, "ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
-    PlotlyJS.savefig(plt_metr, "ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
-    PlotlyJS.savefig(plt_mse, "ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-smooth.pdf"; format = "pdf")
+    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\BundleAdjustment_Graphs\dubrovnik\plots")
+    PGFPlots.save("ba-SLM-$name-exactobj-$(n_runs)runs-$(MaxEpochs)epochs-smooth.tikz", plt_obj)
+    PGFPlots.save("ba-SLM-$name-metric-$(n_runs)runs-$(MaxEpochs)epochs-smooth.tikz", plt_metr)
+    PGFPlots.save("ba-SLM-$name-MSE-$(n_runs)runs-$(MaxEpochs)epochs-smooth.tikz", plt_mse)
+    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 end

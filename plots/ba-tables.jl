@@ -1,6 +1,19 @@
 function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_runs = 10)
-    nls = BundleAdjustmentModel(name)
-    temp_ba = [obj(nls, nls.meta.x0), norm(grad(nls, nls.meta.x0)), "undefined", 0, 0, 0, 0]
+    model = BundleAdjustmentModel(name)
+
+    meta_nls = nls_meta(model)
+    Fx = similar(model.meta.x0, meta_nls.nequ)
+    residual!(model, model.meta.x0, Fx)
+    rows = Vector{Int}(undef, meta_nls.nnzj)
+    cols = Vector{Int}(undef, meta_nls.nnzj)
+    jac_structure_residual!(model, rows, cols)
+    vals = similar(model.meta.x0, meta_nls.nnzj)
+    jac_coord_residual!(model, model.meta.x0, vals)
+    Jv = similar(model.meta.x0, meta_nls.nequ)
+    Jtv = similar(model.meta.x0, meta_nls.nvar)
+    Jx = jac_op_residual!(model, rows, cols, vals, Jv, Jtv)
+
+    temp_ba = [0.5*norm(Fx), norm(Jx'Fx), 0, 0, 0, 0]
 
     for sample_rate in sample_rates
         SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate; n_runs = n_runs)
@@ -22,7 +35,7 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         SLM_out = SLM_outs[origin_ind]
 
         temp_ba = hcat(temp_ba,
-        [SLM_out.objective, SLM_out.solver_specific[:ExactMetricHist][end], SLM_out.status, nslm, ngslm, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
+        [SLM_out.objective, SLM_out.solver_specific[:ExactMetricHist][end], nslm, ngslm, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
         )
 
     end
@@ -47,18 +60,17 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         SPLM_out = SPLM_outs[origin_ind]
 
         temp_ba = hcat(temp_ba, 
-            [SPLM_out.objective, SPLM_out.solver_specific[:ExactMetricHist][end], SPLM_out.status, nsplm, ngsplm, sum(SPLM_out.solver_specific[:SubsolverCounter]), SPLM_out.elapsed_time]
+            [SPLM_out.objective, SPLM_out.solver_specific[:ExactMetricHist][end], nsplm, ngsplm, sum(SPLM_out.solver_specific[:SubsolverCounter]), SPLM_out.elapsed_time]
         )
     end
 
     temp = temp_ba'
-    df = DataFrame(temp, [:fh, :xi, :st, :n, :g, :p, :s])
+    df = DataFrame(temp, [:fh, :xi, :n, :g, :p, :s])
     df[!, :Alg] = vcat(["f0"], ["PLM-$(prob_versions_names[version])" for version in versions], ["PLM-$(sample_rate*100)" for sample_rate in sample_rates])
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
         :fh => "%10.2e",
         :xi => "%10.2e",
-        :st => "%10s",
         :n => "%10.2f",
         :g => "%10.2f",
         :p => "%10.2f",
@@ -66,14 +78,16 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
     hdr_override = Dict(:Alg => "Alg",
         :fh => "\$ f \$",
         :xi => "\$ \\| \\nabla f \\| \$",
-        :st => "status"
         :n => "\\# epochs",
         :g => "\\# \$ \\nabla f \$",
         :p => "\\# inner",
         :s => "\$t \$ (s)")
+    
+    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\BundleAdjustment_Graphs\dubrovnik\tables")
     open("BA-$name-plm-$suffix.tex", "w") do io
         SolverBenchmark.pretty_latex_stats(io, df,
             col_formatters=fmt_override,
             hdr_override=hdr_override)
     end
+    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 end
