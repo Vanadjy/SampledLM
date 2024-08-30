@@ -52,7 +52,7 @@ function SPLM(
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
   selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
   sample_rate0::Float64 = .05,
-  Jac_lop::Bool = false
+  Jac_lop::Bool = true
 )
 
   # initializes epoch counting and progression
@@ -97,8 +97,12 @@ function SPLM(
   σmax = options.σmax
   μmin = options.μmin
   metric = options.metric
+  ξ0 = options.ξ0
+  balance = 10^(ceil(log10(nls.nls_meta.nequ / nls.meta.nvar)))
+  threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # < 1 if more equations than variables
 
   m = nls.nls_meta.nequ
+  ζk = Int(ceil(balance))
 
   # store initial values of the subsolver_options fields that will be modified
   ν_subsolver = subsolver_options.ν
@@ -125,7 +129,15 @@ function SPLM(
   local exact_ξcp
   local ξ
   local ξ_mem
+
+  count_fail = 0
+  count_big_succ = 0
+  count_succ = 0
+  δ_sample = .05
+  buffer = .05
+  dist_succ = zero(eltype(xk))
   k = 0
+
   Fobj_hist = zeros(maxIter * 100)
   exact_Fobj_hist = zeros(maxIter * 100)
   Metric_hist = zeros(maxIter * 100)
@@ -194,7 +206,7 @@ function SPLM(
     metric = norm(∇fk)
 
     if k == 1
-      ϵ_increment = ϵr * metric
+      ϵ_increment = (ξ0 ≤ 10 * eps(eltype(xk))) ? ϵr * metric : ϵr * ξ0
       ϵ += ϵ_increment  # make stopping test absolute and relative
       ϵ_subsolver += ϵ_increment
       μk = 1 / metric
@@ -377,6 +389,67 @@ function SPLM(
       end
     end
 
+    if version == 7
+      if (count_fail == 2) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+        sample_counter = max(0, sample_counter - 1) # sample_counter-1 < length(sample_rates_collec)
+        nls.sample_rate = (sample_counter == 0) ? sample_rate0 : sample_rates_collec[sample_counter]
+        change_sample_rate = true
+        count_fail = 0
+        count_big_succ = 0
+      elseif (count_big_succ == 2) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+        sample_counter = min(length(sample_rates_collec), sample_counter + 1) # sample_counter + 1 > 0
+        nls.sample_rate = sample_rates_collec[sample_counter]
+        change_sample_rate = true
+        count_fail = 0
+        count_big_succ = 0
+      end
+    end
+
+    if version == 8
+      if (count_fail == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+        nls.sample_rate -= δ_sample
+        change_sample_rate = true
+        count_fail = 0
+        count_big_succ = 0
+      elseif (count_big_succ == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+        nls.sample_rate += δ_sample
+        change_sample_rate = true
+        count_fail = 0
+        count_big_succ = 0
+      end
+    end
+
+    if (version == 9)
+      if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+        ζk *= λ^4
+        @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
+        nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
+        change_sample_rate = true
+        count_fail = 0
+        count_big_succ = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
+      elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+        ζk *= λ^(-4)
+        @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
+        nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
+        change_sample_rate = true
+        count_fail = 0
+        count_big_succ = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
+      end
+      if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
+        @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
+        buffer = sample_rates_collec[sample_counter]
+        nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
+        sample_counter += 1
+        change_sample_rate = true
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
+      end
+    end
+
     #changes sample with new sample rate
     nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
     #sparse_sample = sp_sample(rows, nls.sample)
@@ -408,8 +481,19 @@ function SPLM(
 
       if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
         μk = max(μk / λ, μmin)
+        count_big_succ += 1
+        count_fail = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
       elseif (nls.sample_rate == 1.0) && (η2 ≤ ρk < Inf)
         μk = max(μk / λ, μmin)
+        count_big_succ += 1
+        count_fail = 0
+        count_succ = 0
+        dist_succ = zero(eltype(xk))
+      else
+        dist_succ += norm(s)
+        count_succ += 1
       end
 
       if (!change_sample_rate) && (nls.sample_rate == 1.0)
@@ -429,6 +513,10 @@ function SPLM(
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
       μk = max(λ * μk, μmin)
+      count_big_succ = 0
+      count_fail += 1
+      count_succ = 0
+      dist_succ = zero(eltype(xk))
     end
 
     if change_sample_rate
@@ -436,7 +524,6 @@ function SPLM(
     end
 
     tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
-    @info "finished iteration $k"
   end
 
   if verbose > 0

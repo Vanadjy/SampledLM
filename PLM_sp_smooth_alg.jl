@@ -98,8 +98,8 @@ function SPLM(
     nls.sample_rate = sample_rate0
 
     nobs = nls.nobs
-    balance = 10^(ceil(log10(nls.nls_meta.nequ / nls.meta.nvar)))
-    threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # < 1 if more equations than variables
+    balance = 10^(ceil(log10(max(nls.nls_meta.nequ / nls.meta.nvar, 1.0)))) # ≥ 1
+    threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # ≥ 1
 
     ζk = Int((balance))
     #nls.sample = sort(randperm(nls.nls_meta.nequ)[1:ζk])
@@ -490,34 +490,36 @@ function SPLM(
       end
   
       if (version == 9)
-        if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased twice in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
-          #=ζk *= λ^4
-          @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-          nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))=#
-          nls.sample_rate = min(1.0, max(nls.sample_rate * 2, buffer))
-          change_sample_rate = true
-          count_fail = 0
-          count_big_succ = 0
-          count_succ = 0
-          dist_succ = zero(eltype(xk))
-        elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased twice in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
-          #ζk *= λ^(-4)
-          #@info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-          nls.sample_rate = min(1.0, max(nls.sample_rate / 2, buffer))
-          change_sample_rate = true
-          count_fail = 0
-          count_big_succ = 0
-          count_succ = 0
-          dist_succ = zero(eltype(xk))
-        end
-        if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
-          @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
-          buffer = sample_rates_collec[sample_counter]
-          nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
-          sample_counter += 1
-          change_sample_rate = true
-          count_succ = 0
-          dist_succ = zero(eltype(xk))
+        if nls.sample_rate < 1.0
+          if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased twice in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+            #=ζk *= λ^4
+            @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
+            nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))=#
+            nls.sample_rate = min(1.0, max(nls.sample_rate * 2, buffer))
+            change_sample_rate = true
+            count_fail = 0
+            count_big_succ = 0
+            count_succ = 0
+            dist_succ = zero(eltype(xk))
+          elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased twice in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+            #ζk *= λ^(-4)
+            #@info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
+            nls.sample_rate = min(1.0, max(nls.sample_rate / 2, buffer))
+            change_sample_rate = true
+            count_fail = 0
+            count_big_succ = 0
+            count_succ = 0
+            dist_succ = zero(eltype(xk))
+          end
+          if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
+            @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
+            buffer = sample_rates_collec[sample_counter]
+            nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
+            sample_counter += 1
+            change_sample_rate = true
+            count_succ = 0
+            dist_succ = zero(eltype(xk))
+          end
         end
       end
   

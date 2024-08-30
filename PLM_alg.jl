@@ -100,8 +100,10 @@ function PLM(
   μmin = options.μmin
   metric = options.metric
   ξ0 = options.ξ0
-  balance = 10^(ceil(log10(nls.nls_meta.nequ / nls.meta.nvar)))
-  threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # < 1 if more equations than variables
+
+  # balance represents the power of 10 ratio between the number of equations and the number of variables 
+  balance = 10^(ceil(log10(max(nls.nls_meta.nequ / nls.meta.nvar, 1.0)))) # ≥ 1
+  threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # ≥ 1
 
   m = nls.nls_meta.nequ
   ζk = Int(ceil(balance))
@@ -350,8 +352,11 @@ function PLM(
         dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
       end
 
+      exact_Jk = jac_op_residual(nls, xk)
+      exact_μmax = opnorm(exact_Jk)
+      exact_νcp = 1 / ((1 + θ) * (exact_μmax^2 + μmin))
       jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
-      prox!(exact_scp, ψ, exact_∇fk, νcp)
+      prox!(exact_scp, ψ, exact_∇fk, exact_νcp)
       exact_ξcp = exact_fk + hk - exact_φcp(exact_scp) - ψ(exact_scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
       exact_metric = sqrt(abs(exact_ξcp * νcpInv))
 
@@ -468,13 +473,13 @@ function PLM(
     end
 
     if version == 7
-      if (count_fail == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+      if (count_fail == 2) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
         sample_counter = max(0, sample_counter - 1) # sample_counter-1 < length(sample_rates_collec)
         nls.sample_rate = (sample_counter == 0) ? sample_rate0 : sample_rates_collec[sample_counter]
         change_sample_rate = true
         count_fail = 0
         count_big_succ = 0
-      elseif (count_big_succ == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+      elseif (count_big_succ == 2) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
         sample_counter = min(length(sample_rates_collec), sample_counter + 1) # sample_counter + 1 > 0
         nls.sample_rate = sample_rates_collec[sample_counter]
         change_sample_rate = true

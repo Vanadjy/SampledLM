@@ -14,8 +14,8 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
 
     ## ------------------------------------ R2, LM, LMTR ----------------------------------------- ##
 
-    R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist = load_mnist_r2()
-    LM_out, LMTR_out = load_mnist_lm_lmtr()
+    R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist = load_mnist_r2(selected_hs[1])
+    #LM_out, LMTR_out = load_mnist_lm_lmtr(selected_hs[1])
     m = mnist_nls.nls_meta.nequ
 
     for sample_rate in sample_rates
@@ -32,15 +32,15 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
     
     # --------------- MSE DATA -------------------- #
     data_mse_r2 = PGFPlots.Plots.Linear(1:length(r2_obj_hist), 0.5*(r2_obj_hist)/m, mark="none", style="cyan, solid", legendentry = "R2")
-    data_mse_lm = PGFPlots.Plots.Linear(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, mark="none", style="black, dotted", legendentry = "LM")
-    data_mse_lmtr = PGFPlots.Plots.Linear(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, mark="none", style="black, solid", legendentry = "LMTR")
+    #data_mse_lm = PGFPlots.Plots.Linear(1:length(LM_out.solver_specific[:Fhist]), 0.5*(LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist])/m, mark="none", style="black, dotted", legendentry = "LM")
+    #data_mse_lmtr = PGFPlots.Plots.Linear(1:length(LMTR_out.solver_specific[:Fhist]), 0.5*(LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist])/m, mark="none", style="black, solid", legendentry = "LMTR")
 
     push!(data_mse, data_mse_r2)#, data_mse_lm, data_mse_lmtr)
 
     # --------------- OBJECTIVE DATA -------------------- #
     data_obj_r2 = PGFPlots.Plots.Linear(1:length(r2_obj_hist), r2_obj_hist, mark="none", style="cyan, solid")
-    data_obj_lm = PGFPlots.Plots.Linear(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], mark="none", style="black, dotted")
-    data_obj_lmtr = PGFPlots.Plots.Linear(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], mark="none", style="black, solid")
+    #data_obj_lm = PGFPlots.Plots.Linear(1:length(LM_out.solver_specific[:Fhist]), LM_out.solver_specific[:Fhist] + LM_out.solver_specific[:Hhist], mark="none", style="black, dotted")
+    #data_obj_lmtr = PGFPlots.Plots.Linear(1:length(LMTR_out.solver_specific[:Fhist]), LMTR_out.solver_specific[:Fhist] + LMTR_out.solver_specific[:Hhist], mark="none", style="black, solid")
 
     push!(data_obj, data_obj_r2)#, data_obj_lm, data_obj_lmtr)
 
@@ -122,8 +122,12 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
         ## -------------------------------- DYNAMIC SAMPLE RATE ------------------------------------- ##
 
         for version in versions
-            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob, PLM_outs, plm_trains, nplm, ngplm, epoch_counters_plm = load_mnist_plm(version, selected_h)
-            # --------------- OBJECTIVE DATA -------------------- #
+            if selected_h != "smooth"
+                med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob, PLM_outs, plm_trains, nplm, ngplm, epoch_counters_plm = load_mnist_plm(version, selected_h)
+            else
+                med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob, PLM_outs, plm_trains, nplm, ngplm = load_mnist_splm(version, selected_h)
+            end
+                # --------------- OBJECTIVE DATA -------------------- #
             markers_obj = vcat(filter(!>=(length(med_obj_prob)), scatter_log), length(med_obj_prob))
             data_obj_plm = PGFPlots.Plots.Linear(1:length(med_obj_prob), med_obj_prob, mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
             markers_obj_plm = PGFPlots.Plots.Scatter(markers_obj, med_obj_prob[markers_obj], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version])", onlyMarks = true, markSize = 1.5)
@@ -144,7 +148,7 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
 
             push!(data_mse, data_mse_plm, markers_mse_plm)#, data_std_mse_plm)
 
-            if n_exec%2 == 1
+            #=if n_exec%2 == 1
                 med_ind = (n_exec ÷ 2) + 1
             else
                 med_ind = (n_exec ÷ 2)
@@ -176,7 +180,7 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
             markers_neval_jac = vcat(filter(!>=(length(adjusted_neval_jac[ecp])), scatter_log), length(adjusted_neval_jac[ecp]))
             data_neval_jac_slm = PGFPlots.Plots.Linear(1:length(adjusted_neval_jac[ecp]), adjusted_neval_jac[ecp], mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")
             markers_neval_jac_plm = PGFPlots.Plots.Scatter(markers_neval_jac, adjusted_neval_jac[ecp][markers_neval_jac], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version])", onlyMarks = true, markSize = 1.5)
-            push!(data_neval_jac, data_neval_jac_slm, markers_neval_jac_plm)
+            push!(data_neval_jac, data_neval_jac_slm, markers_neval_jac_plm)=#
         end
 
     plt_obj = PGFPlots.Axis(

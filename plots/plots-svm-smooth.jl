@@ -61,7 +61,10 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
 
                 r2dec = plot_svm(reg_stats, reg_stats.solution, "r2-lhalf-$digits")
 
-                save_object("smooth-R2_stats-$selected_prob.jld2", reg_stats)
+                save_object("R2_stats-$selected_prob-smooth.jld2", reg_stats)
+                save_object("r2_metric_hist-$selected_prob-smooth.jld2", r2_metric_hist)
+                save_object("r2_obj_hist-$selected_prob-smooth.jld2", r2_obj_hist)
+                save_object("r2_numjac_hist-$selected_prob-smooth.jld2", r2_numjac_hist)
 
                     # --------------- OBJECTIVE DATA -------------------- #
 
@@ -400,6 +403,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
 
                     save_object("SPLM_outs-$(prob_versions_names[version])-$selected_prob.jld2", SPLM_outs)
                     save_object("splm_trains-$(prob_versions_names[version])-$selected_prob.jld2", splm_trains)
+                    save_object("epoch_counters_splm-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", epoch_counters_plm)
 
                     if n_exec%2 == 1
                         med_ind = (n_exec ÷ 2) + 1

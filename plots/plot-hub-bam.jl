@@ -1,9 +1,9 @@
 Random.seed!(seed)
 
-n_exec = 10
-sample_rate0 = .05
-sample_rates = []
-versions = Int[2, 9]
+n_exec = 1
+sample_rate0 = 1.0
+sample_rates = [1.0]
+versions = Int[9]
 
 filter_name = "dubrovnik"
 name_list = ba_data(filter_name)

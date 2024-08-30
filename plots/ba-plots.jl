@@ -40,7 +40,7 @@ function plot_ba(name, sample_rates, versions; n_runs = 10, smooth::Bool = false
     ## ---------------------------------------------------------------------------------------------------##
 
     for version in versions
-        SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version)
+        SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = n_runs)
         # --------------- OBJECTIVE DATA -------------------- #
         markers_obj = vcat(filter(!>=(length(med_obj_prob_smooth)), scatter_log), length(med_obj_prob_smooth))
         data_obj_plm = PGFPlots.Plots.Linear(1:length(med_obj_prob_smooth), med_obj_prob_smooth, mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")

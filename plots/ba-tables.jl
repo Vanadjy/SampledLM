@@ -13,7 +13,7 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
     Jtv = similar(model.meta.x0, meta_nls.nvar)
     Jx = jac_op_residual!(model, rows, cols, vals, Jv, Jtv)
 
-    temp_ba = [0.5*norm(Fx), norm(Jx'Fx), 0, 0, 0, 0]
+    temp_ba = [0.5*norm(Fx)^2, norm(Jx'Fx), 0, 0, 0]
 
     for sample_rate in sample_rates
         SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate; n_runs = n_runs)
@@ -35,7 +35,7 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         SLM_out = SLM_outs[origin_ind]
 
         temp_ba = hcat(temp_ba,
-        [SLM_out.objective, SLM_out.solver_specific[:ExactMetricHist][end], nslm, ngslm, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
+        [SLM_out.objective, SLM_out.solver_specific[:ExactMetricHist][end], nslm, ngslm, SLM_out.elapsed_time]
         )
 
     end
@@ -52,7 +52,7 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         sorted_obj_vec = sort(splm_obj)
         ref_value = sorted_obj_vec[med_ind]
         origin_ind = 0
-        for i in eachindex(PLM_outs)
+        for i in eachindex(SPLM_outs)
             if splm_obj[i] == ref_value
                 origin_ind = i
             end
@@ -60,27 +60,25 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         SPLM_out = SPLM_outs[origin_ind]
 
         temp_ba = hcat(temp_ba, 
-            [SPLM_out.objective, SPLM_out.solver_specific[:ExactMetricHist][end], nsplm, ngsplm, sum(SPLM_out.solver_specific[:SubsolverCounter]), SPLM_out.elapsed_time]
+            [SPLM_out.objective, SPLM_out.solver_specific[:ExactMetricHist][end], nsplm, ngsplm, SPLM_out.elapsed_time]
         )
     end
 
     temp = temp_ba'
-    df = DataFrame(temp, [:fh, :xi, :n, :g, :p, :s])
-    df[!, :Alg] = vcat(["f0"], ["PLM-$(prob_versions_names[version])" for version in versions], ["PLM-$(sample_rate*100)" for sample_rate in sample_rates])
+    df = DataFrame(temp, [:fh, :xi, :n, :g, :s])
+    df[!, :Alg] = vcat(["f0"], ["PLM-$(sample_rate*100)" for sample_rate in sample_rates], ["PLM-$(prob_versions_names[version])" for version in versions])
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
         :fh => "%10.2e",
         :xi => "%10.2e",
         :n => "%10.2f",
         :g => "%10.2f",
-        :p => "%10.2f",
         :s => "%02.2f")
     hdr_override = Dict(:Alg => "Alg",
         :fh => "\$ f \$",
         :xi => "\$ \\| \\nabla f \\| \$",
         :n => "\\# epochs",
         :g => "\\# \$ \\nabla f \$",
-        :p => "\\# inner",
         :s => "\$t \$ (s)")
     
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\BundleAdjustment_Graphs\dubrovnik\tables")

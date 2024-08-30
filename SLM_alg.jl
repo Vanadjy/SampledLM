@@ -312,8 +312,11 @@ function PLM(
       dot(exact_Fk, exact_Fk) / 2 + dot(exact_Jt_Fk, d)
     end
 
+    exact_Jk = jac_op_residual(nls, xk)
+    exact_μmax = opnorm(exact_Jk)
+    exact_νcp = 1 / ((1 + θ) * (exact_μmax^2 + μmin))
     jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
-    prox!(exact_scp, ψ, exact_∇fk, νcp)
+    prox!(exact_scp, ψ, exact_∇fk, exact_νcp)
     exact_ξcp = exact_fk + hk - exact_φcp(exact_scp) - ψ(exact_scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
     exact_metric = sqrt(abs(exact_ξcp * νcpInv))
 

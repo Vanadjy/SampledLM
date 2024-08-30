@@ -1,16 +1,16 @@
 n_exec = 10
-selected_probs = ["mnist"]
+selected_probs = ["ijcnn1"]
 MaxEpochs = 0
 MaxTime = 0.0
 
 if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
-    sample_rates = [1.0]#, .1, .05, .01]
+    sample_rates = []#1.0, .1, .05, .01]
     selected_digits = [(1, 7)] # let only one pair of random digits
-    versions = [2, 9]
+    versions = [7]
     #version = versions[end]
     ϵ = 1e-16
-    selected_hs = ["l1"]#, "lhalf" "smooth"]
+    selected_hs = ["l1", "lhalf", "smooth"]
     MaxEpochs = 100
     MaxTime = 3600.0
     smooth = false
@@ -23,7 +23,7 @@ elseif selected_probs == ["mnist"]
     #version = versions[end]
     selected_hs = ["lhalf"]
     ϵ = 1e-4
-    MaxEpochs = 1000
+    MaxEpochs = 500
     MaxTime = 3600.0
     smooth = false
     compare = true
@@ -54,6 +54,6 @@ else
         plot_ijcnn1(sample_rates, versions, selected_hs; n_runs = n_exec, MaxEpochs = MaxEpochs)
     elseif selected_probs == ["mnist"]
         plot_mnist(sample_rates, versions, selected_hs; n_runs = n_exec, smooth = smooth)
-        greymaps_tables_mnist(versions, sample_rates, sample_rate0; smooth = smooth)
+        greymaps_tables_mnist(versions, sample_rates, sample_rate0; smooth = smooth, selected_h = selected_hs[1])
     end
 end

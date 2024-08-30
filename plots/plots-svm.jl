@@ -74,7 +74,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         @show acc(r2train), acc(r2test)
                     end
 
-                    r2dec = plot_svm(reg_stats, reg_stats.solution, "r2-lhalf-$digits")
+                    r2dec = plot_svm(reg_stats, reg_stats.solution, "r2-$selected_h-$digits")
 
                     @info " using LM to solve with" h
                     LM_out = LM(prob_nls, h, sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
@@ -83,7 +83,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         lmtest = residual(mnist_nls_test, LM_out.solution)
                         @show acc(lmtrain), acc(lmtest)
                     end
-                    lmdec = plot_svm(LM_out, LM_out.solution, "lm-lhalf-$digits")
+                    lmdec = plot_svm(LM_out, LM_out.solution, "lm-$selected_h-$digits")
                     #nlm = NLPModels.neval_residual(nls_tr)
                     nlm = LM_out.iter
                     nglm = NLPModels.neval_jtprod_residual(prob_nls) + NLPModels.neval_jprod_residual(prob_nls)
@@ -100,7 +100,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         #nlmtr = NLPModels.neval_residual(nls_tr)
                         nlmtr = LMTR_out.iter
                         nglmtr = NLPModels.neval_jtprod_residual(prob_nls) + NLPModels.neval_jprod_residual(prob_nls)
-                        lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-lhalf-$digits")
+                        lmtrdec = plot_svm(LMTR_out, LMTR_out.solution, "lmtr-$selected_h-$digits")
                     elseif h == NormL1(λ)
                         LMTR_out = RegularizedOptimization.LMTR(prob_nls, h, NormL2(1.0), sampled_options_full; x0 = prob_nls.meta.x0, subsolver_options = subsolver_options)
                     elseif h == NormL1(0.0)
@@ -273,7 +273,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         ngslm = ngslms[origin_ind]
                         save_object("ngslm-mnist-PLM-$(100*sample_rate)%.jld2", ngslm)
                         if prob_name == "mnist-train-ls"
-                            slmdec = plot_svm(PLM_out, PLM_out.solution, "sto-lm-$(100*sample_rate)%-lhalf-$digits")
+                            slmdec = plot_svm(PLM_out, PLM_out.solution, "sto-lm-$(100*sample_rate)%-$selected_h-$digits")
                         end
 
                         med_obj_sto = zeros(axes(Obj_Hists_epochs_sto, 1))
@@ -520,7 +520,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                         ngplm = ngplms[origin_ind]
                         save_object("ngplm-mnist-PLM-$(prob_versions_names[version]).jld2", ngplm)
                         if prob_name == "mnist-train-ls"
-                            plmdec = plot_svm(PLM_out, PLM_out.solution, "prob-lm-$(prob_versions_names[version])-lhalf-$digits")
+                            plmdec = plot_svm(PLM_out, PLM_out.solution, "prob-lm-$(prob_versions_names[version])-$selected_h-$digits")
                         end
 
                         med_obj_prob = zeros(axes(Obj_Hists_epochs_prob, 1))

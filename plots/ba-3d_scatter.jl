@@ -32,7 +32,6 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
             options=Dict(:showLink => true)
         )
         fig_ba0 = PlotlyJS.Plot(plt3d0, layout_3d_0)
-        display(fig_ba0)
 
         for sample_rate in sample_rates
             SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate; n_runs = n_runs)
@@ -74,14 +73,14 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
             )
             #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
             fig_ba_slm = PlotlyJS.Plot(plt3d_slm, layout_3d_slm)#; config = options)
-            display(fig_ba_slm)
 
             #println("Press enter")
             #n = readline()
             PlotlyJS.savefig(fig_ba_slm, "ba-$name-3D-SLM-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")        end
 
         for version in versions
-            SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version)
+            SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = n_runs)
+            layout_3d = layout3d(name, camera_settings)
 
             # Prob_LM_out is the run associated to the median final objective value
             if n_runs%2 == 1
