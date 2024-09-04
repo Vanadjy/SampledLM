@@ -8,8 +8,6 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
         #"problem-49-7776-pre" => attr(center = attr(x = 0.12011665286185144, y = 0.2437548728183421, z = 0.6340730201867651), eye = attr(x = 0.14156235059481262, y = 0.49561706850854814, z = 0.48335380789220556), up = attr(x = 0.9853593274726773, y = 0.01757909714618111, z = 0.169581753458674))
     )
 
-    cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\BundleAdjustment_Graphs\dubrovnik\3d-scatter")
-
     for name in name_list
         layout_3d_0 = layout3d(name*"-x0", camera_settings)
         sampled_nls = BAmodel_sto(name; sample_rate = 1.0)
@@ -34,11 +32,13 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
         fig_ba0 = PlotlyJS.Plot(plt3d0, layout_3d_0)
 
         for sample_rate in sample_rates
-            SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate; n_runs = n_runs)
+            SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate)
 
             # SLM_out is the run associated to the median final objective value
-            if n_runs%2 == 1
+            if n_runs%2 == 1 && sample_rate < 1.0
                 med_ind = (n_runs ÷ 2) + 1
+            elseif sample_rate == 1.0
+                med_ind = 1
             else
                 med_ind = (n_runs ÷ 2)
             end
@@ -66,7 +66,7 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
                 marker=attr(
                     size = .7,
                     opacity=0.8,
-                    color = "green"
+                    color = "black"
                 ),
                 type="scatter3d",
                 options=Dict(:showLink => true)
@@ -76,10 +76,11 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
 
             #println("Press enter")
             #n = readline()
+            cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\BundleAdjustment_Graphs\dubrovnik\3d-scatter")
             PlotlyJS.savefig(fig_ba_slm, "ba-$name-3D-SLM-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")        end
 
         for version in versions
-            SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = n_runs)
+            SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = version == 9 ? n_runs : 1)
             layout_3d = layout3d(name, camera_settings)
 
             # Prob_LM_out is the run associated to the median final objective value
@@ -87,6 +88,9 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
                 med_ind = (n_runs ÷ 2) + 1
             else
                 med_ind = (n_runs ÷ 2)
+            end
+            if version == 2
+                med_ind = 1
             end
             sorted_obj_vec = sort(splm_obj)
             ref_value = sorted_obj_vec[med_ind]
@@ -117,8 +121,10 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
 
             #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
             fig_ba = PlotlyJS.Plot(plt3d, layout_3d)#; config = options)
+            cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\BundleAdjustment_Graphs\dubrovnik\3d-scatter")
             PlotlyJS.savefig(fig_ba, "ba-$name-3D-PLM-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")
         end
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\BundleAdjustment_Graphs\dubrovnik\3d-scatter")
         PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")
     end
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")

@@ -13,14 +13,18 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
     Jtv = similar(model.meta.x0, meta_nls.nvar)
     Jx = jac_op_residual!(model, rows, cols, vals, Jv, Jtv)
 
-    temp_ba = [0.5*norm(Fx)^2, norm(Jx'Fx), 0, 0, 0]
+    fx0 = 0.5*norm(Fx)^2
+    gx0 = norm(Jx'Fx)
+    temp_ba = [0, 0, 0, 0, 0, 0, 0]
 
     for sample_rate in sample_rates
-        SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate; n_runs = n_runs)
+        SLM_outs, slm_obj, med_obj_sto, std_obj_sto, med_metr_sto, std_metr_sto, med_mse_sto, std_mse_sto, nslm, ngslm = load_ba_slm(name, sample_rate)
 
         # SLM_out is the run associated to the median final objective value
-        if n_runs%2 == 1
+        if n_runs%2 == 1 && sample_rate < 1.0
             med_ind = (n_runs ÷ 2) + 1
+        elseif sample_rate == 1.0
+            med_ind = 1
         else
             med_ind = (n_runs ÷ 2)
         end
@@ -35,19 +39,22 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         SLM_out = SLM_outs[origin_ind]
 
         temp_ba = hcat(temp_ba,
-        [SLM_out.objective, SLM_out.solver_specific[:ExactMetricHist][end], nslm, ngslm, SLM_out.elapsed_time]
+        [fx0, SLM_out.objective, gx0, SLM_out.solver_specific[:ExactMetricHist][end], nslm, ngslm, SLM_out.elapsed_time]
         )
 
     end
     
     for version in versions
-        SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = n_runs)
+        SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = version == 9 ? n_runs : 1)
 
         # Prob_LM_out is the run associated to the median final objective value
         if n_runs%2 == 1
             med_ind = (n_runs ÷ 2) + 1
         else
             med_ind = (n_runs ÷ 2)
+        end
+        if version == 2
+            med_ind = 1
         end
         sorted_obj_vec = sort(splm_obj)
         ref_value = sorted_obj_vec[med_ind]
@@ -60,23 +67,27 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         SPLM_out = SPLM_outs[origin_ind]
 
         temp_ba = hcat(temp_ba, 
-            [SPLM_out.objective, SPLM_out.solver_specific[:ExactMetricHist][end], nsplm, ngsplm, SPLM_out.elapsed_time]
+            [fx0, SPLM_out.objective, gx0, SPLM_out.solver_specific[:ExactMetricHist][end], nsplm, ngsplm, SPLM_out.elapsed_time]
         )
     end
 
     temp = temp_ba'
-    df = DataFrame(temp, [:fh, :xi, :n, :g, :s])
+    df = DataFrame(temp, [:f0, :fh, :xi0, :xi, :n, :g, :s])
     df[!, :Alg] = vcat(["f0"], ["PLM-$(sample_rate*100)" for sample_rate in sample_rates], ["PLM-$(prob_versions_names[version])" for version in versions])
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
+        :f0 => "%10.2e",
         :fh => "%10.2e",
+        :xi0 => "%10.2e",
         :xi => "%10.2e",
         :n => "%10.2f",
         :g => "%10.2f",
         :s => "%02.2f")
     hdr_override = Dict(:Alg => "Alg",
-        :fh => "\$ f \$",
-        :xi => "\$ \\| \\nabla f \\| \$",
+        :f0 => "\$ f(x_0) \$",
+        :fh => "\$ f(x) \$",
+        :xi0 => "\$ \\| \\nabla f(x_0) \\| \$",
+        :xi => "\$ \\| \\nabla f(x) \\| \$",
         :n => "\\# epochs",
         :g => "\\# \$ \\nabla f \$",
         :s => "\$t \$ (s)")

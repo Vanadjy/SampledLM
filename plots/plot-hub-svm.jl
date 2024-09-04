@@ -5,12 +5,12 @@ MaxTime = 0.0
 
 if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
-    sample_rates = []#1.0, .1, .05, .01]
+    sample_rates = [1.0, .1, .05, .01]
     selected_digits = [(1, 7)] # let only one pair of random digits
-    versions = [7]
+    versions = [2, 5, 7, 9]
     #version = versions[end]
     ϵ = 1e-16
-    selected_hs = ["l1", "lhalf", "smooth"]
+    selected_hs = ["smooth"]
     MaxEpochs = 100
     MaxTime = 3600.0
     smooth = false
@@ -21,11 +21,11 @@ elseif selected_probs == ["mnist"]
     selected_digits = [(1, 7)]
     versions = [2, 9]
     #version = versions[end]
-    selected_hs = ["lhalf"]
+    selected_hs = ["smooth"]
     ϵ = 1e-4
     MaxEpochs = 500
     MaxTime = 3600.0
-    smooth = false
+    smooth = true
     compare = true
 end
 

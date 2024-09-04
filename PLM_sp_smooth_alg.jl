@@ -495,7 +495,7 @@ function SPLM(
             #=ζk *= λ^4
             @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
             nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))=#
-            nls.sample_rate = min(1.0, max(nls.sample_rate * 2, buffer))
+            nls.sample_rate = min(1.0, max(nls.sample_rate * λ, buffer))
             change_sample_rate = true
             count_fail = 0
             count_big_succ = 0
@@ -504,7 +504,7 @@ function SPLM(
           elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased twice in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
             #ζk *= λ^(-4)
             #@info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-            nls.sample_rate = min(1.0, max(nls.sample_rate / 2, buffer))
+            nls.sample_rate = min(1.0, max(nls.sample_rate / λ, buffer))
             change_sample_rate = true
             count_fail = 0
             count_big_succ = 0

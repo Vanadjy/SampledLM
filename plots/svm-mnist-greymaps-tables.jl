@@ -97,15 +97,17 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
             #[LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
             #[LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
             #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
-            [Prob_LM_out.solver_specific[:Fhist][end], 0.0, Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm - 2 * Prob_LM_out.iter, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+            [Prob_LM_out.solver_specific[:Fhist][end], 0.0, Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm - Prob_LM_out.iter, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
         end
     end
 
     for sample_rate in sample_rates
         med_obj_sto, med_metr_sto, med_mse_sto, std_obj_sto, std_metr_sto, std_mse_sto, SLM_outs, slm_trains, nslm, ngslm = load_mnist_sto(sample_rate, selected_h)
         @info "using SLM to solve"
-        if n_exec%2 == 1
+        if n_exec%2 == 1 && sample_rate < 1.0
             med_ind = (n_exec ÷ 2) + 1
+        elseif sample_rate == 1.0
+            med_ind = 1
         else
             med_ind = (n_exec ÷ 2)
         end
@@ -137,7 +139,7 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
             )
         else
             temp = hcat(temp,
-            [SLM_out.solver_specific[:ExactFhist][end], 0.0, SLM_out.solver_specific[:ExactFhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm - 2*SLM_out.iter, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
+            [SLM_out.solver_specific[:ExactFhist][end], 0.0, SLM_out.solver_specific[:ExactFhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
             )
         end
     end

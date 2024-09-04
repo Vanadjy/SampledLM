@@ -88,8 +88,10 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
 
             push!(data_mse, data_mse_slm, markers_mse_slm)#, data_std_mse_slm)
             
-            if n_exec%2 == 1
+            if n_exec%2 == 1 && sample_rate < 1.0
                 med_ind = (n_exec ÷ 2) + 1
+            elseif sample_rate == 1.0
+                med_ind = 1
             else
                 med_ind = (n_exec ÷ 2)
             end
@@ -203,7 +205,8 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
         ylabel="MSE",
         ymode="log",
         xmode="log",
-        ymax = 0.6
+        ymax = 0.6,
+        legendPos = "south west"
     )
 
     plt_neval_f = PGFPlots.Axis(
