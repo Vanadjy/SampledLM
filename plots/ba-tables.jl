@@ -45,7 +45,7 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
     end
     
     for version in versions
-        SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = version == 9 ? n_runs : 1)
+        SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = version == 9 ? n_runs : 5)
 
         # Prob_LM_out is the run associated to the median final objective value
         if n_runs%2 == 1

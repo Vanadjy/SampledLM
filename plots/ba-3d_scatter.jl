@@ -66,7 +66,7 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
                 marker=attr(
                     size = .7,
                     opacity=0.8,
-                    color = "black"
+                    color = BA_3D_colors[sample_rate]
                 ),
                 type="scatter3d",
                 options=Dict(:showLink => true)
@@ -80,7 +80,7 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
             PlotlyJS.savefig(fig_ba_slm, "ba-$name-3D-SLM-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")        end
 
         for version in versions
-            SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = version == 9 ? n_runs : 1)
+            SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = version == 9 ? n_runs : 5)
             layout_3d = layout3d(name, camera_settings)
 
             # Prob_LM_out is the run associated to the median final objective value
@@ -113,7 +113,8 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
                 mode="markers",
                 marker=attr(
                     size = .7,
-                    opacity=0.8
+                    opacity=0.8,
+                    color = BA_3D_colors[version]
                 ),
                 type="scatter3d",
                 options=Dict(:showLink => true)
@@ -122,7 +123,7 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
             #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
             fig_ba = PlotlyJS.Plot(plt3d, layout_3d)#; config = options)
             cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\BundleAdjustment_Graphs\dubrovnik\3d-scatter")
-            PlotlyJS.savefig(fig_ba, "ba-$name-3D-PLM-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")
+            PlotlyJS.savefig(fig_ba, "ba-$name-3D-PLM-$(prob_versions_names[version])-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")
         end
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\BundleAdjustment_Graphs\dubrovnik\3d-scatter")
         PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")

@@ -216,7 +216,7 @@ function PLM(
       if nls.sample_rate == 1.0
         optimal = true
       else
-        if (length(nls.opt_counter) ≥ 5) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 5 iterations are successful
+        if (length(nls.opt_counter) ≥ 5) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 3 iterations are successful
           optimal = true
         end
       end
@@ -318,7 +318,7 @@ function PLM(
     jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
     prox!(exact_scp, ψ, exact_∇fk, exact_νcp)
     exact_ξcp = exact_fk + hk - exact_φcp(exact_scp) - ψ(exact_scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
-    exact_metric = sqrt(abs(exact_ξcp * νcpInv))
+    exact_metric = sqrt(abs(exact_ξcp / exact_νcp))
 
     exact_Fobj_hist[k] = exact_fk
     exact_Metric_hist[k] = exact_metric

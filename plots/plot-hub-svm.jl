@@ -10,7 +10,7 @@ if selected_probs == ["ijcnn1"]
     versions = [2, 5, 7, 9]
     #version = versions[end]
     ϵ = 1e-16
-    selected_hs = ["smooth"]
+    selected_hs = ["l1", "lhalf", "smooth"]
     MaxEpochs = 100
     MaxTime = 3600.0
     smooth = false

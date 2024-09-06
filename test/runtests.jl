@@ -25,5 +25,5 @@ function test_objectives(model, nls_model, x = model.meta.x0)
     @test JF' * F ≈ JtF' * x
 end
 
-#include("bpdn_tests.jl")
+include("bpdn_tests.jl")
 include("ijcnn1_tests.jl")

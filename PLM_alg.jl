@@ -358,7 +358,7 @@ function PLM(
       jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
       prox!(exact_scp, ψ, exact_∇fk, exact_νcp)
       exact_ξcp = exact_fk + hk - exact_φcp(exact_scp) - ψ(exact_scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
-      exact_metric = sqrt(abs(exact_ξcp * νcpInv))
+      exact_metric = sqrt(abs(exact_ξcp / exact_νcp))
 
       exact_Fobj_hist[k] = exact_fk
       exact_Metric_hist[k] = exact_metric
@@ -503,33 +503,36 @@ function PLM(
     end
 
     if (version == 9)
-      if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
-        ζk *= λ^4
-        @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-        nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
-        change_sample_rate = true
-        count_fail = 0
-        count_big_succ = 0
-        count_succ = 0
-        dist_succ = zero(eltype(xk))
-      elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
-        ζk *= λ^(-4)
-        @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-        nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
-        change_sample_rate = true
-        count_fail = 0
-        count_big_succ = 0
-        count_succ = 0
-        dist_succ = zero(eltype(xk))
-      end
-      if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
-        @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
-        buffer = sample_rates_collec[sample_counter]
-        nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
-        sample_counter += 1
-        change_sample_rate = true
-        count_succ = 0
-        dist_succ = zero(eltype(xk))
+      if nls.sample_rate < 1.0
+        if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased twice in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+          #=ζk *= λ^4
+          @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
+          nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))=#
+          nls.sample_rate = min(1.0, max(nls.sample_rate * λ, buffer))
+          change_sample_rate = true
+          count_fail = 0
+          count_big_succ = 0
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
+        elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased twice in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+          #ζk *= λ^(-4)
+          #@info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
+          nls.sample_rate = min(1.0, max(nls.sample_rate / λ, buffer))
+          change_sample_rate = true
+          count_fail = 0
+          count_big_succ = 0
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
+        end
+        if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
+          @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
+          buffer = sample_rates_collec[sample_counter]
+          nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
+          sample_counter += 1
+          change_sample_rate = true
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
+        end
       end
     end
 
