@@ -1,15 +1,23 @@
-function load_mnist_r2(selected_h)
+function load_mnist_r2(selected_h; MaxEpochs::Int = 1000)
     if selected_h == "smooth"
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\smooth_jld2")
     else
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
     end
-    #k_R2 = load_object(raw"k_R2-mnist-lhalf.jld2")
-    #R2_out = load_object("R2_out-mnist-lhalf.jld2")
-    R2_stats = load_object("R2_stats-mnist-$selected_h.jld2")
-    r2_metric_hist = load_object("r2_metric_hist-mnist-$selected_h.jld2")
-    r2_obj_hist = load_object("r2_obj_hist-mnist-$selected_h.jld2")
-    r2_numjac_hist = load_object("r2_numjac_hist-mnist-$selected_h.jld2")
+    if MaxEpochs == 20
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\small_budget")
+        R2_stats = load_object("R2_stats-mnist-$selected_h-Epoch=20.jld2")
+        r2_metric_hist = load_object("r2_metric_hist-mnist-$selected_h-Epoch=20.jld2")
+        r2_obj_hist = load_object("r2_obj_hist-mnist-$selected_h-Epoch=20.jld2")
+        r2_numjac_hist = load_object("r2_numjac_hist-mnist-$selected_h-Epoch=20.jld2")
+    else
+        #k_R2 = load_object(raw"k_R2-mnist-lhalf.jld2")
+        #R2_out = load_object("R2_out-mnist-lhalf.jld2")
+        R2_stats = load_object("R2_stats-mnist-$selected_h.jld2")
+        r2_metric_hist = load_object("r2_metric_hist-mnist-$selected_h.jld2")
+        r2_obj_hist = load_object("r2_obj_hist-mnist-$selected_h.jld2")
+        r2_numjac_hist = load_object("r2_numjac_hist-mnist-$selected_h.jld2")
+    end
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages\SampledLM")
 
     return R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist

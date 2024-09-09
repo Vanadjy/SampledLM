@@ -1,8 +1,8 @@
-function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1, 7), selected_h = "lhalf", smooth = false)
+function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1, 7), selected_h = "lhalf", smooth = false, MaxEpochs::Int = 1000)
     local mnist, mnist_nls, mnist_nls_sol = RegularizedProblems.svm_train_model()
     local mnist_nlp_test, mnist_nls_test, mnist_sol_test = RegularizedProblems.svm_test_model()
 
-    R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist = load_mnist_r2(selected_h)
+    R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist = load_mnist_r2(selected_h; MaxEpochs = MaxEpochs)
     #LM_out, LMTR_out = load_mnist_lm_lmtr(selected_h)
 
     acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100

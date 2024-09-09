@@ -9,7 +9,7 @@ using FastClosures
 
 include("input_struct_sto.jl")
 
-nls = BundleAdjustmentModel("problem-21-11315-pre")
+nls = BundleAdjustmentModel("problem-50-20431-pre") #trafalgar
 meta_nls_ba = nls_meta(nls)
 
 function F!(Fx, x)
@@ -274,4 +274,75 @@ function LM_qrm(
     return stats
 end
 
-LM_qrm(adnls, options)
+LM_qrm_out = LM_qrm(adnls, options)
+sol = LM_qrm_out.solution
+sol0 = nls.meta.x0
+#display(norm(sol - sol0))
+x0 = [sol0[3*i+1] for i in 0:(nls.npnts-1)]
+y0 = [sol0[3*i+2] for i in 0:(nls.npnts-1)]
+z0 = [sol0[3*i] for i in 1:nls.npnts]
+plt3d0 = PlotlyJS.scatter(
+            x=x0,
+            y=y0,
+            z=z0,
+            mode="markers",
+            marker=attr(
+                size=1,
+                opacity=0.8,
+                color = "firebrick"
+            ),
+            type="scatter3d",
+            options=Dict(:showLink => true)
+)
+
+x = [sol[3*i+1] for i in 0:(nls.npnts-1)]
+y = [sol[3*i+2] for i in 0:(nls.npnts-1)]
+z = [sol[3*i] for i in 1:nls.npnts]       
+plt3d = PlotlyJS.scatter(
+    x=x,
+    y=y,
+    z=z,
+    mode="markers",
+    marker=attr(
+        size=1,
+        opacity=0.8
+    ),
+    type="scatter3d",
+    options=Dict(:showLink => true)
+)
+
+layout = Layout(scene = attr(
+  xaxis = attr(
+      backgroundcolor="rgb(255, 255, 255)",
+      title_text = "",
+      gridcolor="white",
+      showbackground=false,
+      zerolinecolor="white",
+      tickfont=attr(size=0, color="white")),
+  yaxis = attr(
+      backgroundcolor="rgb(255, 255, 255)",
+      title_text = "",
+      gridcolor="white",
+      showbackground=false,
+      zerolinecolor="white",
+      tickfont=attr(size=0, color="white")),
+  zaxis = attr(
+      backgroundcolor="rgb(255, 255, 255)",
+      title_text = "",
+      gridcolor="white",
+      showbackground=false,
+      zerolinecolor="white",
+      tickfont=attr(size=0, color="white")),
+      margin=attr(
+          r=10, l=10,
+          b=10, t=10),
+      aspectmode = "manual",
+      showlegend = false
+      ),
+      #scene_camera = camera_settings[name]
+)
+
+fig_ba = PlotlyJS.Plot(plt3d, layout)
+fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
+display(fig_ba)
+display(fig_ba0)

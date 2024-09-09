@@ -10,26 +10,26 @@ if selected_probs == ["ijcnn1"]
     versions = [2, 5, 7, 9]
     #version = versions[end]
     ϵ = 1e-16
-    selected_hs = ["lhalf", "smooth"]
+    selected_hs = ["smooth"]
     MaxEpochs = 100
     MaxTime = 3600.0
     smooth = false
     compare = false
 elseif selected_probs == ["mnist"]
     sample_rate0 = .05
-    sample_rates = [1.0, .05]
+    sample_rates = []#1.0, .05]
     selected_digits = [(1, 7)]
-    versions = [2, 9]
+    versions = []#2, 9]
     #version = versions[end]
     selected_hs = ["lhalf"]
     ϵ = 1e-4
-    MaxEpochs = 500
+    MaxEpochs = 20
     MaxTime = 3600.0
     smooth = false
     compare = true
 end
 
-local_plots = false
+local_plots = true
 abscissas = ["epoch", "CPU time"]
 abscissa = abscissas[1]
 
@@ -53,7 +53,7 @@ else
     if selected_probs == ["ijcnn1"]
         plot_ijcnn1(sample_rates, versions, selected_hs; n_runs = n_exec, MaxEpochs = MaxEpochs)
     elseif selected_probs == ["mnist"]
-        plot_mnist(sample_rates, versions, selected_hs; n_runs = n_exec, smooth = smooth)
-        greymaps_tables_mnist(versions, sample_rates, sample_rate0; smooth = smooth, selected_h = selected_hs[1])
+        #plot_mnist(sample_rates, versions, selected_hs; n_runs = n_exec, smooth = smooth, MaxEpochs = MaxEpochs)
+        greymaps_tables_mnist(versions, sample_rates, sample_rate0; smooth = smooth, selected_h = selected_hs[1], MaxEpochs = MaxEpochs)
     end
 end
