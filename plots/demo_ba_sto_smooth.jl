@@ -9,7 +9,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         #"problem-88-64298-pre" => attr(center = attr(x = -0.0021615530883736145, y = -0.030543602186994832, z = -0.028300153803163062), eye = attr(x = 0.6199398252619821, y = -0.4431229879708768, z = 0.3694699626625795), up = attr(x = -0.13087330856114893, y = 0.5787247595812629, z = 0.8049533090520641)),
         #"problem-52-64053-pre" => attr(center = attr(x = 0.2060347573851926, y = -0.22421275022169654, z = -0.05597905955228791), eye = attr(x = 0.2065816892336426, y = -0.3978440066064094, z = 0.6414786827075296), up = attr(x = 0, y = 0, z = 1)),
         #"problem-89-110973-pre" => attr(center = attr(x = -0.1674117968407976, y = -0.1429803633607516, z = 0.01606765828188431), eye = attr(x = 0.1427370965379074, y = -0.19278139431870447, z = 0.7245395074933954), up = attr(x = 0.02575289497167061, y = 0.9979331596959415, z = 0.05887441872199366)),
-        #"problem-21-11315-pre" => attr(center = attr(x = 0, y = 0, z = 1), eye = attr(x = 1.25, y = 1.25, z = 1.2), up = attr(x = 0, y = 0, z = 0)),
+        "problem-21-11315-pre" => attr(center = attr(x = 0, y = 0, z = 1), eye = attr(x = 1.25, y = 1.25, z = 1.2), up = attr(x = 0, y = 0, z = 0)),
         #"problem-49-7776-pre" => attr(center = attr(x = 0.12011665286185144, y = 0.2437548728183421, z = 0.6340730201867651), eye = attr(x = 0.14156235059481262, y = 0.49561706850854814, z = 0.48335380789220556), up = attr(x = 0.9853593274726773, y = 0.01757909714618111, z = 0.169581753458674))
     )
 
@@ -112,7 +112,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, γ = 10, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
         suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 300)
 
-        sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-11, ϵr = 1e-11, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)    
+        sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-9, ϵr = 1e-9, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)    
 
         @info "using SPLM at starting rate: $(sample_rate0*100)%"
 
@@ -175,7 +175,6 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         Prob_LM_out = PLM_outs[origin_ind]
 
         sol = Prob_LM_out.solution
-        #display(norm(sol - sol0))
 
         x = [sol[3*i+1] for i in 0:(sampled_nls.npnts-1)]
         y = [sol[3*i+2] for i in 0:(sampled_nls.npnts-1)]

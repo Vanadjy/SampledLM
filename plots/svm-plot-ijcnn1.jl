@@ -220,7 +220,7 @@ function plot_ijcnn1(sample_rates::AbstractVector, versions::AbstractVector, sel
         plt_metr = PGFPlots.Axis(
             data_metr,
             xlabel="\$ j^{th}\$   epoch",
-            ylabel= selected_h == "smooth" ? "Stationarity measure: \$ \\nabla f(x_j) \$" : "Stationarity measure: \$ (\\xi_{j,cp}^m(x_j,\\nu_j^{-1})\\nu_j^{-1})^{1/2} \$",
+            ylabel= selected_h == "smooth" ? "Stationarity measure: \$ \\| \\nabla f(x_j) \\| \$" : "Stationarity measure: \$ (\\xi_{j,cp}^m(x_j,\\nu_j^{-1})\\nu_j^{-1})^{1/2} \$",
             ymode="log",
             xmode="log",
         )

@@ -132,6 +132,7 @@ function SPLM(
     μmin = options.μmin
     metric = options.metric
   
+    n = nls.meta.nvar
     m = nls.nls_meta.nequ
   
     # store initial values of the subsolver_options fields that will be modified
@@ -206,6 +207,10 @@ function SPLM(
     fk = dot(Fk, Fk) / 2 #objective estimated without noise
     jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
     qrm_init()
+    #=rows_qrm = vcat(rows, (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
+    cols_qrm = vcat(cols, 1:n)
+    vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
+    spmat = qrm_spmat_init(m + n, n, rows_qrm, cols_qrm, vals_qrm)=#
   
     if Jac_lop
       Jk = jac_op_residual!(nls.adnls, rows, cols, vals, JdFk, Jt_Fk)
@@ -294,8 +299,6 @@ function SPLM(
           spmat = qrm_spmat_init(nls.nls_meta.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
         else
-          n = maximum(cols[sparse_sample])
-          m = maximum(rows[sparse_sample])
           #=rows_qrm = vcat(rows[sparse_sample], (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
           cols_qrm = vcat(cols[sparse_sample], 1:n)
           vals_qrm = vcat(vals[sparse_sample], sqrt(σk) .* ones(n))=#
@@ -305,11 +308,11 @@ function SPLM(
 
           row_sample_ba = row_sample_bam(nls.sample)
 
-          @assert m ≤ maximum(row_sample_ba)
-          @assert (m + n) == length(vcat(-Fk[1:m], zeros(n)))
+          #@assert m ≤ maximum(row_sample_ba)
+          #@assert (m + n) == length(vcat(-Fk[1:m], zeros(n)))
 
           spmat = qrm_spmat_init(m + n, n, rows_qrm, cols_qrm, vals_qrm)
-          qrm_least_squares!(spmat, vcat(-Fk[1:m], zeros(n)), s)
+          qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
         end
         #spmat = qrm_spmat_init(meta_nls.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
         #spmat = qrm_spmat_init(meta_nls.nequ, meta_nls.nvar, rows, cols, vals)
@@ -540,6 +543,7 @@ function SPLM(
         #Jk = jac_op_residual(nls, xk)
         jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
         jac_coord_residual!(nls.adnls, xk, vals)
+        vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
         μmax = norm(vals)
         νcpInv = (1 + θ) * (μmax^2 + μmin)
   
@@ -578,6 +582,7 @@ function SPLM(
         # update gradient & Hessian
         # Jk = jac_op_residual(nls, xk)
         jac_coord_residual!(nls.adnls, xk, vals)
+        vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
         jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
 
         μmax = norm(vals)

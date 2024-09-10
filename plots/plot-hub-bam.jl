@@ -2,15 +2,11 @@ Random.seed!(seed)
 
 n_exec = 10
 sample_rate0 = .05
-sample_rates = [1.0]
+sample_rates = []#1.0]
 versions = Int[2, 9]
 
-filter_name = "dubrovnik"
+filter_name = "trafalgar"
 name_list = ba_data(filter_name)
-
-selected_hs = ["l1"]
-plot_parameter = ["objective", "metric", "MSE", "accuracy"]
-param = plot_parameter[1]
 
 MaxEpochs = 100
 MaxTime = 2e4

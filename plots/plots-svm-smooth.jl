@@ -403,7 +403,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
 
                     save_object("SPLM_outs-$(prob_versions_names[version])-$selected_prob.jld2", SPLM_outs)
                     save_object("splm_trains-$(prob_versions_names[version])-$selected_prob.jld2", splm_trains)
-                    save_object("epoch_counters_splm-$(prob_versions_names[version])-$selected_prob-$selected_h.jld2", epoch_counters_plm)
+                    save_object("epoch_counters_splm-$(prob_versions_names[version])-$selected_prob.jld2", epoch_counters_plm)
 
                     if n_exec%2 == 1
                         med_ind = (n_exec ÷ 2) + 1
