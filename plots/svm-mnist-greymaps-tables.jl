@@ -4,6 +4,7 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
 
     R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist = load_mnist_r2(selected_h; MaxEpochs = MaxEpochs)
     #LM_out, LMTR_out = load_mnist_lm_lmtr(selected_h)
+    h = RootNormLhalf(.1)
 
     acc = vec -> length(findall(x -> x < 1, vec)) / length(vec) * 100
 
@@ -17,7 +18,7 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
     @show acc(r2train), acc(r2test)
 
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps\tikz_and_dats")
-    r2dec = plot_svm(R2_stats, R2_stats.solution, "r2-lhalf-$digits")
+    r2dec = plot_svm(R2_stats, R2_stats.solution, "r2-lhalf-$digits-Budget=$MaxEpochs")
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
     #=@info " LM with $selected_h"
@@ -50,13 +51,13 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
     local mnist_sto, mnist_nls_sto, mnist_sol = MNIST_train_model_sto(sample_rate0; digits = digits)
     local mnist_nlp_test_sto, mnist_nls_test_sto, mnist_sto_sol_test = MNIST_test_model_sto(sample_rate0; digits = digits)
 
-    temp = [R2_stats.solver_specific[:smooth_obj], R2_stats.solver_specific[:nonsmooth_obj], R2_stats.objective, acc(r2train), acc(r2test), R2_stats.iter, r2_numjac_hist[end], R2_stats.iter, R2_stats.elapsed_time]
+    temp = [R2_stats.solver_specific[:smooth_obj], h(R2_stats.solution), R2_stats.objective, acc(r2train), acc(r2test), R2_stats.iter, r2_numjac_hist[end], R2_stats.iter, R2_stats.elapsed_time]
 
     for version in versions
         if selected_h != "smooth"
-            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob, PLM_outs, plm_trains, nplm, ngplm, epoch_counters_plm = load_mnist_plm(version, selected_h)
+            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob, PLM_outs, plm_trains, nplm, ngplm, epoch_counters_plm = load_mnist_plm(version, selected_h; MaxEpochs = MaxEpochs)
         else
-            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob, PLM_outs, plm_trains, nplm, ngplm = load_mnist_splm(version, selected_h)
+            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob, PLM_outs, plm_trains, nplm, ngplm = load_mnist_splm(version, selected_h; MaxEpochs = MaxEpochs)
         end
 
         if n_exec%2 == 1
@@ -83,7 +84,7 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
         #ngplm = (neval_jtprod_residual(mnist_nls) + neval_jprod_residual(mnist_nls))
 
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps\tikz_and_dats")
-        plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "prob-lm-$version-lhalf-$digits")
+        plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "PLM-$version-lhalf-$digits-Budget=$MaxEpochs")
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
         
         if selected_h != "smooth"
@@ -97,12 +98,12 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
             #[LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
             #[LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
             #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
-            [Prob_LM_out.solver_specific[:Fhist][end], 0.0, Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm - Prob_LM_out.iter, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+            [Prob_LM_out.solver_specific[:Fhist][end], h(Prob_LM_out.solution), Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm - Prob_LM_out.iter, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
         end
     end
 
     for sample_rate in sample_rates
-        med_obj_sto, med_metr_sto, med_mse_sto, std_obj_sto, std_metr_sto, std_mse_sto, SLM_outs, slm_trains, nslm, ngslm = load_mnist_sto(sample_rate, selected_h)
+        med_obj_sto, med_metr_sto, med_mse_sto, std_obj_sto, std_metr_sto, std_mse_sto, SLM_outs, slm_trains, nslm, ngslm = load_mnist_sto(sample_rate, selected_h; MaxEpochs = MaxEpochs)
         @info "using SLM to solve"
         if n_exec%2 == 1 && sample_rate < 1.0
             med_ind = (n_exec ÷ 2) + 1
@@ -130,7 +131,7 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
         #ngsplm = (neval_jtprod_residual(mnist_nls) + neval_jprod_residual(mnist_nls))
 
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps\tikz_and_dats")
-        plmdec = plot_svm(SLM_out, SLM_out.solution, "slm-$(sample_rate*100)-lhalf-$digits")
+        plmdec = plot_svm(SLM_out, SLM_out.solution, "slm-$(sample_rate*100)-lhalf-$digits-Budget=$MaxEpochs")
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
         if selected_h != "smooth"
@@ -139,7 +140,7 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
             )
         else
             temp = hcat(temp,
-            [SLM_out.solver_specific[:ExactFhist][end], 0.0, SLM_out.solver_specific[:ExactFhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
+            [SLM_out.solver_specific[:ExactFhist][end], h(SLM_out.solution), SLM_out.solver_specific[:ExactFhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
             )
         end
     end
@@ -175,7 +176,7 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
         :s => "\$t \$ (s)")
 
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\tables")
-    open("svm-lhalf-$digits-$selected_h.tex", "w") do io
+    open("svm-lhalf-$digits-$selected_h-Budget=$MaxEpochs.tex", "w") do io
         SolverBenchmark.pretty_latex_stats(io, df,
             col_formatters=fmt_override,
             hdr_override=hdr_override)

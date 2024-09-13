@@ -17,7 +17,7 @@ function plot_ba(name, sample_rates, versions; n_runs = 10, smooth::Bool = false
     end
 
     for version in versions
-        med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob = load_ba_splm(name, version; n_runs = version == 9 ? n_runs : 5)
+        med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob = load_ba_splm(name, version; n_runs = n_runs)
         legend_obj_plm = PGFPlots.Plots.Linear(1:2, [1e16 for i in 1:2], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", legendentry = "PLM ($(prob_versions_names[version]))")
         push!(data_obj, legend_obj_plm)
     end
@@ -56,7 +56,7 @@ function plot_ba(name, sample_rates, versions; n_runs = 10, smooth::Bool = false
     ## ---------------------------------------------------------------------------------------------------##
 
     for version in versions
-        SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = version == 9 ? n_runs : 5)
+        SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = n_runs)
         # --------------- OBJECTIVE DATA -------------------- #
         markers_obj = vcat(filter(!>=(length(med_obj_prob_smooth)), scatter_log), length(med_obj_prob_smooth))
         data_obj_plm = PGFPlots.Plots.Linear(1:length(med_obj_prob_smooth), med_obj_prob_smooth, mark="none", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])")

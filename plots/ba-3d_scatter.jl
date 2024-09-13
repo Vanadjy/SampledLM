@@ -5,7 +5,9 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
     camera_settings = Dict(
         "problem-16-22106-pre" => attr(center = attr(x = 0.0013875672065291498, y = -0.1322659971617649, z = 0.014082603421694349), eye = attr(x = 0.4510192507667579, y = -0.4659513476315654, z = 0.387448272813281), up = attr(x = 0.19378437676965304, y = 0.8358368684008944, z = 0.5136383404125737)),
         "problem-16-22106-pre-x0" => attr(center = attr(x = -0.00020325635111987706, y = -0.11306200606736602, z = 0.033161420134634856), eye = attr(x = 0.3739093733537299, y = -0.4056038526945577, z = 0.5100004866202379), up = attr(x = 0.11632703501712824, y = 0.8846666814500118, z = 0.45147855281989546)),
-        #"problem-49-7776-pre" => attr(center = attr(x = 0.12011665286185144, y = 0.2437548728183421, z = 0.6340730201867651), eye = attr(x = 0.14156235059481262, y = 0.49561706850854814, z = 0.48335380789220556), up = attr(x = 0.9853593274726773, y = 0.01757909714618111, z = 0.169581753458674))
+        #"problem-49-7776-pre" => attr(center = attr(x = 0.12011665286185144, y = 0.2437548728183421, z = 0.6340730201867651), eye = attr(x = 0.14156235059481262, y = 0.49561706850854814, z = 0.48335380789220556), up = attr(x = 0.9853593274726773, y = 0.01757909714618111, z = 0.169581753458674)),
+        "problem-21-11315-pre" => attr(center = attr(x = -0.05439570610111173, y = -0.0847180537651548, z = 0.20521850839173353), eye = attr(x = -0.8525375011126299, y = -0.07217108147298555, z = 0.8138479254931056), up = attr(x = 0.01775147233563398, y = 0.9998388730725086, z = 0.0026670438716493343)),
+        "problem-21-11315-pre-x0" => attr(center = attr(x = -0.05439570610111173, y = -0.0847180537651548, z = 0.20521850839173353), eye = attr(x = -0.8525375011126299, y = -0.07217108147298555, z = 0.8138479254931056), up = attr(x = 0.01775147233563398, y = 0.9998388730725086, z = 0.0026670438716493343))
     )
 
     for name in name_list
@@ -80,7 +82,7 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
             PlotlyJS.savefig(fig_ba_slm, "ba-$name-3D-SLM-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")        end
 
         for version in versions
-            SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = version == 9 ? n_runs : 5)
+            SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = n_runs)
             layout_3d = layout3d(name, camera_settings)
 
             # Prob_LM_out is the run associated to the median final objective value

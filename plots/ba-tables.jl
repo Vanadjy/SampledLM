@@ -45,7 +45,7 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
     end
     
     for version in versions
-        SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = version == 9 ? n_runs : 5)
+        SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = n_runs)
 
         # Prob_LM_out is the run associated to the median final objective value
         if n_runs%2 == 1
@@ -65,9 +65,11 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
             end
         end
         SPLM_out = SPLM_outs[origin_ind]
+        SampleRateHist = SPLM_out.solver_specific[:SampleRateHist]
+        non_deterministic_counter = length(filter!(x -> x < 1.0, SampleRateHist))
 
         temp_ba = hcat(temp_ba, 
-            [fx0, SPLM_out.objective, gx0, SPLM_out.solver_specific[:ExactMetricHist][end], nsplm, ngsplm, SPLM_out.elapsed_time]
+            [fx0, SPLM_out.objective, gx0, SPLM_out.solver_specific[:ExactMetricHist][end], nsplm, ngsplm - non_deterministic_counter, SPLM_out.elapsed_time]
         )
     end
 

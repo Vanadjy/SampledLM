@@ -71,7 +71,9 @@ function sp_sample(rows::AbstractVector{T}, sample::AbstractVector{<:Integer}) w
   sp_sample = Int[]
   aux = [vcat(2*i-1, 2*i) for i in sample]
   row_sample = Int[]
-  for elt in aux row_sample = vcat(row_sample, elt) end
+  for elt in aux 
+    row_sample = vcat(row_sample, elt) 
+  end
   for i in eachindex(rows)
     if rows[i] in row_sample
       push!(sp_sample, i)
@@ -81,7 +83,7 @@ function sp_sample(rows::AbstractVector{T}, sample::AbstractVector{<:Integer}) w
 end
 
 function row_sample_bam(sample::AbstractVector{<:Integer})
-  aux = [vcat(2*i-1, 2*i) for i in sample]
+  aux = [vcat(2*i-1, 2*i) for i in eachindex(sample)]
   row_sample_ba = Int[]
   for elt in aux row_sample_ba = vcat(row_sample_ba, elt) end
   return row_sample_ba
@@ -170,4 +172,14 @@ function ba_data(name)
     push!(name_list, [filter_df[i, :name] for i in [1]][1])
   end
   return name_list
+end
+
+function drop_empty_rows(A)
+  ind_filter = Int[]
+  for i in axes(A, 1)
+    if nnz(A[i,:]) != 0
+      push!(ind_filter, i)
+    end
+  end
+  return A[ind_filter,:]
 end

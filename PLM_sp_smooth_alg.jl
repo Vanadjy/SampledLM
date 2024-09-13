@@ -102,7 +102,7 @@ function SPLM(
     threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # ≥ 1
 
     ζk = Int((balance))
-    #nls.sample = sort(randperm(nls.nls_meta.nequ)[1:ζk])
+    nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
   
     sample_counter = 1
     change_sample_rate = false
@@ -211,14 +211,9 @@ function SPLM(
     cols_qrm = vcat(cols, 1:n)
     vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
     spmat = qrm_spmat_init(m + n, n, rows_qrm, cols_qrm, vals_qrm)=#
-  
-    if Jac_lop
-      Jk = jac_op_residual!(nls.adnls, rows, cols, vals, JdFk, Jt_Fk)
-      μmax = opnorm(Jk)
-    else
-      sparse_sample = sp_sample(rows, nls.sample)
-      μmax = norm(vals, 2)
-    end
+    sparse_sample = sp_sample(rows, nls.sample)
+    row_sample_ba = row_sample_bam(nls.sample)
+    μmax = norm(vals, 2)
   
     νcpInv = (1 + θ) * (μmax^2 + μmin)
     νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
@@ -286,7 +281,6 @@ function SPLM(
         Complex_hist[k] = stats.niter
       else
         if nls.sample_rate == 1.0
-          n = nls.meta.nvar
           rows_qrm = vcat(rows, (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
           cols_qrm = vcat(cols, 1:n)
           vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
@@ -299,28 +293,29 @@ function SPLM(
           spmat = qrm_spmat_init(nls.nls_meta.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
         else
-          #=rows_qrm = vcat(rows[sparse_sample], (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
+          #=#building sampled rows for QRMumps
+          rows_qrm = rows[sparse_sample]
+          @assert issubset(Set(rows_qrm), Set(rows))
+          rows_qrm = vcat(rows_qrm, collect(maximum(rows_qrm)+1:maximum(rows_qrm)+n))
+          @assert length(rows_qrm) == length(rows[sparse_sample])+n
+
+          #building sampled cols for QRMumps
           cols_qrm = vcat(cols[sparse_sample], 1:n)
+
+          #building sampled vals for QRMumps
           vals_qrm = vcat(vals[sparse_sample], sqrt(σk) .* ones(n))=#
-          rows_qrm = vcat(rows, (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
+
+          #=rows_qrm = vcat(rows, (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
           cols_qrm = vcat(cols, 1:n)
           vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
+          spmat = qrm_spmat_init(m+n, n, rows_qrm, cols_qrm, vals_qrm)
+          qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)=#
 
-          row_sample_ba = row_sample_bam(nls.sample)
-
-          #@assert m ≤ maximum(row_sample_ba)
-          #@assert (m + n) == length(vcat(-Fk[1:m], zeros(n)))
-
-          spmat = qrm_spmat_init(m + n, n, rows_qrm, cols_qrm, vals_qrm)
-          qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
+          J = sparse(rows, cols, vals)[row_sample_ba, :]
+          spmat = qrm_spmat_init(vcat(J, sqrt(σk).*I))
+          @assert size(spmat)[1] == length(row_sample_ba)+n
+          qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
         end
-        #spmat = qrm_spmat_init(meta_nls.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
-        #spmat = qrm_spmat_init(meta_nls.nequ, meta_nls.nvar, rows, cols, vals)
-        #=spfct = qrm_spfct_init(spmat)
-        qrm_analyse!(spmat, spfct)
-        qrm_factorize!(spmat, spfct)
-        z = qrm_apply(spfct, -Fk; transp = 't') #TODO include complex compatibility
-        s = qrm_solve(spfct, z; transp = 'n')=#
       end
   
       xkn .= xk .+ s
@@ -529,6 +524,7 @@ function SPLM(
       #changes sample with new sample rate
       nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
       sparse_sample = sp_sample(rows, nls.sample)
+      row_sample_ba = row_sample_bam(nls.sample)
       if nls.sample_rate == 1.0
         nls.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
       end

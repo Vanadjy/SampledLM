@@ -61,10 +61,10 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
 
                 r2dec = plot_svm(reg_stats, reg_stats.solution, "r2-lhalf-$digits")
 
-                save_object("R2_stats-$selected_prob-smooth.jld2", reg_stats)
-                save_object("r2_metric_hist-$selected_prob-smooth.jld2", r2_metric_hist)
-                save_object("r2_obj_hist-$selected_prob-smooth.jld2", r2_obj_hist)
-                save_object("r2_numjac_hist-$selected_prob-smooth.jld2", r2_numjac_hist)
+                save_object("R2_stats-$selected_prob-smooth-Epoch=$MaxEpochs.jld2", reg_stats)
+                save_object("r2_metric_hist-$selected_prob-smooth-Epoch=$MaxEpochs.jld2", r2_metric_hist)
+                save_object("r2_obj_hist-$selected_prob-smooth-Epoch=$MaxEpochs.jld2", r2_obj_hist)
+                save_object("r2_numjac_hist-$selected_prob-smooth-Epoch=$MaxEpochs.jld2", r2_numjac_hist)
 
                     # --------------- OBJECTIVE DATA -------------------- #
 
@@ -172,8 +172,8 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                         end
                     end
 
-                    save_object("SSLM_outs-$(sample_rate*100)%-$selected_prob.jld2", SLM_outs)
-                    save_object("sslm_trains-$(sample_rate*100)%-$selected_prob.jld2", slm_trains)
+                    save_object("SSLM_outs-$(sample_rate*100)%-$selected_prob-Epoch=$MaxEpochs.jld2", SLM_outs)
+                    save_object("sslm_trains-$(sample_rate*100)%-$selected_prob-Epoch=$MaxEpochs.jld2", slm_trains)
 
                     if sample_rate == 1.0
                         med_ind = 1
@@ -202,9 +202,9 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                     end
                     #nplm = neval_residual(sampled_nls_tr)
                     nslm = length(prob.epoch_counter)-1
-                    save_object("nsslm-mnist-PLM-$(100*sample_rate)%.jld2", nslm)
+                    save_object("nsslm-mnist-PLM-$(100*sample_rate)%-Epoch=$MaxEpochs.jld2", nslm)
                     ngslm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
-                    save_object("ngsslm-mnist-PLM-$(100*sample_rate)%.jld2", ngslm)
+                    save_object("ngsslm-mnist-PLM-$(100*sample_rate)%-Epoch=$MaxEpochs.jld2", ngslm)
                     if prob_name == "mnist-train-ls"
                         slmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "sto-lm-$(100*sample_rate)%-lhalf-$digits")
                     end
@@ -235,8 +235,8 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                     filter!(!isnan, med_obj_sto)
                     std_obj_sto *= Confidence[conf]
                     filter!(!isnan, std_obj_sto)
-                    save_object("med_obj_sto_smooth-$(sample_rate*100)-$prob_name.jld2", med_obj_sto)
-                    save_object("std_obj_sto_smooth-$(sample_rate*100)-$prob_name.jld2", std_obj_sto)
+                    save_object("med_obj_sto_smooth-$(sample_rate*100)-$prob_name-Epoch=$MaxEpochs.jld2", med_obj_sto)
+                    save_object("std_obj_sto_smooth-$(sample_rate*100)-$prob_name-Epoch=$MaxEpochs.jld2", std_obj_sto)
 
                     # compute median of metric #
                     for l in eachindex(med_metr_sto)
@@ -255,8 +255,8 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                     filter!(!isnan, med_metr_sto)
                     std_metr_sto *= Confidence[conf]
                     filter!(!isnan, std_metr_sto)
-                    save_object("med_metr_sto_smooth-$(sample_rate*100)-$selected_prob.jld2", med_metr_sto)
-                    save_object("std_metr_sto_smooth-$(sample_rate*100)-$selected_prob.jld2", std_metr_sto)
+                    save_object("med_metr_sto_smooth-$(sample_rate*100)-$selected_prob-Epoch=$MaxEpochs.jld2", med_metr_sto)
+                    save_object("std_metr_sto_smooth-$(sample_rate*100)-$selected_prob-Epoch=$MaxEpochs.jld2", std_metr_sto)
                     
                     # compute median of MSE #
                     for l in eachindex(med_mse_sto)
@@ -275,8 +275,8 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                     filter!(!isnan, med_mse_sto)
                     std_mse_sto *= Confidence[conf]
                     filter!(!isnan, std_mse_sto)
-                    save_object("med_mse_sto_smooth-$(sample_rate*100)-$selected_prob.jld2", med_mse_sto)
-                    save_object("std_mse_sto_smooth-$(sample_rate*100)-$selected_prob.jld2", std_mse_sto)
+                    save_object("med_mse_sto_smooth-$(sample_rate*100)-$selected_prob-Epoch=$MaxEpochs.jld2", med_mse_sto)
+                    save_object("std_mse_sto_smooth-$(sample_rate*100)-$selected_prob-Epoch=$MaxEpochs.jld2", std_mse_sto)
 
                     # --------------- OBJECTIVE DATA -------------------- #
 
@@ -375,6 +375,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                     # routine to select the output with the median accuracy on the training set
                     SPLM_outs = []
                     splm_trains = []
+                    epoch_counters_plm = []
 
                     for k in 1:n_exec
                         # executes n_exec times Sto_LM with the same inputs
@@ -386,6 +387,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                         PLM_out = SPLM(prob, sampled_options, version; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, Jac_lop = true)
                         push!(SPLM_outs, PLM_out)
                         push!(splm_trains, residual(prob, PLM_out.solution))
+                        push!(epoch_counters_plm, prob.epoch_counter)
                         #PLM_out = SPLM(prob, sampled_options; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, version = version)
 
                         selected_iterations = (sample_rate0 == 1.0) ? prob.epoch_counter[2:end] : prob.epoch_counter[1:end-1]
@@ -401,9 +403,9 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                         @views Metr_Hists_epochs_prob[:, k][1:length(selected_iterations)] = PLM_out.solver_specific[:ExactMetricHist][selected_iterations]
                     end
 
-                    save_object("SPLM_outs-$(prob_versions_names[version])-$selected_prob.jld2", SPLM_outs)
-                    save_object("splm_trains-$(prob_versions_names[version])-$selected_prob.jld2", splm_trains)
-                    save_object("epoch_counters_splm-$(prob_versions_names[version])-$selected_prob.jld2", epoch_counters_plm)
+                    save_object("SPLM_outs-$(prob_versions_names[version])-$selected_prob-Epoch=$MaxEpochs.jld2", SPLM_outs)
+                    save_object("splm_trains-$(prob_versions_names[version])-$selected_prob-Epoch=$MaxEpochs.jld2", splm_trains)
+                    save_object("epoch_counters_splm-$(prob_versions_names[version])-$selected_prob-Epoch=$MaxEpochs.jld2", epoch_counters_plm)
 
                     if n_exec%2 == 1
                         med_ind = (n_exec ÷ 2) + 1
@@ -428,9 +430,9 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                     end
                     #nplm = neval_residual(sampled_nls_tr)
                     nsplm = length(prob.epoch_counter) - 1
-                    save_object("nsplm-mnist-PLM-$(prob_versions_names[version]).jld2", nsplm)
+                    save_object("nsplm-mnist-PLM-$(prob_versions_names[version])-Epoch=$MaxEpochs.jld2", nsplm)
                     ngsplm = (neval_jtprod_residual(prob) + neval_jprod_residual(prob))
-                    save_object("ngsplm-mnist-PLM-$(prob_versions_names[version]).jld2", ngsplm)
+                    save_object("ngsplm-mnist-PLM-$(prob_versions_names[version])-Epoch=$MaxEpochs.jld2", ngsplm)
                     if prob_name == "mnist-train-ls"
                         plmdec = plot_svm(SProb_LM_out, SProb_LM_out.solution, "smooth-prob-lm-$(prob_versions_names[version])-lhalf-$digits")
                     end
@@ -462,8 +464,8 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                     std_obj_prob *= Confidence[conf]
                     filter!(!isnan, std_obj_prob)
 
-                    save_object("med_obj_prob_smooth-$(prob_versions_names[version])-$selected_prob.jld2", med_obj_prob)
-                    save_object("std_obj_prob_smooth-$(prob_versions_names[version])-$selected_prob.jld2", std_obj_prob)
+                    save_object("med_obj_prob_smooth-$(prob_versions_names[version])-$selected_prob-Epoch=$MaxEpochs.jld2", med_obj_prob)
+                    save_object("std_obj_prob_smooth-$(prob_versions_names[version])-$selected_prob-Epoch=$MaxEpochs.jld2", std_obj_prob)
 
                     # compute median of metric #
                     for l in eachindex(med_metr_prob)
@@ -483,8 +485,8 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                     std_metr_prob *= Confidence[conf]
                     filter!(!isnan, std_metr_prob)
 
-                    save_object("med_metr_prob_smooth-$(prob_versions_names[version])-$selected_prob.jld2", med_metr_prob)
-                    save_object("std_metr_prob_smooth-$(prob_versions_names[version])-$selected_prob.jld2", std_metr_prob)
+                    save_object("med_metr_prob_smooth-$(prob_versions_names[version])-$selected_prob-Epoch=$MaxEpochs.jld2", med_metr_prob)
+                    save_object("std_metr_prob_smooth-$(prob_versions_names[version])-$selected_prob-Epoch=$MaxEpochs.jld2", std_metr_prob)
                     
                     # compute median of MSE #
                     for l in eachindex(med_mse_prob)
@@ -504,8 +506,8 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                     std_mse_prob *= Confidence[conf]
                     filter!(!isnan, std_mse_prob)
 
-                    save_object("med_mse_prob_smooth-$(prob_versions_names[version])-$selected_prob.jld2", med_mse_prob)
-                    save_object("std_mse_prob_smooth-$(prob_versions_names[version])-$selected_prob.jld2", std_mse_prob)
+                    save_object("med_mse_prob_smooth-$(prob_versions_names[version])-$selected_prob-Epoch=$MaxEpochs.jld2", med_mse_prob)
+                    save_object("std_mse_prob_smooth-$(prob_versions_names[version])-$selected_prob-Epoch=$MaxEpochs.jld2", std_mse_prob)
 
                     # --------------- OBJECTIVE DATA -------------------- #
 

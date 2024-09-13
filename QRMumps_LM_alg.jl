@@ -9,7 +9,7 @@ using FastClosures
 
 include("input_struct_sto.jl")
 
-nls = BundleAdjustmentModel("problem-50-20431-pre") #trafalgar
+nls = BundleAdjustmentModel("problem-52-64053-pre") #venice
 meta_nls_ba = nls_meta(nls)
 
 function F!(Fx, x)
