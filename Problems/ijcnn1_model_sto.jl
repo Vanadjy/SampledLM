@@ -123,3 +123,17 @@ function ijcnn1_test_model()
     A_test, b_test = ijcnn1_generate_data_test()
     svm_model(A_test', b_test)
 end
+
+#=ijcnn1, ijcnn1_nls, ijcnn1_sol = ijcnn1_train_model_sto(1.0)
+adnls = ADNLSModel!(ijcnn1_nls.resid!, ijcnn1_nls.meta.x0,  ijcnn1_nls.nls_meta.nequ, ijcnn1_nls.meta.lvar, ijcnn1_nls.meta.uvar, jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+            jacobian_backend = ADNLPModels.EmptyADbackend,
+            hessian_backend = ADNLPModels.EmptyADbackend,
+            hessian_residual_backend = ADNLPModels.EmptyADbackend,
+            matrix_free = true
+)
+
+rows = Vector{Int}(undef, ijcnn1_nls.nls_meta.nnzj)
+cols = Vector{Int}(undef, ijcnn1_nls.nls_meta.nnzj)
+vals = ones(Bool, ijcnn1_nls.nls_meta.nnzj)
+jac_structure_residual!(adnls, rows, cols)
+J = sparse(rows, cols, vals, ijcnn1_nls.nls_meta.nequ, ijcnn1_nls.meta.nvar)=#

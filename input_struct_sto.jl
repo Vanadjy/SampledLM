@@ -370,55 +370,9 @@ function BAmodel_sto(name::AbstractString; T::Type = Float64, sample_rate = 1.0)
   )
 end
 
-"""
-    SampledADNLSModel
+include("SADNLSModel.jl")
 
-Strucure wrapping an ADNLSModel and a SampledBAModel to use Automatic Differentiation backend on sampled Bundle Adjustment problems.
-"""
-mutable struct SampledADNLSModel{T, S, Si} <: AbstractNLSModel{T, S}
-  adnls::ADNLSModel{T, S, Si}
-  ba::SampledBAModel{T, S}
-end
-
-"""
-    SADNLSModel
-
-Constructor of a SampledADNLSModel taking in arguments an ADNLSModel and a SampledBAModel.
-"""
-function SADNLSModel(adnls::ADNLSModel{T, S, Si}, ba::SampledBAModel{T, S}) where {T, S, Si}
-  return SampledADNLSModel(adnls, ba)
-end
-
-# API SampledADNLSModel #
-
-function Base.getproperty(model::SampledADNLSModel, f::Symbol)
-  if f in fieldnames(ADNLSModel)
-    getfield(model.adnls, f)
-  elseif f in fieldnames(SampledBAModel)
-    getfield(model.ba, f)
-  else
-    getfield(model, f)
-  end
-end
-
-function Base.setproperty!(model::SampledADNLSModel, f::Symbol, x)
-  if f in fieldnames(ADNLSModel)
-    setfield!(model.adnls, f, x)
-  elseif f in fieldnames(SampledBAModel)
-    setfield!(model.ba, f, x)
-  else
-    setfield!(model, f, x)
-  end
-end
-
-function NLPModels.residual(model::SampledADNLSModel{T, S}, x::AbstractVector{T}) where {T, S}
-  return residual(model.adnls, x)
-end
-
-function NLPModels.residual!(model::SampledADNLSModel{T, S}, x::AbstractVector{T}, Fx::AbstractVector{T}) where {T, S}
-  return residual!(model.adnls, x, Fx)
-end
-
+include("SADNLSModel_BA.jl")
 
 ## Residual function adapted to sampled Bundle Adjustment structure ##
 
@@ -566,7 +520,7 @@ for counter in fieldnames(NLSGeneralCounters)
     end
 end
   
-  function LinearOperators.reset!(nls::Union{SampledNLSModel, SampledADNLSModel})
+  function LinearOperators.reset!(nls::Union{SampledNLSModel, SampledADNLSModel_BA})
     reset!(nls.counters)
     return nls
   end

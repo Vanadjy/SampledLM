@@ -68,7 +68,7 @@ function SPLM(
   @assert length(sample_rates_collec) == length(epoch_limits)
   nls.sample_rate = sample_rate0
   ζk = Int(ceil(nls.sample_rate * nls.nls_meta.nequ))
-  nls.sample = sort(randperm(nls.nls_meta.nequ)[1:ζk])
+  nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
 
   sample_counter = 1
   change_sample_rate = false
@@ -104,10 +104,6 @@ function SPLM(
   m = nls.nls_meta.nequ
   ζk = Int(ceil(balance))
 
-  # store initial values of the subsolver_options fields that will be modified
-  ν_subsolver = subsolver_options.ν
-  ϵa_subsolver = subsolver_options.ϵa
-
   if verbose == 0
     ptf = Inf
   elseif verbose == 1
@@ -122,11 +118,8 @@ function SPLM(
   σk = max(1 / options.ν, σmin)
   μk = max(1 / options.ν , μmin)
   xk = copy(x0)
-
   xkn = similar(xk)
-
-  local ξcp
-  local exact_ξcp
+  
   local ξ
   local ξ_mem
 
@@ -160,31 +153,20 @@ function SPLM(
   Fk = residual(nls, xk)
   Fkn = similar(Fk)
   exact_Fk = zeros(1:m)
+  b_qrm = zeros(eltype(Fk), length(Fk) + nls.meta.nvar)
 
   fk = dot(Fk, Fk) / 2 #objective estimated without noise
   Jk = jac_op_residual(nls, xk)
   
   #sampled Jacobian
   ∇fk = similar(xk)
+  exact_∇fk = similar(∇fk)
   JdFk = similar(Fk) # temporary storage
-  Jt_Fk = similar(∇fk)
-  exact_Jt_Fk = similar(∇fk)
   jtprod_residual!(nls, xk, Fk, ∇fk)
   μmax = opnorm(Jk)
 
-  #=if Jac_lop
-    Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
-    μmax = opnorm(Jk)
-  else
-    sparse_sample = sp_sample(rows, nls.sample)
-    μmax = norm(vals)
-  end=#
-
   νcpInv = (1 + θ) * (μmax^2 + μmin)
-  νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
-
   s = zero(xk)
-  scp = similar(s)
 
   optimal = false
   tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
@@ -207,7 +189,7 @@ function SPLM(
 
     if k == 1
       ϵ_increment = (ξ0 ≤ 10 * eps(eltype(xk))) ? ϵr * metric : ϵr * ξ0
-      ϵ += ϵ_increment  # make stopping test absolute and relative
+      ϵ += ϵ_increment # make stopping test absolute and relative
       ϵ_subsolver += ϵ_increment
       μk = 1 / metric
     end
@@ -231,17 +213,9 @@ function SPLM(
       return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
     end
 
-    if Jac_lop
-      # LSMR strategy for LinearOperators #
-      s, stats = lsmr(Jk, -Fk; λ = σk)#, atol = subsolver_options.ϵa, rtol = ϵr)
-      Complex_hist[k] = stats.niter
-    else
-      spmat = qrm_spmat_init(length(nls.sample), meta_nls.nvar, rows[sparse_sample], cols[sparse_sample], vals[sparse_sample])
-      spfct = qrm_analyse(spmat)
-      qrm_factorize!(spmat, spfct)
-      z = qrm_apply(spfct, -Fk, transp = 't') #TODO include complex compatibility
-      s = qrm_solve(spfct, z, transp = 'n')
-    end
+    # LSMR strategy for LinearOperators #
+    s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = subsolver_options.ϵa)#, rtol = ϵr)
+    Complex_hist[k] = stats.niter
 
     xkn .= xk .+ s
 
@@ -253,7 +227,7 @@ function SPLM(
     ρk = Δobj / ξ
 
     #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
-    μ_stat = ρk < η1 ? "↘" : ((metric ≥ η3 / μk) ? "↗" : "↘")
+    μ_stat = ρk < η1 ? "↘" : ((nls.sample_rate==1.0 && (metric > η2))||(nls.sample_rate<1.0 && (metric ≥ η3 / μk)) ? "↗" : "=")
     #μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
 
     if (verbose > 0) && (k % ptf == 0)
@@ -267,8 +241,8 @@ function SPLM(
       nls.sample = 1:m
       residual!(nls, xk, exact_Fk)
       exact_fk = dot(exact_Fk, exact_Fk) / 2
-      jtprod_residual!(nls, xk, exact_Fk, ∇fk)
-      exact_metric = norm(∇fk)
+      jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
+      exact_metric = norm(exact_∇fk)
 
       exact_Fobj_hist[k] = exact_fk
       exact_Metric_hist[k] = exact_metric
@@ -420,34 +394,41 @@ function SPLM(
     end
 
     if (version == 9)
-      if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
-        ζk *= λ^4
-        @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-        nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
-        change_sample_rate = true
-        count_fail = 0
-        count_big_succ = 0
-        count_succ = 0
-        dist_succ = zero(eltype(xk))
-      elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
-        ζk *= λ^(-4)
-        @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-        nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))
-        change_sample_rate = true
-        count_fail = 0
-        count_big_succ = 0
-        count_succ = 0
-        dist_succ = zero(eltype(xk))
+      if nls.sample_rate < 1.0
+        if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased twice in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+          #=ζk *= λ^4
+          @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
+          nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))=#
+          nls.sample_rate = min(1.0, max(nls.sample_rate * λ, buffer))
+          change_sample_rate = true
+          count_fail = 0
+          count_big_succ = 0
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
+        elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased twice in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+          #ζk *= λ^(-4)
+          #@info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
+          nls.sample_rate = min(1.0, max(nls.sample_rate / λ, buffer))
+          change_sample_rate = true
+          count_fail = 0
+          count_big_succ = 0
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
+        end
+        if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
+          @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
+          buffer = sample_rates_collec[sample_counter]
+          nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
+          sample_counter += 1
+          change_sample_rate = true
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
+        end
       end
-      if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
-        @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
-        buffer = sample_rates_collec[sample_counter]
-        nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
-        sample_counter += 1
-        change_sample_rate = true
-        count_succ = 0
-        dist_succ = zero(eltype(xk))
-      end
+    end
+
+    if version == 0 #never change sample rate -> constant sample rate strategy
+
     end
 
     #changes sample with new sample rate
@@ -472,6 +453,7 @@ function SPLM(
       jtprod_residual!(nls, xk, Fk, ∇fk)
       μmax = opnorm(Jk)
       νcpInv = (1 + θ) * (μmax^2 + μmin)
+      b_qrm = zeros(eltype(Fk), length(Fk) + nls.meta.nvar)
 
       #change_sample_rate = false
     end

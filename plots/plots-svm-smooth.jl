@@ -19,6 +19,15 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
             sampled_options_full = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = precision, ϵr = precision, verbose = 10, σmin = 1e-5, maxIter = MaxEpochs, maxTime = MaxTime;)
             subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
 
+            #=rows = Vector{Int}(undef, mnist_nls_full.nls_meta.nnzj)
+            cols = Vector{Int}(undef, mnist_nls_full.nls_meta.nnzj)
+            vals = ones(Bool, mnist_nls_full.nls_meta.nnzj)
+            jac_structure_residual!(mnist_nls_full, rows, cols)
+            J = sparse(rows, cols, vals, mnist_nls_full.nls_meta.nequ, mnist_nls_full.meta.nvar)
+            display(J)=#
+            display(mnist_nls_full.nls_meta.nnzj)
+            display(mnist_nls_full.nls_meta.nequ * mnist_nls_full.meta.nvar)
+
             if selected_prob == "ijcnn1"
                 prob = ijcnn1_full
                 prob_nls = ijcnn1_nls_full
@@ -104,7 +113,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
             for sample_rate in sample_rates
                 nz = 10 * compound
                 #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, ϵa = 1e-6, ϵr = 1e-6, verbose = 10, spectral = true)
-                sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, ξ0 = ξ0;)
+                sampled_options = ROSolverOptions(η3 = .4, ν = 1.0, νcp = 1.0, β = 1e16, σmax = 1e16, σmin = 1e-5, μmin = 1e-5, ϵa = precision, ϵr = precision, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime, ξ0 = ξ0;)
                 local subsolver_options = RegularizedOptimization.ROSolverOptions(maxIter = (selected_prob == "mnist" ? 100 : 30))
                 local bpdn, bpdn_nls, sol_bpdn = bpdn_model_sto(compound; sample_rate = sample_rate)
                 #glasso, glasso_nls, sol_glasso, g, active_groups, indset = group_lasso_model_sto(compound; sample_rate = sample_rate)
@@ -142,14 +151,14 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                     SLM_outs = []
                     slm_trains = []
 
-                    for k in (sample_rate == 1 ? 1 : 1:n_exec)
+                    for k in (sample_rate == 1.0 ? 1 : 1:n_exec)
                         # executes n_exec times Sto_LM with the same inputs
-                        x0 = digits[1] * ones(prob.meta.nvar)
+                        x0 = ones(prob.meta.nvar)
                         #p = randperm(prob.meta.nvar)[1:nz]
                         #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
                         reset!(prob)
                         #try
-                        PLM_out = SPLM(prob, sampled_options; x0 = x0, subsolver_options = subsolver_options)
+                        PLM_out = SPLM(prob, sampled_options, 0; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate, Jac_lop = true)
                         push!(SLM_outs, PLM_out)
                         push!(slm_trains, residual(prob, PLM_out.solution))
 
@@ -358,19 +367,6 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                 Metr_Hists_epochs_prob = zero(Obj_Hists_epochs_prob)
                 MSE_Hists_epochs_prob = zero(Obj_Hists_epochs_prob)
                 for (prob, prob_name) in nls_prob_collection
-                    #=if selected_h == "l0"
-                        h = NormL0(λ)
-                        h_name = "l0-norm"
-                    elseif selected_h == "l1"
-                        h = NormL1(λ)
-                        h_name = "l1-norm"
-                    elseif selected_h == "lhalf"
-                        h = RootNormLhalf(λ)
-                        h_name = "lhalf-norm"
-                    elseif selected_h == "smooth"
-                        h = NormL1(0.0)
-                    end=#
-
                     @info "using PLM"
                     # routine to select the output with the median accuracy on the training set
                     SPLM_outs = []

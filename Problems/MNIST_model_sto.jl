@@ -58,3 +58,20 @@ function NLPModels.jac_residual(nls::SampledNLSModel)
     rows, cols, vals = findnz(convert(SparseMatrixCSC, Diagonal(B) * Ahat))
     return rows, cols, vals
 end
+
+#=A, b = tan_data_train((1,7), false)
+#display("Percentage of zero values in A: $(count(<=(1e-16), A) / (size(A, 1) * size(A, 2)))")
+#display((size(A, 1) * size(A, 2)) - (count(<=(1e-16), A)))
+mnist, mnist_nls, mnist_sol = MNIST_train_model_sto(1.0)
+adnls = ADNLSModel!(mnist_nls.resid!, mnist_nls.meta.x0,  mnist_nls.nls_meta.nequ, mnist_nls.meta.lvar, mnist_nls.meta.uvar, jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+            jacobian_backend = ADNLPModels.EmptyADbackend,
+            hessian_backend = ADNLPModels.EmptyADbackend,
+            hessian_residual_backend = ADNLPModels.EmptyADbackend,
+            matrix_free = true
+)
+
+rows = Vector{Int}(undef, mnist_nls.nls_meta.nnzj)
+cols = Vector{Int}(undef, mnist_nls.nls_meta.nnzj)
+vals = ones(Bool, mnist_nls.nls_meta.nnzj)
+jac_structure_residual!(adnls, rows, cols)
+J = sparse(rows, cols, vals, mnist_nls.nls_meta.nequ, mnist_nls.meta.nvar)=#
