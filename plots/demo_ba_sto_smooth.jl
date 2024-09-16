@@ -44,7 +44,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
             matrix_free = true)
 
         sampled_nls_ba.sample_rate = sample_rate0
-        sampled_nls = SADNLSModel(adnls, sampled_nls_ba)
+        sampled_nls = SADNLSModel_BA(adnls, sampled_nls_ba)
         guess_0 = sampled_nls_ba.nls_meta.x0
         #=d = Normal()
         noise = rand(d, length(guess_0))
@@ -112,7 +112,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, γ = 10, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
         suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 300)
 
-        sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-9, ϵr = 1e-9, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)    
+        sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-11, ϵr = 1e-11, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)    
 
         @info "using SPLM at starting rate: $(sample_rate0*100)%"
 

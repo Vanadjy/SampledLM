@@ -72,7 +72,7 @@ Generic solver statistics including among others
 * `Complex_hist`: an array with the history of number of inner iterations.
 """
 function SPLM(
-    nls::SampledADNLSModel,
+    nls::SampledADNLSModel_BA,
     options::ROSolverOptions,
     version::Int;
     x0::AbstractVector = nls.meta.x0,

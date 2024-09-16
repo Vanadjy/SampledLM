@@ -194,9 +194,21 @@ function SPLM(
       μk = 1 / metric
     end
     
-    if (metric < ϵ) && nls.sample_rate == 1.0 #checks if the optimal condition is satisfied and if all of the data have been visited
-      # the current xk is approximately first-order stationary
-      optimal = true
+    if version == 0 #including specific stopping criterion for constant sample rate strategies
+      if (metric < ϵ) 
+        push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
+        if nls.sample_rate == 1.0
+          optimal = true
+        else
+          if (length(nls.opt_counter) ≥ 5) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 3 iterations are successful
+            optimal = true
+          end
+        end
+      end
+    else
+      if (metric < ϵ) && nls.sample_rate == 1.0
+        optimal = true
+      end
     end
 
     subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric^2 / 10))
