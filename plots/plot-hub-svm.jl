@@ -37,7 +37,7 @@ elseif selected_probs == ["mnist"]
     compare = true
 end
 
-local_plots = true
+local_plots = false
 abscissas = ["epoch", "CPU time"]
 abscissa = abscissas[1]
 
