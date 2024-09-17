@@ -17,17 +17,24 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
     R2_stats, r2_metric_hist, r2_obj_hist, r2_numjac_hist = load_mnist_r2(selected_hs[1])
     #LM_out, LMTR_out = load_mnist_lm_lmtr(selected_hs[1])
     m = mnist_nls.nls_meta.nequ
+    select_h = selected_hs[1]
 
     for sample_rate in sample_rates
-        med_obj_sto, med_metr_sto, med_mse_sto, std_obj_sto, std_metr_sto, std_mse_sto, SLM_outs, slm_trains, nslm, ngslm = load_mnist_sto(sample_rate, "lhalf")
-        legend_mse_slm = PGFPlots.Plots.Linear(1:2, [1e16 for i in 1:2], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", legendentry = "PLM (Cst\\_batch=$(Int(sample_rate*100))\\%)")
+        med_obj_sto, med_metr_sto, med_mse_sto, std_obj_sto, std_metr_sto, std_mse_sto, SLM_outs, slm_trains, nslm, ngslm = load_mnist_sto(sample_rate, selected_hs[1])
+        legend_mse_slm = PGFPlots.Plots.Linear(1:2, [1e16 for i in 1:2], mark = "$(symbols_cst_pgf[sample_rate])", style="$(color_scheme_pgf[sample_rate]), $(line_style_sto_pgf[sample_rate])", legendentry = "PLM $(legend_names_mnist[sample_rate])")
         push!(data_mse, legend_mse_slm)
     end
 
     for version in versions
-        med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob = load_mnist_plm(version, "lhalf")
-        legend_mse_plm = PGFPlots.Plots.Linear(1:2, [1e16 for i in 1:2], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", legendentry = "PLM ($(prob_versions_names[version]))")
-        push!(data_mse, legend_mse_plm)
+        if select_h == "smooth"
+            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob = load_mnist_splm(version, selected_hs[1])
+            legend_mse_plm = PGFPlots.Plots.Linear(1:2, [1e16 for i in 1:2], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", legendentry = "PLM $(legend_names_mnist[version])")
+            push!(data_mse, legend_mse_plm)
+        else
+            med_obj_prob, med_metr_prob, med_mse_prob, std_obj_prob, std_metr_prob, std_mse_prob = load_mnist_plm(version, selected_hs[1])
+            legend_mse_plm = PGFPlots.Plots.Linear(1:2, [1e16 for i in 1:2], mark = "$(symbols_nd_pgf[version])", style="$(prob_versions_colors_pgf[version]), $(line_style_plm_pgf[version])", legendentry = "PLM $(legend_names_mnist[version]))")
+            push!(data_mse, legend_mse_plm)
+        end
     end
     
     # --------------- MSE DATA -------------------- #
