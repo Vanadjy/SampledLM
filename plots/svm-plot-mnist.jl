@@ -206,7 +206,7 @@ function plot_mnist(sample_rates::AbstractVector, versions::AbstractVector, sele
         ymode="log",
         xmode="log",
         ymax = 0.6,
-        legendPos = "south west"
+        #legendPos = "north west"
     )
 
     plt_neval_f = PGFPlots.Axis(

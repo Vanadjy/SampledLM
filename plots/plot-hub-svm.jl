@@ -7,10 +7,10 @@ if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
     sample_rates = [1.0, .1, .05, .01]
     selected_digits = [(1, 7)] # let only one pair of random digits
-    versions = [2, 5, 7, 9]
+    versions = []#2, 5, 7, 9]
     #version = versions[end]
     ϵ = 1e-16
-    selected_hs = ["smooth"]
+    selected_hs = ["l1"]
     if selected_hs == ["smooth"]
         smooth = true
     else
@@ -21,9 +21,9 @@ if selected_probs == ["ijcnn1"]
     compare = false
 elseif selected_probs == ["mnist"]
     sample_rate0 = .05
-    sample_rates = Float64[1.0, .05]
+    sample_rates = Float64[]
     selected_digits = [(1, 7)]
-    versions = Int[2, 9]
+    versions = Int[9]
     #version = versions[end]
     selected_hs = ["smooth"]
     if selected_hs == ["smooth"]
@@ -61,7 +61,9 @@ else
     if selected_probs == ["ijcnn1"]
         plot_ijcnn1(sample_rates, versions, selected_hs; n_runs = n_exec, MaxEpochs = MaxEpochs)
     elseif selected_probs == ["mnist"]
-        #plot_mnist(sample_rates, versions, selected_hs; n_runs = n_exec, smooth = smooth, MaxEpochs = MaxEpochs)
+        if MaxEpochs != 20
+            plot_mnist(sample_rates, versions, selected_hs; n_runs = n_exec, smooth = smooth, MaxEpochs = MaxEpochs)
+        end
         greymaps_tables_mnist(versions, sample_rates, sample_rate0; smooth = smooth, selected_h = selected_hs[1], MaxEpochs = MaxEpochs)
     end
 end
