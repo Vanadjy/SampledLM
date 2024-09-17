@@ -10,7 +10,7 @@ if selected_probs == ["ijcnn1"]
     versions = [2, 5, 7, 9]
     #version = versions[end]
     ϵ = 1e-8
-    selected_hs = ["l1", "lhalf"]#, "smooth"]
+    selected_hs = ["smooth"]
     if selected_hs == ["smooth"]
         smooth = true
     else
