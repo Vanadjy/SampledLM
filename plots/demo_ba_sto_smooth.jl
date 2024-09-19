@@ -110,7 +110,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         data_mse = GenericTrace{Dict{Symbol, Any}}[]
 
         #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, γ = 10, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-        suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 300)
+        suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 1000)
 
         sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-11, ϵr = 1e-11, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)    
 
@@ -125,6 +125,9 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         Metr_Hists_epochs_prob = zero(Obj_Hists_epochs_prob)
         MSE_Hists_epochs_prob = zero(Obj_Hists_epochs_prob)
 
+        io = open("log_PLM_ba-$name.txt", "w+")
+        logger = SimpleLogger(io)
+        global_logger(logger)
         for k in 1:n_runs
             reset!(sampled_nls)
             sampled_nls.epoch_counter = Int[1]
@@ -148,6 +151,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
             # get metric for each run #
             @views Metr_Hists_epochs_prob[:, k][1:length(sampled_nls.epoch_counter)] = Prob_LM_out_k.solver_specific[:ExactMetricHist][sampled_nls.epoch_counter]
         end
+        close(io)
 
         if sample_rate0 == 1.0
             save_object("SLM_outs-SLM-ba-$name-$(n_runs)runs-$(sample_rate0*100).jld2", PLM_outs)

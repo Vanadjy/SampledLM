@@ -1,20 +1,20 @@
 Random.seed!(seed)
 
 n_exec = 1
-sample_rate0 = .05
+sample_rate0 = 1.0
 sample_rates = Float64[1.0]
-versions = Int[2, 9]
+versions = Int[0]
 
 filter_name = "dubrovnik"
 name_list = ba_data(filter_name)
 
-MaxEpochs = 100
+MaxEpochs = 10
 MaxTime = 2e4
 
 smooth = true
-Jac_lop = false
+Jac_lop = true
 
-local_plots = true
+local_plots = false
 
 #plot_Sto_LM_BA(sample_rates, versions, name_list, selected_hs; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
 Random.seed!(seed)

@@ -274,7 +274,12 @@ function LM_qrm(
     return stats
 end
 
+io = open("log_LM_qrm.txt", "w+")
+logger = SimpleLogger(io)
+global_logger(logger)
 LM_qrm_out = LM_qrm(adnls, options)
+close(io)
+
 sol = LM_qrm_out.solution
 sol0 = nls.meta.x0
 #display(norm(sol - sol0))
