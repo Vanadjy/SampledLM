@@ -183,7 +183,7 @@ function SPLM(
   
     if verbose > 0
       #! format: off
-      @info @sprintf "%6s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "f(x)" "  ‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
+      @info @sprintf "%6s %6s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "  ‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
       #! format: on
     end
   
@@ -220,7 +220,10 @@ function SPLM(
   
     s = zero(xk)
     scp = similar(s)
-  
+
+    if Jac_lop
+      Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+    end
     optimal = false
     tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
     #tired = elapsed_time > maxTime
@@ -277,7 +280,7 @@ function SPLM(
   
       if Jac_lop
         # LSMR strategy for LinearOperators #
-        s, stats = lsmr(Jk, -Fk; λ = sqrt(σk), itmax = 300)#, atol = subsolver_options.ϵa, rtol = ϵr)
+        s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = subsolver_options.ϵa, itmax = 300)#, atol = subsolver_options.ϵa, rtol = ϵr)
         Complex_hist[k] = stats.niter
       else
         if nls.sample_rate == 1.0
@@ -311,13 +314,12 @@ function SPLM(
           spmat = qrm_spmat_init(m+n, n, rows_qrm, cols_qrm, vals_qrm)
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)=#
 
-          J = sparse(rows, cols, vals)[row_sample_ba, :]
-          spmat = qrm_spmat_init(vcat(J, sqrt(σk).*I))
+          spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
           @assert size(spmat)[1] == length(row_sample_ba)+n
           qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
         end
       end
-  
+
       xkn .= xk .+ s
   
       residual!(nls, xkn, Fkn)
@@ -333,7 +335,7 @@ function SPLM(
   
       if (verbose > 0) && (k % ptf == 0)
         #! format: off
-        @info @sprintf "%6d %8.1e %7.4e %8.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k fk norm(∇fk) ρk σk μk norm(xk) norm(s) μ_stat nls.sample_rate
+        @info @sprintf "%6d %6d %8.1e %7.4e %8.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k (Jac_lop ? stats.niter : 0) fk norm(∇fk) ρk σk μk norm(xk) norm(s) μ_stat nls.sample_rate
         #! format: off
       end
       
@@ -344,6 +346,9 @@ function SPLM(
       exact_fk = dot(exact_Fk, exact_Fk) / 2
       jac_coord_residual!(nls.adnls, xk, vals)
       jtprod_residual!(nls.adnls, rows, cols, vals, exact_Fk, exact_Jt_Fk)
+      if Jac_lop
+        Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+      end
 
       exact_Metric_hist[k] = norm(exact_Jt_Fk)
       exact_Fobj_hist[k] = exact_fk
@@ -539,6 +544,9 @@ function SPLM(
         #Jk = jac_op_residual(nls, xk)
         jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
         jac_coord_residual!(nls.adnls, xk, vals)
+        if Jac_lop
+          Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+        end
         vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
         μmax = norm(vals)
         νcpInv = (1 + θ) * (μmax^2 + μmin)
@@ -576,13 +584,14 @@ function SPLM(
         fk = dot(Fk, Fk) / 2
 
         # update gradient & Hessian
-        # Jk = jac_op_residual(nls, xk)
         jac_coord_residual!(nls.adnls, xk, vals)
+        if Jac_lop
+          Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+        end
         vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
         jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
 
         μmax = norm(vals)
-        #μmax = opnorm(Jk)
         νcpInv = (1 + θ) * (μmax^2 + μmin)
   
         #Complex_hist[k] += nls.sample_rate
@@ -607,7 +616,7 @@ function SPLM(
         @info @sprintf "%6d %8s %8.1e" k "" fk
       elseif optimal
         #! format: off
-        @info @sprintf "%6d %8.1e %7.4e %8s %7.1e %7.1e %7.1e %7.1e" k fk norm(∇fk) "" σk μk norm(xk) norm(s)
+        @info @sprintf "%6d %6s %8.1e %7.4e %8s %7.1e %7.1e %7.1e %7.1e" k "" fk norm(∇fk) "" σk μk norm(xk) norm(s)
         #! format: on
         @info "SLM: terminating with ‖∇f(x)‖= $(norm(∇fk))"
       end

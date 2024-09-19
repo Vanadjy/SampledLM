@@ -47,12 +47,8 @@ function SPLM(
   options::ROSolverOptions,
   version::Int;
   x0::AbstractVector = nls.meta.x0,
-  subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
-  subsolver = RegularizedOptimization.R2,
   subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
-  selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
-  sample_rate0::Float64 = .05,
-  Jac_lop::Bool = true
+  sample_rate0::Float64 = .05
 )
 
   # initializes epoch counting and progression
@@ -145,7 +141,7 @@ function SPLM(
 
   if verbose > 0
     #! format: off
-    @info @sprintf "%6s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "f(x)" "‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
+    @info @sprintf "%6s %6s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
     #! format: on
   end
 
@@ -226,7 +222,7 @@ function SPLM(
     end
 
     # LSMR strategy for LinearOperators #
-    s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = subsolver_options.ϵa)#, rtol = ϵr)
+    s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = subsolver_options.ϵa, verbose = 1)#, rtol = ϵr)
     Complex_hist[k] = stats.niter
 
     xkn .= xk .+ s
@@ -244,7 +240,7 @@ function SPLM(
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8.1e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k fk norm(∇fk) ρk σk μk norm(xk) norm(s) μ_stat nls.sample_rate
+      @info @sprintf "%6d %6d %8.1e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k stats.niter fk norm(∇fk) ρk σk μk norm(xk) norm(s) μ_stat nls.sample_rate
       #! format: off
     end
     
@@ -525,7 +521,7 @@ function SPLM(
       @info @sprintf "%6d %8s %8.1e" k "" fk
     elseif optimal
       #! format: off
-      @info @sprintf "%6d %8.1e %7.4e %8s %7.1e %7.1e %7.1e %7.1e" k fk norm(∇fk) "" σk μk norm(xk) norm(s)
+      @info @sprintf "%6d %8s %8.1e %7.4e %8s %7.1e %7.1e %7.1e %7.1e" k "" fk norm(∇fk) "" σk μk norm(xk) norm(s)
       #! format: on
       @info "SLM: terminating with ‖∇f(x)‖= $(norm(∇fk))"
     end

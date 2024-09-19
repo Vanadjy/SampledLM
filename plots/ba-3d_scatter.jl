@@ -82,7 +82,7 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
             PlotlyJS.savefig(fig_ba_slm, "ba-$name-3D-SLM-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")        end
 
         for version in versions
-            SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = n_runs)
+            SPLM_outs, splm_obj, med_obj_prob_smooth, med_metr_prob_smooth, med_mse_prob_smooth, nsplm, ngsplm = load_ba_splm(name, version; n_runs = n_runs)#((name == "problem-16-22106-pre" && version == 2) ? 5 : n_runs))
             layout_3d = layout3d(name, camera_settings)
 
             # Prob_LM_out is the run associated to the median final objective value

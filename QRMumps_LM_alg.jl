@@ -9,7 +9,7 @@ using FastClosures
 
 include("input_struct_sto.jl")
 
-nls = BundleAdjustmentModel("problem-52-64053-pre") #venice
+nls = BundleAdjustmentModel("problem-16-22106-pre") #dubrovnik
 meta_nls_ba = nls_meta(nls)
 
 function F!(Fx, x)
@@ -31,7 +31,7 @@ adnls = ADNLSModel!(F!, nls.meta.x0,  nls.nls_meta.nequ, nls.meta.lvar, nls.meta
     matrix_free = true
 )
 
-options = ROSolverOptions(η3 = .4, σmax = 1e6, ϵa = 1e-8, ϵr = 1e-8, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = 100, maxTime = 3600.0;)
+options = ROSolverOptions(η3 = .4, σmax = 1e6, ϵa = 1e-11, ϵr = 1e-11, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = 100, maxTime = 3600.0;)
 
 """
     LM_qrm(
