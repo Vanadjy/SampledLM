@@ -207,7 +207,7 @@ function SPLM(
       end
     end
 
-    subsolver_options.ϵa = k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric^2 / 10))
+    subsolver_options.ϵa = min(1.0e-1, ϵ + ϵr*metric^2)
 
     #update of σk
     σk = min(max(μk * metric, σmin), σmax)
@@ -222,7 +222,7 @@ function SPLM(
     end
 
     # LSMR strategy for LinearOperators #
-    s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = subsolver_options.ϵa, verbose = 1)#, rtol = ϵr)
+    s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = subsolver_options.ϵa)#, rtol = ϵr)
     Complex_hist[k] = stats.niter
 
     xkn .= xk .+ s

@@ -35,8 +35,8 @@ Random.seed!(seed)
 
 # ---------------- Hyperbolic SVM Models ---------------- #
 
-#include("plot-hub-svm.jl")
+include("plot-hub-svm.jl")
 
 # ---------------- Bundle Adjustment ---------------- #
 
-include("plot-hub-bam.jl")
+#include("plot-hub-bam.jl")

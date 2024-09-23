@@ -46,9 +46,6 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         sampled_nls_ba.sample_rate = sample_rate0
         sampled_nls = SADNLSModel_BA(adnls, sampled_nls_ba)
         guess_0 = sampled_nls_ba.nls_meta.x0
-        #=d = Normal()
-        noise = rand(d, length(guess_0))
-        guess_0 .-= noise=#
 
         sol0 = guess_0
         x0 = [sol0[3*i+1] for i in 0:(sampled_nls_ba.npnts-1)]
@@ -101,7 +98,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
 
         #options = PlotConfig(plotlyServerURL="https://chart-studio.plotly.com", showLink = true)
         fig_ba0 = PlotlyJS.Plot(plt3d0, layout)#; config = options)
-        #display(fig_ba0)
+        display(fig_ba0)
         #println("Press enter")
         #n = readline()
 
@@ -110,9 +107,9 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         data_mse = GenericTrace{Dict{Symbol, Any}}[]
 
         #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, γ = 10, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
-        suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 1000)
+        suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 2000)
 
-        sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-11, ϵr = 1e-11, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)    
+        sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-8, ϵr = 1e-8, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)    
 
         @info "using SPLM at starting rate: $(sample_rate0*100)%"
 
@@ -125,17 +122,10 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         Metr_Hists_epochs_prob = zero(Obj_Hists_epochs_prob)
         MSE_Hists_epochs_prob = zero(Obj_Hists_epochs_prob)
 
-        io = open("log_PLM_ba-$name.txt", "w+")
-        logger = SimpleLogger(io)
-        global_logger(logger)
         for k in 1:n_runs
             reset!(sampled_nls)
             sampled_nls.epoch_counter = Int[1]
-            #io = open("log-ba-$name-$(sample_rate0).txt", "w+")
-            #logger = SimpleLogger(io)
-            #global_logger(logger)
             Prob_LM_out_k = SPLM(sampled_nls, sampled_options, version; x0=guess_0, subsolver_options = suboptions, sample_rate0 = sample_rate0, Jac_lop = Jac_lop)
-            #close(io)
 
             push!(PLM_outs, Prob_LM_out_k)
             push!(plm_obj, Prob_LM_out_k.objective)
@@ -151,7 +141,6 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
             # get metric for each run #
             @views Metr_Hists_epochs_prob[:, k][1:length(sampled_nls.epoch_counter)] = Prob_LM_out_k.solver_specific[:ExactMetricHist][sampled_nls.epoch_counter]
         end
-        close(io)
 
         if sample_rate0 == 1.0
             save_object("SLM_outs-SLM-ba-$name-$(n_runs)runs-$(sample_rate0*100).jld2", PLM_outs)

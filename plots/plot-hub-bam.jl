@@ -8,7 +8,7 @@ versions = Int[0]
 filter_name = "dubrovnik"
 name_list = ba_data(filter_name)
 
-MaxEpochs = 10
+MaxEpochs = 20
 MaxTime = 2e4
 
 smooth = true

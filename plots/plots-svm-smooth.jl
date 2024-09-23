@@ -158,7 +158,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                         #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
                         reset!(prob)
                         #try
-                        PLM_out = SPLM(prob, sampled_options, 0; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate, Jac_lop = true)
+                        PLM_out = SPLM(prob, sampled_options, 0; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate)
                         push!(SLM_outs, PLM_out)
                         push!(slm_trains, residual(prob, PLM_out.solution))
 
@@ -380,7 +380,7 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
                         #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
                         reset!(prob)
                         prob.epoch_counter = Int[1]
-                        PLM_out = SPLM(prob, sampled_options, version; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0, Jac_lop = true)
+                        PLM_out = SPLM(prob, sampled_options, version; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate0)
                         push!(SPLM_outs, PLM_out)
                         push!(splm_trains, residual(prob, PLM_out.solution))
                         push!(epoch_counters_plm, prob.epoch_counter)

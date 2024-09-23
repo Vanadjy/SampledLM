@@ -264,7 +264,7 @@ function SPLM(
         optimal = true
       end
   
-      subsolver_options.ϵa = (k == 1 ? 1.0e-1 : max(ϵ_subsolver, min(1.0e-2, metric / 10)))
+      subsolver_options.ϵa = min(1.0e-1, ϵ + ϵr*metric)
   
       #update of σk
       σk = min(max(μk * metric, σmin), σmax)
@@ -281,8 +281,7 @@ function SPLM(
       if Jac_lop
         # LSMR strategy for LinearOperators #
         #s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = subsolver_options.ϵa, itmax = subsolver_options.maxIter, verbose = 1)#, atol = subsolver_options.ϵa, rtol = ϵr)
-        s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = ϵ, rtol = ϵr, itmax = subsolver_options.maxIter,
-                        axtol = zero(eltype(xk)), btol = zero(eltype(Fk)), etol = zero(eltype(Fk)),verbose = 1)#, atol = subsolver_options.ϵa, rtol = ϵr)
+        s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), itmax = 0 * subsolver_options.maxIter, atol = ϵa_subsolver)# rtol = ϵr,
         Complex_hist[k] = stats.niter
       else
         if nls.sample_rate == 1.0
