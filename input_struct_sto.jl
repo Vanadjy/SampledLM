@@ -677,17 +677,15 @@ end
 
 function NLPModels.jac_op_residual!(
   nls::SampledADNLSModel_BA,
-  rows::AbstractVector{<:Integer},
-  cols::AbstractVector{<:Integer},
-  vals::AbstractVector,
+  x::AbstractVector,
   Jv::AbstractVector,
   Jtv::AbstractVector,
 )
-  @lencheck length(rows) rows cols vals
-  @lencheck nls.nls_meta.nequ Jv
+  #@lencheck length(rows) rows cols vals
+  @lencheck 2*length(nls.sample) Jv
   @lencheck nls.meta.nvar Jtv
   prod! = @closure (res, v, α, β) -> begin
-    jprod_residual!(nls.adnls, rows, cols, vals, v, Jv)
+    jprod_residual!(nls, x, v, Jv)
     if β == 0
       @. res = α * Jv
     else
@@ -696,7 +694,7 @@ function NLPModels.jac_op_residual!(
     return res
   end
   ctprod! = @closure (res, v, α, β) -> begin
-    jtprod_residual!(nls.adnls, rows, cols, vals, v, Jtv)
+    jtprod_residual!(nls, x, v, Jtv)
     if β == 0
       @. res = α * Jtv
     else
@@ -704,8 +702,8 @@ function NLPModels.jac_op_residual!(
     end
     return res
   end
-  return LinearOperator{eltype(vals)}(
-    nls_meta(nls).nequ,
+  return LinearOperator{eltype(x)}(
+    2*length(nls.sample),
     nls_meta(nls).nvar,
     false,
     false,
@@ -743,8 +741,8 @@ end
 Computes the product of the Jacobian of the residual given by `(rows, cols, vals)`
 and a vector, i.e.,  ``J(x)v``, storing it in `Jv`.
 """
-#=function NLPModels.jprod_residual!(
-  nls::SampledBAModel,
+function NLPModels.jprod_residual!(
+  nls::SampledADNLSModel_BA,
   rows::AbstractVector{<:Integer},
   cols::AbstractVector{<:Integer},
   vals::AbstractVector,
@@ -754,9 +752,9 @@ and a vector, i.e.,  ``J(x)v``, storing it in `Jv`.
   @lencheck length(rows) rows cols vals
   @lencheck nls.meta.nvar v
   @lencheck nls.nls_meta.nequ Jv
-  increment!(nls, :neval_jprod_residual)
+  increment!(nls.ba, :neval_jprod_residual)
   coo_prod!(rows, cols, vals, v, Jv)
-end=#
+end
 
 """
     Jtv = jtprod_residual!(nls, rows, cols, vals, v, Jtv)
@@ -764,8 +762,8 @@ end=#
 Computes the product of the transpose of the Jacobian of the residual given by `(rows, cols, vals)`
 and a vector, i.e.,  ``J(x)^Tv``, storing it in `Jv`.
 """
-#=function NLPModels.jtprod_residual!(
-  nls::SampledBAModel,
+function NLPModels.jtprod_residual!(
+  nls::SampledADNLSModel_BA,
   rows::AbstractVector{<:Integer},
   cols::AbstractVector{<:Integer},
   vals::AbstractVector,
@@ -775,6 +773,6 @@ and a vector, i.e.,  ``J(x)^Tv``, storing it in `Jv`.
   @lencheck length(rows) rows cols vals
   @lencheck nls.nls_meta.nequ v
   @lencheck nls.meta.nvar Jtv
-  increment!(nls, :neval_jtprod_residual)
+  increment!(nls.ba, :neval_jtprod_residual)
   coo_prod!(cols, rows, vals, v, Jtv)
-end=#
+end

@@ -98,7 +98,7 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
             #[LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
             #[LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
             #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
-            [Prob_LM_out.solver_specific[:Fhist][end], h(Prob_LM_out.solution), Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm - Prob_LM_out.iter, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+            [Prob_LM_out.solver_specific[:Fhist][end], h(Prob_LM_out.solution), Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, Prob_LM_out.solver_specific[:NLSGradHist][end] - Prob_LM_out.iter, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
         end
     end
 
@@ -140,7 +140,7 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
             )
         else
             temp = hcat(temp,
-            [SLM_out.solver_specific[:ExactFhist][end], h(SLM_out.solution), SLM_out.solver_specific[:ExactFhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
+            [SLM_out.solver_specific[:ExactFhist][end], h(SLM_out.solution), SLM_out.solver_specific[:ExactFhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm - SLM_out.iter, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
             )
         end
     end

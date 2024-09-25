@@ -5,7 +5,7 @@ using LinearAlgebra, Logging, Printf, Plots, DataFrames
 using ProximalOperators, FastClosures
 
 # dependencies from us
-using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov, ADNLPModels, JSOSolvers
+using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov, ADNLPModels, JSOSolvers, BasicLU
 using RegularizedProblems, RegularizedOptimization, BundleAdjustmentModels
 
 # stochastic packages dependencies

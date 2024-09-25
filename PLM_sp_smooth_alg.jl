@@ -148,7 +148,7 @@ function SPLM(
     else
       ptf = 1
     end
-  
+
     # initialize parameters
     σk = max(1 / options.ν, σmin)
     μk = max(1 / options.ν , μmin)
@@ -169,14 +169,14 @@ function SPLM(
     dist_succ = zero(eltype(xk))
     k = 0
 
-    Fobj_hist = zeros(maxIter * 100)
-    exact_Fobj_hist = zeros(maxIter * 100)
-    Metric_hist = zeros(maxIter * 100)
-    exact_Metric_hist = zeros(maxIter * 100)
-    Complex_hist = zeros(maxIter * 100)
-    Grad_hist = zeros(maxIter * 100)
-    Resid_hist = zeros(maxIter * 100)
-    Sample_hist = zeros(maxIter * 100)
+    Fobj_hist = zeros(maxIter)
+    exact_Fobj_hist = zeros(maxIter)
+    Metric_hist = zeros(maxIter)
+    exact_Metric_hist = zeros(maxIter)
+    Complex_hist = zeros(maxIter)
+    Grad_hist = zeros(maxIter)
+    Resid_hist = zeros(maxIter)
+    Sample_hist = zeros(maxIter)
   
     #Historic of time
     TimeHist = []
@@ -186,47 +186,62 @@ function SPLM(
       @info @sprintf "%6s %6s %7s %7s %8s %7s %7s %7s %7s %1s %6s" "outer" "inner" "f(x)" "  ‖∇f(x)‖" "ρ" "σ" "μ" "‖x‖" "‖s‖" "reg" "rate"
       #! format: on
     end
-  
-    #creating required objects
-    Fk = residual(nls, xk)
-    Fkn = similar(Fk)
-    exact_Fk = zeros(1:m)
-    
-    #sampled Jacobian
-    ∇fk = similar(xk)
-    JdFk = similar(Fk) # temporary storage
-    Jt_Fk = similar(∇fk)
-    exact_Jt_Fk = similar(∇fk)
-  
+
     rows = Vector{Int}(undef, nls.nls_meta.nnzj)
     cols = Vector{Int}(undef, nls.nls_meta.nnzj)
     vals = similar(xk, nls.nls_meta.nnzj)
     jac_structure_residual!(nls.adnls, rows, cols)
     jac_coord_residual!(nls.adnls, nls.meta.x0, vals)
 
-    fk = dot(Fk, Fk) / 2 #objective estimated without noise
-    jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
-    qrm_init()
     #=rows_qrm = vcat(rows, (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
     cols_qrm = vcat(cols, 1:n)
     vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
     spmat = qrm_spmat_init(m + n, n, rows_qrm, cols_qrm, vals_qrm)=#
     sparse_sample = sp_sample(rows, nls.sample)
     row_sample_ba = row_sample_bam(nls.sample)
+
+    #creating required objects
+    Fk = residual(nls, xk)
+    Fkn = similar(Fk)
+    exact_Fk = zeros(1:m)
+    fk = dot(Fk[1:length(row_sample_ba)], Fk[1:length(row_sample_ba)]) / 2 #objective estimated without noise
+
+    #sampled Jacobian
+    ∇fk = similar(xk)
+    JdFk = similar(Fk) # temporary storage
+    Jt_Fk = similar(∇fk)
+    exact_Jt_Fk = similar(∇fk)
+    jtprod_residual!(nls, xk, Fk[row_sample_ba], ∇fk)
+
     μmax = norm(vals, 2)
-  
+
     νcpInv = (1 + θ) * (μmax^2 + μmin)
     νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
-  
+
     s = zero(xk)
     scp = similar(s)
 
+    qrm_init()
+
     if Jac_lop
-      Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+      Jk = jac_op_residual!(nls, xk, JdFk, Jt_Fk)
+      # Setting preconditioner
+      Jk_mat = sparse(rows, cols, vals)[row_sample_ba, :]
+      d = [1 / norm(Jk_mat[:,i]) for i=1:n]  # diagonal preconditioner
+      #d_inv = [1 / norm(Jk_mat[i,:]) for i=1:m]
+      P⁻¹ = spdiagm(d)
+      #Q⁻¹ = spdiagm(d_inv)
     end
     optimal = false
     tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
     #tired = elapsed_time > maxTime
+
+    # adapting ADBackend with respect to sample rate
+    #adbackend_default = ADNLPModels.ADBackend(nls.nvar, adnls.F!, jprod_residual_backend = ADNLPModels.ForwardDiffADJprod, jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod)
+    #adbackend_under = ADNLPModels.ADBackend(nls.nvar, adnls.F!, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
+    if 2*length(nls.sample) < nls.meta.nvar # switch from default backends whenever sampled J underdetermined
+      set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
+    end
   
     while !(optimal || tired)
       k = k + 1
@@ -273,15 +288,19 @@ function SPLM(
       # model for subsequent prox-gradient iterations
   
       mk_smooth(d) = begin
-        jprod_residual!(nls.adnls, rows, cols, vals, d, JdFk)
-        JdFk .+= Fk
+        jprod_residual!(nls, xk, d, JdFk)
+        JdFk[1:length(row_sample_ba)] .+= Fk[1:length(row_sample_ba)]
         return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
       end
   
       if Jac_lop
         # LSMR strategy for LinearOperators #
         #s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = subsolver_options.ϵa, itmax = subsolver_options.maxIter, verbose = 1)#, atol = subsolver_options.ϵa, rtol = ϵr)
-        s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), itmax = 0 * subsolver_options.maxIter, atol = ϵa_subsolver)# rtol = ϵr,
+        @time s_precond, stats = lsmr(Jk * P⁻¹, -Fk[row_sample_ba]; λ = sqrt(σk), itmax = 0 * subsolver_options.maxIter, verbose = 1)#, atol = ϵa_subsolver, rtol = ϵr,
+        # Recover solution of original subproblem
+        s = P⁻¹ * s_precond
+        #qr_op = qr(vcat(sparse(rows, cols, vals), sqrt(σk) * I))
+        #s_qr = qr_op \ (vcat(-Fk, zeros(eltype(Fk), n)))
         Complex_hist[k] = stats.niter
       else
         if nls.sample_rate == 1.0
@@ -316,15 +335,14 @@ function SPLM(
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)=#
 
           spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
-          @assert size(spmat)[1] == length(row_sample_ba)+n
-          qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
+          @time qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
         end
       end
 
       xkn .= xk .+ s
   
       residual!(nls, xkn, Fkn)
-      fkn = dot(Fkn, Fkn) / 2
+      fkn = dot(Fkn[1:length(row_sample_ba)], Fkn[1:length(row_sample_ba)]) / 2
       mks = mk_smooth(s)
       Δobj = fk - fkn
       ξ = fk - mks
@@ -346,11 +364,7 @@ function SPLM(
       residual!(nls, xk, exact_Fk)
       exact_fk = dot(exact_Fk, exact_Fk) / 2
       jac_coord_residual!(nls.adnls, xk, vals)
-      jtprod_residual!(nls.adnls, rows, cols, vals, exact_Fk, exact_Jt_Fk)
-      if Jac_lop
-        Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
-      end
-
+      jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
       exact_Metric_hist[k] = norm(exact_Jt_Fk)
       exact_Fobj_hist[k] = exact_fk
     elseif nls.sample_rate == 1.0
@@ -540,17 +554,30 @@ function SPLM(
         Fk = residual(nls, xk)
         Fkn = similar(Fk)
         JdFk = similar(Fk)
-        fk = dot(Fk, Fk) / 2
-  
-        #Jk = jac_op_residual(nls, xk)
-        jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
+        fk = dot(Fk[row_sample_ba], Fk[row_sample_ba]) / 2
+
+        jtprod_residual!(nls, xk, Fk[row_sample_ba], ∇fk)
         jac_coord_residual!(nls.adnls, xk, vals)
+        #Jk = jac_op_residual(nls, xk)
         if Jac_lop
-          Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+          Jk = jac_op_residual(nls, xk, JdFk, Jt_Fk)
+          # Update preconditionner
+          Jk_mat = sparse(rows, cols, vals)[row_sample_ba, :]
+          d = [1 / norm(Jk_mat[:,i]) for i=1:n]  # diagonal preconditioner
+          #d_inv = [norm(Jk_mat[i,:]) for i=1:m]
+          P⁻¹ = spdiagm(d)
+          #P = spdiagm(d_inv)
         end
         vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
         μmax = norm(vals)
         νcpInv = (1 + θ) * (μmax^2 + μmin)
+
+        # adapting ADBackend with respect to sample rate
+        if 2*length(nls.sample) < nls.meta.nvar
+          set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
+        else
+          set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ForwardDiffADJprod, jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod)
+        end
   
         #change_sample_rate = false
       end
@@ -582,15 +609,22 @@ function SPLM(
         else
           Fk = residual(nls, xk)
         end
-        fk = dot(Fk, Fk) / 2
+        #fk = dot(Fk[row_sample_ba], Fk[row_sample_ba]) / 2
+        fk = fkn
 
         # update gradient & Hessian
         jac_coord_residual!(nls.adnls, xk, vals)
         if Jac_lop
-          Jk = jac_op_residual!(nls, rows, cols, vals, JdFk, Jt_Fk)
+          Jk = jac_op_residual!(nls, xk, JdFk, Jt_Fk)
+          # Update preconditionner
+          Jk_mat = sparse(rows, cols, vals)[row_sample_ba, :]
+          d = [1 / norm(Jk_mat[:,i]) for i=1:n]  # diagonal preconditioner
+          #d_inv = [norm(Jk_mat[i,:]) for i=1:m]
+          P⁻¹ = spdiagm(d)
+          #P = spdiagm(d_inv)
         end
         vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
-        jtprod_residual!(nls.adnls, rows, cols, vals, Fk, ∇fk)
+        jtprod_residual!(nls, xk, Fk[row_sample_ba], ∇fk)
 
         μmax = norm(vals)
         νcpInv = (1 + θ) * (μmax^2 + μmin)

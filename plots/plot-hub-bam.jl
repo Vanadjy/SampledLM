@@ -3,16 +3,16 @@ Random.seed!(seed)
 n_exec = 1
 sample_rate0 = 1.0
 sample_rates = Float64[1.0]
-versions = Int[0]
+versions = Int[9]
 
 filter_name = "dubrovnik"
 name_list = ba_data(filter_name)
 
-MaxEpochs = 20
+MaxEpochs = 30
 MaxTime = 2e4
 
 smooth = true
-Jac_lop = true
+Jac_lop = false
 
 local_plots = false
 

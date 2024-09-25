@@ -46,3 +46,31 @@ end
 function NLPModels.residual!(model::SampledADNLSModel_BA{T, S}, x::AbstractVector{T}, Fx::AbstractVector{T}) where {T, S}
   return residual!(model.adnls, x, Fx)
 end
+
+function NLPModels.jprod_residual!(
+  nls::SampledADNLSModel_BA,
+  x::AbstractVector,
+  v::AbstractVector,
+  Jv::AbstractVector,
+)
+  @lencheck nls.meta.nvar x v
+  @lencheck 2*length(nls.sample) Jv
+  increment!(nls.ba, :neval_jprod_residual)
+  F = nls.adnls.F!
+  ADNLPModels.Jprod!(nls.adnls.adbackend.jprod_residual_backend, Jv, F, x, v, Val(:F))
+  return Jv
+end
+
+function NLPModels.jtprod_residual!(
+  nls::SampledADNLSModel_BA,
+  x::AbstractVector,
+  v::AbstractVector,
+  Jtv::AbstractVector,
+)
+  @lencheck nls.meta.nvar x Jtv
+  @lencheck 2*length(nls.sample) v
+  increment!(nls.ba, :neval_jtprod_residual)
+  F = nls.adnls.F!
+  ADNLPModels.Jtprod!(nls.adnls.adbackend.jtprod_residual_backend, Jtv, F, x, v, Val(:F))
+  return Jtv
+end

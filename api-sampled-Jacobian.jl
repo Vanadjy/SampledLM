@@ -66,6 +66,46 @@ function NLPModels.jprod_residual!(
       ctprod!,
     )
   end
+
+  #=function NLPModels.jac_op_residual!(
+    nls::SampledADNLSModel_BA,
+    rows::AbstractVector{<:Integer},
+    cols::AbstractVector{<:Integer},
+    vals::AbstractVector,
+    Jv::AbstractVector,
+    Jtv::AbstractVector,
+  )
+    @lencheck length(rows) rows cols vals
+    @lencheck 2*length(nls.sample) Jv
+    @lencheck nls.meta.nvar Jtv
+    prod! = @closure (res, v, α, β) -> begin
+      jprod_residual!(nls.adnls, rows, cols, vals, v, Jv)
+      if β == 0
+        @. res = α * Jv
+      else
+        @. res = α * Jv + β * res
+      end
+      return res
+    end
+    ctprod! = @closure (res, v, α, β) -> begin
+      jtprod_residual!(nls.adnls, rows, cols, vals, v, Jtv)
+      if β == 0
+        @. res = α * Jtv
+      else
+        @. res = α * Jtv + β * res
+      end
+      return res
+    end
+    return LinearOperator{eltype(vals)}(
+      2*length(nls.sample),
+      nls_meta(nls).nvar,
+      false,
+      false,
+      prod!,
+      ctprod!,
+      ctprod!,
+    )
+  end=#
   
   function NLPModels.jac_op_residual(nls::SampledNLSModel{T, S, R, J, Jt}, x::AbstractVector{T}) where {T, S, R, J, Jt}
     @lencheck nls.meta.nvar x

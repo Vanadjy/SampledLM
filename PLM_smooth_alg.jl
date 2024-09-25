@@ -222,7 +222,7 @@ function SPLM(
     end
 
     # LSMR strategy for LinearOperators #
-    s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = subsolver_options.ϵa)#, rtol = ϵr)
+    s, stats = lsmr(Jk, -Fk; λ = sqrt(σk), atol = subsolver_options.ϵa)#, rtol = ϵr)
     Complex_hist[k] = stats.niter
 
     xkn .= xk .+ s
