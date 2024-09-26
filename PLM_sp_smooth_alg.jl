@@ -208,7 +208,7 @@ function SPLM(
 
     #sampled Jacobian
     ∇fk = similar(xk)
-    JdFk = similar(Fk) # temporary storage
+    JdFk = similar(Fk[1:length(row_sample_ba)]) # temporary storage
     Jt_Fk = similar(∇fk)
     exact_Jt_Fk = similar(∇fk)
     jtprod_residual!(nls, xk, Fk[row_sample_ba], ∇fk)
@@ -289,7 +289,7 @@ function SPLM(
   
       mk_smooth(d) = begin
         jprod_residual!(nls, xk, d, JdFk)
-        JdFk[1:length(row_sample_ba)] .+= Fk[1:length(row_sample_ba)]
+        JdFk .+= Fk[1:length(row_sample_ba)]
         return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
       end
   
@@ -335,7 +335,10 @@ function SPLM(
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)=#
 
           spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
-          @time qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
+          time_qrm_start = time()
+          time_qrm_end = 0.0
+          qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
+          time_qrm_end = time() - time_qrm_start
         end
       end
 
@@ -346,6 +349,7 @@ function SPLM(
       mks = mk_smooth(s)
       Δobj = fk - fkn
       ξ = fk - mks
+      ξ = ξ < 0 ? -1*ξ : ξ #prevents from accepting a step when Δobj<0 and ξ<0
       ρk = Δobj / ξ
   
       #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
@@ -553,14 +557,14 @@ function SPLM(
         # mandatory updates whenever the sample_rate chages #
         Fk = residual(nls, xk)
         Fkn = similar(Fk)
-        JdFk = similar(Fk)
+        JdFk = similar(Fk[1:length(row_sample_ba)])
         fk = dot(Fk[row_sample_ba], Fk[row_sample_ba]) / 2
 
         jtprod_residual!(nls, xk, Fk[row_sample_ba], ∇fk)
         jac_coord_residual!(nls.adnls, xk, vals)
         #Jk = jac_op_residual(nls, xk)
         if Jac_lop
-          Jk = jac_op_residual(nls, xk, JdFk, Jt_Fk)
+          Jk = jac_op_residual!(nls, xk, JdFk, Jt_Fk)
           # Update preconditionner
           Jk_mat = sparse(rows, cols, vals)[row_sample_ba, :]
           d = [1 / norm(Jk_mat[:,i]) for i=1:n]  # diagonal preconditioner
