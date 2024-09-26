@@ -37,6 +37,5 @@ include("PLM_sp_smooth_alg.jl")
 end=#
 #include(raw"C:\Users\valen\Downloads\demo_svm.jl")
 
-
 #plots
 include("plots/plots.jl")

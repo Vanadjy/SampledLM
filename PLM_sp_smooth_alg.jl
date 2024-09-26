@@ -247,8 +247,8 @@ function SPLM(
       k = k + 1
       elapsed_time = time() - start_time
       Fobj_hist[k] = fk
-      Grad_hist[k] = nls.counters.neval_jtprod_residual + nls.counters.neval_jprod_residual
-      Resid_hist[k] = nls.counters.neval_residual
+      Grad_hist[k] = nls.ba.counters.neval_jtprod_residual + nls.ba.counters.neval_jprod_residual
+      Resid_hist[k] = nls.ba.counters.neval_residual
       Sample_hist[k] = nls.sample_rate
       if k == 1
         push!(TimeHist, 0.0)

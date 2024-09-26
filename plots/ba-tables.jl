@@ -37,9 +37,10 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
             end
         end
         SLM_out = SLM_outs[origin_ind]
+        display(SLM_out.solver_specific[:ResidHist])
 
         temp_ba = hcat(temp_ba,
-        [fx0, SLM_out.objective, gx0, SLM_out.solver_specific[:ExactMetricHist][end], nslm, ngslm, SLM_out.elapsed_time]
+        [fx0, SLM_out.objective, gx0, SLM_out.solver_specific[:ExactMetricHist][end], nslm, SLM_out.solver_specific[:NLSGradHist][end], SLM_out.elapsed_time]
         )
 
     end
@@ -67,9 +68,10 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         SPLM_out = SPLM_outs[origin_ind]
         SampleRateHist = SPLM_out.solver_specific[:SampleRateHist]
         non_deterministic_counter = length(filter!(x -> x < 1.0, SampleRateHist))
+        display(SPLM_out.solver_specific[:NLSGradHist])
 
         temp_ba = hcat(temp_ba, 
-            [fx0, SPLM_out.objective, gx0, SPLM_out.solver_specific[:ExactMetricHist][end], nsplm, ngsplm - non_deterministic_counter, SPLM_out.elapsed_time]
+            [fx0, SPLM_out.objective, gx0, SPLM_out.solver_specific[:ExactMetricHist][end], nsplm, SPLM_out.solver_specific[:NLSGradHist][end] - non_deterministic_counter, SPLM_out.elapsed_time]
         )
     end
 

@@ -85,7 +85,7 @@ function plot_ba(name, sample_rates, versions; n_runs = 10, smooth::Bool = false
         ylabel="\$ f(x_j) \$",
         ymode="log",
         xmode="log",
-        ymax = 8*1e8
+        ymax = 1e7
     )
     plt_metr = PGFPlots.Axis(
         data_metr,
