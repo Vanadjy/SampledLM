@@ -203,9 +203,6 @@ function SPLM(
     s = zero(xk)
 
     qrm_init()
-    if norm(sample_mem - nls.sample) > 0
-      error("Sample Error: Initial sample unwillingly changed")
-    end
 
     if Jac_lop
       Jk = jac_op_residual!(nls, xk, JdFk, Jt_Fk)
@@ -311,6 +308,9 @@ function SPLM(
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)=#
 
           #spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
+          if norm(sample_mem - nls.sample) > 0
+            error("Sample Error: Initial sample unwillingly changed")
+          end
           spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
           qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
         end

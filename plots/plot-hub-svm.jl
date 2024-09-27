@@ -1,4 +1,4 @@
-n_exec = 2
+n_exec = 10
 selected_probs = ["ijcnn1"]
 MaxEpochs = 0
 MaxTime = 0.0
@@ -16,7 +16,7 @@ if selected_probs == ["ijcnn1"]
     else
         smooth = false
     end
-    MaxEpochs = 30
+    MaxEpochs = 3
     MaxTime = 3600.0
     compare = false
 elseif selected_probs == ["mnist"]
