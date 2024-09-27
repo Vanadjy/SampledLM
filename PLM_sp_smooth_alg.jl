@@ -186,10 +186,6 @@ function SPLM(
     sparse_sample = sp_sample(rows, nls.sample)
     row_sample_ba = row_sample_bam(nls.sample)
 
-    if norm(sample_mem - nls.sample) > 0
-      error("Sample Error: Initial sample unwillingly changed")
-    end
-
     #creating required objects
     Fk = residual(nls, xk)
     Fkn = similar(Fk)
@@ -207,6 +203,9 @@ function SPLM(
     s = zero(xk)
 
     qrm_init()
+    if norm(sample_mem - nls.sample) > 0
+      error("Sample Error: Initial sample unwillingly changed")
+    end
 
     if Jac_lop
       Jk = jac_op_residual!(nls, xk, JdFk, Jt_Fk)

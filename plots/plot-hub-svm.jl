@@ -5,7 +5,7 @@ MaxTime = 0.0
 
 if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
-    sample_rates = [.05]
+    sample_rates = []
     selected_digits = [(1, 7)] # let only one pair of random digits
     versions = [2, 5, 7, 9]
     #version = versions[end]
