@@ -580,22 +580,8 @@ function PLM(
         count_succ += 1
       end
 
-      if (!change_sample_rate) && (nls.sample_rate == 1.0)
-        Fk .= Fkn
-      else
-        Fk = residual(nls, xk)
-      end
-      fk = dot(Fk, Fk) / 2
-
       hk = hkn
       shift!(ψ, xk)
-
-      # update gradient & Hessian
-      Jk = jac_op_residual(nls, xk)
-      jtprod_residual!(nls, xk, Fk, ∇fk)
-
-      μmax = opnorm(Jk)
-      νcpInv = (1 + θ) * (μmax^2 + μmin)
 
       Complex_hist[k] += 1
 
@@ -606,6 +592,19 @@ function PLM(
       count_succ = 0
       dist_succ = zero(eltype(xk))
     end
+    if (!change_sample_rate) && (nls.sample_rate == 1.0)
+      Fk .= Fkn
+    else
+      Fk = residual(nls, xk)
+    end
+    fk = dot(Fk, Fk) / 2
+    # update gradient & Hessian
+    Jk = jac_op_residual(nls, xk)
+    jtprod_residual!(nls, xk, Fk, ∇fk)
+
+    μmax = opnorm(Jk)
+    νcpInv = (1 + θ) * (μmax^2 + μmin)
+
 
     if change_sample_rate
       change_sample_rate = false

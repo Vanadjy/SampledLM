@@ -35,7 +35,7 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\ba\jac_backs")
         #save_object("jac_back-ba-$(name).jld2", jac_back)
         jac_back = load_object("jac_back-ba-$(name).jld2")
-        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")=#
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
         adnls = ADNLSModel!(F!, sampled_nls_ba.meta.x0,  meta_nls_ba.nequ, sampled_nls_ba.meta.lvar, sampled_nls_ba.meta.uvar, 
             jacobian_residual_backend = ADNLPModels.SparseADJacobian,
@@ -48,7 +48,8 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
 
         sampled_nls_ba.sample_rate = sample_rate0
         sampled_nls = SADNLSModel_BA(adnls, sampled_nls_ba)
-        save_object("sampled_nls-ba-$name.jld2", sampled_nls)
+        save_object("sampled_nls-ba-$name.jld2", sampled_nls)=#
+        println("begin to load model for $name")
         sampled_nls = load_object("sampled_nls-ba-$name.jld2")
         guess_0 = sampled_nls_ba.nls_meta.x0
 
