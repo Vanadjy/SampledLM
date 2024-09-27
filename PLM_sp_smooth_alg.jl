@@ -314,12 +314,12 @@ function SPLM(
       end
 
       xkn .= xk .+ s
-      if norm(sample_mem - nls.sample) > 0
-        error("Sample Error: Initial sample unwillingly changed")
-      end
       Fkn = residual(nls, xkn)
       fkn = dot(Fkn[1:length(row_sample_ba)], Fkn[1:length(row_sample_ba)]) / 2
       mks = mk_smooth(s)
+      if norm(sample_mem - nls.sample) > 0
+        error("Sample Error: Initial sample unwillingly changed")
+      end
       @assert mk_smooth(zeros(nls.meta.nvar)) == fk
       Δobj = fk - fkn
       ξ = fk - mks
