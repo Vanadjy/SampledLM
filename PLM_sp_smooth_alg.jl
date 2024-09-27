@@ -14,21 +14,6 @@
     Jac_lop::Bool = true
   )
 
-
-    SPLM(
-    nls::SampledADNLSModel,
-    options::ROSolverOptions,
-    version::Int;
-    x0::AbstractVector = nls.meta.x0,
-    subsolver_logger::Logging.AbstractLogger = Logging.NullLogger(),
-    subsolver = RegularizedOptimization.R2,
-    subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
-    selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
-    sample_rate0::Float64 = .05,
-    Jac_lop::Bool = true
-  )
-
-
     SPLM(nls, options, version; kwargs...)
 
 A Levenberg-Marquardt method for the problem
@@ -102,7 +87,8 @@ function SPLM(
     threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # ≥ 1
 
     ζk = Int((balance))
-    nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
+    nls.ba.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
+    initial_sample = nls.ba.sample
   
     sample_counter = 1
     change_sample_rate = false
@@ -126,6 +112,7 @@ function SPLM(
     β = options.β
     θ = options.θ
     λ = options.λ
+    neg_tol = options.neg_tol
     νcp = options.νcp
     σmin = options.σmin
     σmax = options.σmax
@@ -190,6 +177,7 @@ function SPLM(
     rows = Vector{Int}(undef, nls.nls_meta.nnzj)
     cols = Vector{Int}(undef, nls.nls_meta.nnzj)
     vals = similar(xk, nls.nls_meta.nnzj)
+    exact_vals = copy(vals)
     jac_structure_residual!(nls.adnls, rows, cols)
     jac_coord_residual!(nls.adnls, nls.meta.x0, vals)
 
@@ -211,15 +199,10 @@ function SPLM(
     JdFk = similar(Fk[1:length(row_sample_ba)]) # temporary storage
     Jt_Fk = similar(∇fk)
     exact_Jt_Fk = similar(∇fk)
-    jtprod_residual!(nls, xk, Fk[row_sample_ba], ∇fk)
+    jtprod_residual!(nls, xk, Fk[1:length(row_sample_ba)], ∇fk)
 
     μmax = norm(vals, 2)
-
-    νcpInv = (1 + θ) * (μmax^2 + μmin)
-    νInv = (1 + θ) * (μmax^2 + σk)  # ‖J'J + σₖ I‖ = ‖J‖² + σₖ
-
     s = zero(xk)
-    scp = similar(s)
 
     qrm_init()
 
@@ -255,14 +238,6 @@ function SPLM(
       else
         push!(TimeHist, elapsed_time)
       end
-
-      #updating the indexes of the sampling
-      epoch_progress += nls.sample_rate
-      if epoch_progress >= 1 #we passed on all the data
-        epoch_count += 1
-        push!(nls.epoch_counter, k)
-        epoch_progress -= 1
-      end
       
       metric = norm(∇fk)
       Metric_hist[k] = metric
@@ -290,13 +265,13 @@ function SPLM(
       mk_smooth(d) = begin
         jprod_residual!(nls, xk, d, JdFk)
         JdFk .+= Fk[1:length(row_sample_ba)]
-        return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
+        return dot(JdFk, JdFk) / 2 #+ σk * dot(d, d) / 2
       end
   
       if Jac_lop
         # LSMR strategy for LinearOperators #
         #s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = subsolver_options.ϵa, itmax = subsolver_options.maxIter, verbose = 1)#, atol = subsolver_options.ϵa, rtol = ϵr)
-        @time s_precond, stats = lsmr(Jk * P⁻¹, -Fk[row_sample_ba]; λ = sqrt(σk), itmax = 0 * subsolver_options.maxIter, verbose = 1)#, atol = ϵa_subsolver, rtol = ϵr,
+        @time s_precond, stats = lsmr(Jk * P⁻¹, -Fk[1:length(row_sample_ba)]; λ = sqrt(σk), itmax = 0 * subsolver_options.maxIter, verbose = 1)#, atol = ϵa_subsolver, rtol = ϵr,
         # Recover solution of original subproblem
         s = P⁻¹ * s_precond
         #qr_op = qr(vcat(sparse(rows, cols, vals), sqrt(σk) * I))
@@ -334,26 +309,35 @@ function SPLM(
           spmat = qrm_spmat_init(m+n, n, rows_qrm, cols_qrm, vals_qrm)
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)=#
 
+          #spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
           spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
-          time_qrm_start = time()
-          time_qrm_end = 0.0
+          if (norm(initial_sample - nls.ba.sample)) > 0
+            @warn "Sample used is not model sample"
+          end
           qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
-          time_qrm_end = time() - time_qrm_start
         end
       end
 
+      if norm(nls.sample - nls.ba.sample) > 0
+        @warn "sample of wrapper nls not identical as BAModel sample"
+      end
       xkn .= xk .+ s
-  
-      residual!(nls, xkn, Fkn)
+      Fkn = residual(nls, xkn)
       fkn = dot(Fkn[1:length(row_sample_ba)], Fkn[1:length(row_sample_ba)]) / 2
       mks = mk_smooth(s)
+      @assert mk_smooth(zeros(nls.meta.nvar)) == fk
       Δobj = fk - fkn
       ξ = fk - mks
-      ξ = ξ < 0 ? -1*ξ : ξ #prevents from accepting a step when Δobj<0 and ξ<0
+      if ξ < 0
+        @warn "$ξ"
+      end
+      (ξ < 0 && -ξ > neg_tol) &&
+        error("PLM: qrm step should produce a decrease but ξ = $(ξ)")
+      ξ = (ξ < 0 && -ξ ≤ neg_tol) ? -ξ : ξ
       ρk = Δobj / ξ
   
       #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
-      μ_stat = ρk < η1 ? "↘" : ((nls.sample_rate==1.0 && (metric > η2))||(nls.sample_rate<1.0 && (metric ≥ η3 / μk)) ? "↗" : "=")
+      μ_stat = (ρk < η1 || ρk == Inf) ? "↘" : ((nls.sample_rate==1.0 && (metric > η2))||(nls.sample_rate<1.0 && (metric ≥ η3 / μk)) ? "↗" : "=")
       #μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
   
       if (verbose > 0) && (k % ptf == 0)
@@ -362,20 +346,28 @@ function SPLM(
         #! format: off
       end
       
-    #-- to compute exact quantities --#
-    if nls.sample_rate < 1.0
-      nls.sample = collect(1:nobs)
-      residual!(nls, xk, exact_Fk)
-      exact_fk = dot(exact_Fk, exact_Fk) / 2
-      jac_coord_residual!(nls.adnls, xk, vals)
-      jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
-      exact_Metric_hist[k] = norm(exact_Jt_Fk)
-      exact_Fobj_hist[k] = exact_fk
-    elseif nls.sample_rate == 1.0
-      exact_Fobj_hist[k] = fk
-      exact_Metric_hist[k] = metric
-    end
-    # -- -- #
+      #-- to compute exact quantities --#
+      if nls.sample_rate < 1.0
+        nls.ba.sample = collect(1:nobs)
+        residual!(nls, xk, exact_Fk)
+        exact_fk = dot(exact_Fk, exact_Fk) / 2
+        jac_coord_residual!(nls.adnls, xk, exact_vals)
+        jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
+        exact_Metric_hist[k] = norm(exact_Jt_Fk)
+        exact_Fobj_hist[k] = exact_fk
+      elseif nls.sample_rate == 1.0
+        exact_Fobj_hist[k] = fk
+        exact_Metric_hist[k] = metric
+      end
+      # -- -- #
+
+      #updating the indexes of the sampling
+      epoch_progress += nls.sample_rate
+      if epoch_progress >= 1 #we passed on all the data
+        epoch_count += 1
+        push!(nls.epoch_counter, k)
+        epoch_progress -= 1
+      end
   
       # Version 1: List of predetermined - switch with mobile average #
       if version == 1
@@ -546,21 +538,21 @@ function SPLM(
       end
   
       #changes sample with new sample rate
-      nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
-      sparse_sample = sp_sample(rows, nls.sample)
-      row_sample_ba = row_sample_bam(nls.sample)
+      nls.ba.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
+      sparse_sample = sp_sample(rows, nls.ba.sample)
+      row_sample_ba = row_sample_bam(nls.ba.sample)
       if nls.sample_rate == 1.0
-        nls.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
+        nls.ba.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
       end
   
       if change_sample_rate
         # mandatory updates whenever the sample_rate chages #
         Fk = residual(nls, xk)
         Fkn = similar(Fk)
-        JdFk = similar(Fk[1:length(row_sample_ba)])
-        fk = dot(Fk[row_sample_ba], Fk[row_sample_ba]) / 2
+        JdFk = similar(Fk, length(row_sample_ba))
+        fk = dot(Fk[1:length(row_sample_ba)], Fk[1:length(row_sample_ba)]) / 2
 
-        jtprod_residual!(nls, xk, Fk[row_sample_ba], ∇fk)
+        jtprod_residual!(nls, xk, Fk[1:length(row_sample_ba)], ∇fk)
         jac_coord_residual!(nls.adnls, xk, vals)
         #Jk = jac_op_residual(nls, xk)
         if Jac_lop
@@ -573,31 +565,26 @@ function SPLM(
           #P = spdiagm(d_inv)
         end
         vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
-        μmax = norm(vals)
-        νcpInv = (1 + θ) * (μmax^2 + μmin)
+        μmax = norm(vals, 2)
 
         # adapting ADBackend with respect to sample rate
-        if 2*length(nls.sample) < nls.meta.nvar
+        if 2*length(nls.ba.sample) < nls.meta.nvar
           set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
         else
           set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ForwardDiffADJprod, jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod)
         end
-  
-        #change_sample_rate = false
       end
-
-      #@info "went through all sampling versions"
   
       if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
         xk .= xkn
   
-        if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step for 
+        if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step (stochastic)
           μk = max(μk / λ, μmin)
           count_big_succ += 1
           count_fail = 0
           count_succ = 0
           dist_succ = zero(eltype(xk))
-        elseif (nls.sample_rate == 1.0) && (η2 ≤ ρk < Inf)
+        elseif (nls.sample_rate == 1.0) && (η2 ≤ ρk < Inf) #very successful step (deterministic)
           μk = max(μk / λ, μmin)
           count_big_succ += 1
           count_fail = 0
@@ -607,17 +594,15 @@ function SPLM(
           dist_succ += norm(s)
           count_succ += 1
         end
-  
-        if (!change_sample_rate) && (nls.sample_rate == 1.0)
-          Fk .= Fkn
-        else
-          Fk = residual(nls, xk)
-        end
-        #fk = dot(Fk[row_sample_ba], Fk[row_sample_ba]) / 2
-        fk = fkn
 
-        # update gradient & Hessian
+        Fk = residual(nls, xk)
+        Fkn = similar(Fk)
+        JdFk = similar(Fk, length(row_sample_ba))
+        fk = dot(Fk[1:length(row_sample_ba)], Fk[1:length(row_sample_ba)]) / 2
+
+        jtprod_residual!(nls, xk, Fk[1:length(row_sample_ba)], ∇fk)
         jac_coord_residual!(nls.adnls, xk, vals)
+        #Jk = jac_op_residual(nls, xk)
         if Jac_lop
           Jk = jac_op_residual!(nls, xk, JdFk, Jt_Fk)
           # Update preconditionner
@@ -628,13 +613,7 @@ function SPLM(
           #P = spdiagm(d_inv)
         end
         vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
-        jtprod_residual!(nls, xk, Fk[row_sample_ba], ∇fk)
-
-        μmax = norm(vals)
-        νcpInv = (1 + θ) * (μmax^2 + μmin)
-  
-        #Complex_hist[k] += nls.sample_rate
-  
+        μmax = norm(vals, 2)
       else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
         μk = max(λ * μk, μmin)
         count_big_succ = 0

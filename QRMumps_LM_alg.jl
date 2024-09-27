@@ -31,8 +31,8 @@ adnls = ADNLSModel!(F!, nls.meta.x0,  nls.nls_meta.nequ, nls.meta.lvar, nls.meta
     matrix_free = true
 )
 
-sampled_options = ROSolverOptions(η3 = .4, σmax = 1e6, ϵa = 1e-11, ϵr = 1e-11, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = 100, maxTime = 3600.0;)
-options = RegularizedOptimization.ROSolverOptions(ϵa = 1e-11, ϵr = 1e-11, σmin = 1e-6, verbose = 10, maxIter = 100, maxTime = 3600.0;)
+sampled_options = ROSolverOptions(η3 = .4, σmax = 1e6, ϵa = 1e-8, ϵr = 1e-8, σmin = 1e-6, μmin = 1e-10, verbose = 10, maxIter = 100, maxTime = 3600.0;)
+options = RegularizedOptimization.ROSolverOptions(ϵa = 1e-8, ϵr = 1e-8, σmin = 1e-6, verbose = 10, maxIter = 100, maxTime = 3600.0;)
 
 #LM_out = levenberg_marquardt(nls; η₁ = √√eps(Float64), η₂ = 0.9, σ₁ = 3.0, σ₂ = 1/3, λ = 1.0, λmin = 1e-6, max_iter = 100, max_time = 3600,
 #in_itmax = 1000)
@@ -353,5 +353,7 @@ layout = Layout(scene = attr(
 
 fig_ba = PlotlyJS.Plot(plt3d, layout)
 fig_ba0 = PlotlyJS.Plot(plt3d0, layout)
-display(fig_ba)
-display(fig_ba0)
+display(LM_qrm_out.solver_specific[:NLSGradHist][end])
+display(LM_qrm_out.elapsed_time)
+#display(fig_ba)
+#display(fig_ba0)

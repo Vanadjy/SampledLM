@@ -94,6 +94,7 @@ function PLM(
   β = options.β
   θ = options.θ
   λ = options.λ
+  neg_tol = options.neg_tol
   νcp = options.νcp
   σmin = options.σmin
   σmax = options.σmax
@@ -231,7 +232,7 @@ function PLM(
     end
 
     #submodel to find scp
-    mkcp(d) = φcp(d) + ψ(d) #+ νcpInv * dot(d,d) / 2
+    mkcp(d) = φcp(d) + ψ(d)
     
     #computes the Cauchy step
     νcp = 1 / νcpInv
@@ -240,15 +241,14 @@ function PLM(
     # s1 minimizes φ1(s) + ‖s‖² / 2 / ν + ψ(s) ⟺ s1 ∈ prox{νψ}(-ν∇φ1(0)).
     prox!(scp, ψ, ∇fk, νcp)
     ξcp = fk + hk - mkcp(scp) + max(1, abs(fk + hk)) * 10 * eps()
-
-    #ξcp > 0 || error("PLM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
-    
-    if ξcp ≤ 0
-      ξcp = - ξcp
-    end
-
-    metric = sqrt(ξcp*νcpInv)
+    metric = ξcp > 0 ? sqrt(ξcp*νcpInv) : sqrt(-ξcp*νcpInv)
     Metric_hist[k] = metric
+
+    (ξcp < 0 && metric > neg_tol) && error("PLM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
+    
+    #=if ξcp ≤ 0
+      ξcp = - ξcp
+    end=#
 
     if ξcp ≥ 0 && k == 1
       ϵ_increment = (ξ0 ≤ 10 * eps(eltype(xk))) ? ϵr * metric : ϵr * ξ0
@@ -287,7 +287,7 @@ function PLM(
     mk(d) = begin
       jprod_residual!(nls, xk, d, JdFk)
       JdFk .+= Fk
-      return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2 + ψ(d)
+      return dot(JdFk, JdFk) / 2 + ψ(d) #+ σk * dot(d, d) / 2
     end
   
     νInv = (1 + θ) * (μmax^2 + σk) # μmax^2 + σk = ||Jmk||² + σk 
@@ -318,13 +318,13 @@ function PLM(
     mks = mk(s)
     ξ = fk + hk - mks + max(1, abs(hk)) * 10 * eps()
 
-    #=if (ξ ≤ 0 || isnan(ξ))
-      error("LM: failed to compute a step: ξ = $ξ")
-    end=#
+    (ξ < 0 && sqrt(ξ * νInv) > neg_tol) &&
+      error("PLM: prox-gradient step should produce a decrease but ξ = $(ξ)")
+    ξ = (ξ < 0 && sqrt(ξ * νInv) ≤ neg_tol) ? -ξ : ξ
 
-    if ξ ≤ 0
+    #=if ξ ≤ 0
       ξ = - ξ
-    end
+    end=#
 
     Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
     #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
@@ -337,7 +337,7 @@ function PLM(
 
     if (verbose > 0) && (k % ptf == 0)
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k iter fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat nls.sample_rate
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8.1e %7.1e %7.1e %7.1e %7.1e %7.1e %7.1e %1s %6.2e" k iter fk hk metric sqrt(ξ*νInv) ρk σk μk ν norm(xk) norm(s) νInv μ_stat nls.sample_rate
       #! format: off
     end
     
@@ -619,7 +619,7 @@ function PLM(
       @info @sprintf "%6d %8s %8.1e %8.1e" k "" fk hk
     elseif optimal
       #! format: off
-      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk sqrt(ξcp*νcpInv) sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
+      @info @sprintf "%6d %8d %8.1e %8.1e %7.4e %7.1e %8s %7.1e %7.1e %7.1e %7.1e %7.1e" k 1 fk hk metric sqrt(ξ*νInv) "" σk μk norm(xk) norm(s) νInv
       #! format: on
       @info "PLM: terminating with √ξcp/νcp = $metric"
     end

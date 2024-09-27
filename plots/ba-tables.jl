@@ -37,7 +37,6 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
             end
         end
         SLM_out = SLM_outs[origin_ind]
-        display(SLM_out.solver_specific[:ResidHist])
 
         temp_ba = hcat(temp_ba,
         [fx0, SLM_out.objective, gx0, SLM_out.solver_specific[:ExactMetricHist][end], nslm, SLM_out.solver_specific[:NLSGradHist][end], SLM_out.elapsed_time]
@@ -68,16 +67,16 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         SPLM_out = SPLM_outs[origin_ind]
         SampleRateHist = SPLM_out.solver_specific[:SampleRateHist]
         non_deterministic_counter = length(filter!(x -> x < 1.0, SampleRateHist))
-        display(SPLM_out.solver_specific[:NLSGradHist])
+        ngsplm = SPLM_out.solver_specific[:NLSGradHist][end] - SPLM_out.solver_specific[:NLSGradHist][1] - non_deterministic_counter
 
         temp_ba = hcat(temp_ba, 
-            [fx0, SPLM_out.objective, gx0, SPLM_out.solver_specific[:ExactMetricHist][end], nsplm, SPLM_out.solver_specific[:NLSGradHist][end] - non_deterministic_counter, SPLM_out.elapsed_time]
+            [fx0, SPLM_out.objective, gx0, SPLM_out.solver_specific[:ExactMetricHist][end], nsplm, ngsplm, SPLM_out.elapsed_time]
         )
     end
 
     temp = temp_ba'
     df = DataFrame(temp, [:f0, :fh, :xi0, :xi, :n, :g, :s])
-    df[!, :Alg] = vcat(["f0"], ["PLM-$(sample_rate*100)" for sample_rate in sample_rates], ["PLM-$(prob_versions_names[version])" for version in versions])
+    df[!, :Alg] = vcat(["f0"], ["PLM $(sample_rate*100)\\%" for sample_rate in sample_rates], ["PLM $(legend_names_mnist[version])" for version in versions])
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
         :f0 => "%10.2e",

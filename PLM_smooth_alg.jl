@@ -88,6 +88,7 @@ function SPLM(
   β = options.β
   θ = options.θ
   λ = options.λ
+  neg_tol = options.neg_tol
   νcp = options.νcp
   σmin = options.σmin
   σmax = options.σmax
@@ -207,7 +208,7 @@ function SPLM(
       end
     end
 
-    subsolver_options.ϵa = min(1.0e-1, ϵ + ϵr*metric^2)
+    subsolver_options.ϵa = min(1.0e-1, ϵ + ϵr*metric^(1.3))
 
     #update of σk
     σk = min(max(μk * metric, σmin), σmax)
@@ -218,7 +219,7 @@ function SPLM(
     mk_smooth(d) = begin
       jprod_residual!(nls, xk, d, JdFk)
       JdFk .+= Fk
-      return dot(JdFk, JdFk) / 2 + σk * dot(d, d) / 2
+      return dot(JdFk, JdFk) / 2 #+ σk * dot(d, d) / 2
     end
 
     # LSMR strategy for LinearOperators #
@@ -232,6 +233,10 @@ function SPLM(
     mks = mk_smooth(s)
     Δobj = fk - fkn
     ξ = fk - mks
+    (ξ < 0 && -ξ > neg_tol) &&
+      error("PLM: lsmr step should produce a decrease but ξ = $(ξ)")
+    ξ = (ξ < 0 && -ξ ≤ neg_tol) ? -ξ : ξ
+
     ρk = Δobj / ξ
 
     #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
