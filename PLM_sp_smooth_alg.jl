@@ -308,15 +308,15 @@ function SPLM(
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)=#
 
           #spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
-          if norm(sample_mem - nls.sample) > 0
-            error("Sample Error: Initial sample unwillingly changed")
-          end
           spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
           qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
         end
       end
 
       xkn .= xk .+ s
+      if norm(sample_mem - nls.sample) > 0
+        error("Sample Error: Initial sample unwillingly changed")
+      end
       Fkn = residual(nls, xkn)
       fkn = dot(Fkn[1:length(row_sample_ba)], Fkn[1:length(row_sample_ba)]) / 2
       mks = mk_smooth(s)

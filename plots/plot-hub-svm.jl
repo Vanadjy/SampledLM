@@ -1,5 +1,5 @@
 n_exec = 10
-selected_probs = ["ijcnn1"]
+selected_probs = ["mnist"]
 MaxEpochs = 0
 MaxTime = 0.0
 
@@ -25,14 +25,14 @@ elseif selected_probs == ["mnist"]
     selected_digits = [(1, 7)]
     versions = Int[2, 9]
     #version = versions[end]
-    selected_hs = ["lhalf"]
+    selected_hs = ["smooth"]
     if selected_hs == ["smooth"]
         smooth = true
     else
         smooth = false
     end
     ϵ = 1e-4
-    MaxEpochs = 20
+    MaxEpochs = 3
     MaxTime = 3600.0
     compare = true
 end
