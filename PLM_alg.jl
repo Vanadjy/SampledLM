@@ -71,6 +71,7 @@ function PLM(
   nls.sample_rate = sample_rate0
   ζk = Int(ceil(nls.sample_rate * nls.nls_meta.nequ))
   nls.sample = sort(randperm(nls.nls_meta.nequ)[1:ζk])
+  sample_mem = copy(nls.sample)
 
   sample_counter = 1
   change_sample_rate = false
@@ -537,6 +538,9 @@ function PLM(
     end
 
     if change_sample_rate #mandatory changes related to change of sample rate
+      nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
+      sample_mem = copy(nls.sample)
+
       Fk = residual(nls, xk)
       Fkn = similar(Fk)
       JdFk = similar(Fk)
@@ -551,8 +555,8 @@ function PLM(
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
       ## change sample only for successful iterations ##
-      #changes sample with new sample rate
       nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
+      sample_mem .= nls.sample
       if nls.sample_rate == 1.0
         nls.sample == 1:nls.nls_meta.nequ || error("Sample Error : Sample should be full for 100% sampling")
       end
@@ -601,6 +605,7 @@ function PLM(
       Complex_hist[k] += 1
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
+      nls.sample .= sample_mem
       μk = max(λ * μk, μmin)
       count_big_succ = 0
       count_fail += 1

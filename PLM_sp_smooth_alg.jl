@@ -88,6 +88,7 @@ function SPLM(
 
     ζk = Int((balance))
     nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
+    sample_mem = copy(nls.sample)
   
     sample_counter = 1
     change_sample_rate = false
@@ -142,8 +143,6 @@ function SPLM(
   
     xkn = similar(xk)
   
-    local ξcp
-    local exact_ξcp
     local ξ
     local ξ_mem
 
@@ -186,6 +185,10 @@ function SPLM(
     spmat = qrm_spmat_init(m + n, n, rows_qrm, cols_qrm, vals_qrm)=#
     sparse_sample = sp_sample(rows, nls.sample)
     row_sample_ba = row_sample_bam(nls.sample)
+
+    if norm(sample_mem - nls.sample) > 0
+      error("Sample Error: Initial sample unwillingly changed")
+    end
 
     #creating required objects
     Fk = residual(nls, xk)
@@ -533,9 +536,10 @@ function SPLM(
       if change_sample_rate
         # mandatory updates whenever the sample_rate chages #
         nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
+        sample_mem = copy(nls.sample)
         sparse_sample = sp_sample(rows, nls.sample)
         row_sample_ba = row_sample_bam(nls.sample)
-        
+
         Fk = residual(nls, xk)
         Fkn = similar(Fk)
         JdFk = similar(Fk, length(row_sample_ba))
@@ -568,6 +572,7 @@ function SPLM(
         xk .= xkn
         #changes sample only for successful iterations
         nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
+        sample_mem .= nls.sample
         sparse_sample = sp_sample(rows, nls.sample)
         row_sample_ba = row_sample_bam(nls.sample)
         if nls.sample_rate == 1.0
@@ -611,6 +616,7 @@ function SPLM(
         vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
         μmax = norm(vals, 2)
       else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
+        nls.sample .= sample_mem
         μk = max(λ * μk, μmin)
         count_big_succ = 0
         count_fail += 1

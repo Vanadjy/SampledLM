@@ -5,7 +5,7 @@ MaxTime = 0.0
 
 if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
-    sample_rates = [1.0, .1, .05, .01]
+    sample_rates = [.05]
     selected_digits = [(1, 7)] # let only one pair of random digits
     versions = [2, 5, 7, 9]
     #version = versions[end]
@@ -21,7 +21,7 @@ if selected_probs == ["ijcnn1"]
     compare = false
 elseif selected_probs == ["mnist"]
     sample_rate0 = .05
-    sample_rates = Float64[.05]
+    sample_rates = Float64[]
     selected_digits = [(1, 7)]
     versions = Int[2, 9]
     #version = versions[end]
