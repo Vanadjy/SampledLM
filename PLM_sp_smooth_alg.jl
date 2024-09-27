@@ -87,8 +87,7 @@ function SPLM(
     threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # ≥ 1
 
     ζk = Int((balance))
-    nls.ba.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
-    initial_sample = nls.ba.sample
+    nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
   
     sample_counter = 1
     change_sample_rate = false
@@ -311,16 +310,10 @@ function SPLM(
 
           #spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
           spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
-          if (norm(initial_sample - nls.ba.sample)) > 0
-            @warn "Sample used is not model sample"
-          end
           qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
         end
       end
 
-      if norm(nls.sample - nls.ba.sample) > 0
-        @warn "sample of wrapper nls not identical as BAModel sample"
-      end
       xkn .= xk .+ s
       Fkn = residual(nls, xkn)
       fkn = dot(Fkn[1:length(row_sample_ba)], Fkn[1:length(row_sample_ba)]) / 2
@@ -348,7 +341,7 @@ function SPLM(
       
       #-- to compute exact quantities --#
       if nls.sample_rate < 1.0
-        nls.ba.sample = collect(1:nobs)
+        nls.sample = collect(1:nobs)
         residual!(nls, xk, exact_Fk)
         exact_fk = dot(exact_Fk, exact_Fk) / 2
         jac_coord_residual!(nls.adnls, xk, exact_vals)
@@ -537,16 +530,12 @@ function SPLM(
         end
       end
   
-      #changes sample with new sample rate
-      nls.ba.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
-      sparse_sample = sp_sample(rows, nls.ba.sample)
-      row_sample_ba = row_sample_bam(nls.ba.sample)
-      if nls.sample_rate == 1.0
-        nls.ba.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
-      end
-  
       if change_sample_rate
         # mandatory updates whenever the sample_rate chages #
+        nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
+        sparse_sample = sp_sample(rows, nls.sample)
+        row_sample_ba = row_sample_bam(nls.sample)
+        
         Fk = residual(nls, xk)
         Fkn = similar(Fk)
         JdFk = similar(Fk, length(row_sample_ba))
@@ -568,7 +557,7 @@ function SPLM(
         μmax = norm(vals, 2)
 
         # adapting ADBackend with respect to sample rate
-        if 2*length(nls.ba.sample) < nls.meta.nvar
+        if 2*length(nls.sample) < nls.meta.nvar
           set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
         else
           set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ForwardDiffADJprod, jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod)
@@ -577,6 +566,13 @@ function SPLM(
   
       if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
         xk .= xkn
+        #changes sample only for successful iterations
+        nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
+        sparse_sample = sp_sample(rows, nls.sample)
+        row_sample_ba = row_sample_bam(nls.sample)
+        if nls.sample_rate == 1.0
+          nls.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
+        end
   
         if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step (stochastic)
           μk = max(μk / λ, μmin)

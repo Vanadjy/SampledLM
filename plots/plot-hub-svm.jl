@@ -1,4 +1,4 @@
-n_exec = 5
+n_exec = 2
 selected_probs = ["ijcnn1"]
 MaxEpochs = 0
 MaxTime = 0.0

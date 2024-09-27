@@ -444,13 +444,6 @@ function SPLM(
 
     end
 
-    #changes sample with new sample rate
-    nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
-    #sparse_sample = sp_sample(rows, nls.sample)
-    if nls.sample_rate == 1.0
-      nls.sample == 1:nls.nls_meta.nequ || error("Sample Error : Sample should be full for 100% sampling")
-    end
-
     if change_sample_rate
       # mandatory updates whenever the sample_rate chages #
       Fk = residual(nls, xk)
@@ -473,6 +466,13 @@ function SPLM(
 
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
+
+      #changes sample with new sample rate
+      nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
+      #sparse_sample = sp_sample(rows, nls.sample)
+      if nls.sample_rate == 1.0
+        nls.sample == 1:nls.nls_meta.nequ || error("Sample Error : Sample should be full for 100% sampling")
+      end
 
       if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
         μk = max(μk / λ, μmin)
