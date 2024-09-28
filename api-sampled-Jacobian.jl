@@ -6,10 +6,8 @@ function NLPModels.jprod_residual!(
   )
     NLPModels.@lencheck nls.meta.nvar x v
     NLPModels.@lencheck length(nls.sample) Jv
-    #nls.counters.:neval_jprod_residual += Int(floor(100 * nls.sample_rate))
     increment!(nls, :neval_jprod_residual)
     nls.jprod_resid!(Jv, x, v; sample = nls.sample)
-    #@assert Jv == Jv[sort(randperm(nls.nls_meta.nequ)[1:Int(1.0 * nls.nls_meta.nequ)])]
     Jv
   end
   
@@ -21,10 +19,8 @@ function NLPModels.jprod_residual!(
   )
     NLPModels.@lencheck nls.meta.nvar x Jtv
     NLPModels.@lencheck length(nls.sample) v
-    #nls.counters.:neval_jtprod_residual += Int(floor(100 * nls.sample_rate))
     increment!(nls, :neval_jtprod_residual)
     nls.jtprod_resid!(Jtv, x, v; sample = nls.sample)
-    #@assert Jtv == Jtv[sort(randperm(nls.nls_meta.nequ)[1:Int(1.0 * nls.nls_meta.nequ)])]
     Jtv
   end
   

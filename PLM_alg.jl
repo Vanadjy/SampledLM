@@ -246,12 +246,8 @@ function PLM(
     Metric_hist[k] = metric
 
     (ξcp < 0 && metric > neg_tol) && error("PLM: first prox-gradient step should produce a decrease but ξcp = $(ξcp)")
-    
-    #=if ξcp ≤ 0
-      ξcp = - ξcp
-    end=#
 
-    if ξcp ≥ 0 && k == 1
+    if k == 1
       ϵ_increment = (ξ0 ≤ 10 * eps(eltype(xk))) ? ϵr * metric : ϵr * ξ0
       ϵ += ϵ_increment  # make stopping test absolute and relative
       ϵ_subsolver += ϵ_increment
@@ -550,6 +546,7 @@ function PLM(
       Jk = jac_op_residual(nls, xk)
       jtprod_residual!(nls, xk, Fk, ∇fk)
       μmax = opnorm(Jk)
+      νcpInv = (1 + θ) * (μmax^2 + μmin)
     end
 
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
@@ -605,8 +602,11 @@ function PLM(
       Complex_hist[k] += 1
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
-      nls.sample .= sample_mem
       μk = max(λ * μk, μmin)
+      if !change_sample_rate #if sample rate changed, sample changes whatever
+        nls.sample = sample_mem
+        ∇fk .*= -νcpInv #reset the factor for ∇fk so we have the same gradient for next iteration
+      end
       count_big_succ = 0
       count_fail += 1
       count_succ = 0

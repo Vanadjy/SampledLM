@@ -163,7 +163,6 @@ function SPLM(
   jtprod_residual!(nls, xk, Fk, ∇fk)
   μmax = opnorm(Jk)
 
-  νcpInv = (1 + θ) * (μmax^2 + μmin)
   s = zero(xk)
 
   optimal = false
@@ -455,26 +454,16 @@ function SPLM(
       JdFk = similar(Fk)
       fk = dot(Fk, Fk) / 2
 
-      #Jk = jac_op_residual(nls, xk)
-      #jtprod_residual!(nls, xk, Fk, ∇fk)
-      #jac_coord_residual!(nls, nls.meta.x0, vals)
-      #rows, cols, vals = jac_residual(nls)
       Jk = jac_op_residual(nls, xk)
       jtprod_residual!(nls, xk, Fk, ∇fk)
       μmax = opnorm(Jk)
-      νcpInv = (1 + θ) * (μmax^2 + μmin)
-      b_qrm = zeros(eltype(Fk), length(Fk) + nls.meta.nvar)
-
-      #change_sample_rate = false
     end
 
     if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
       xk .= xkn
-
       #changes sample with new sample rate
       nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
       sample_mem .= nls.sample
-      #sparse_sample = sp_sample(rows, nls.sample)
       if nls.sample_rate == 1.0
         nls.sample == 1:nls.nls_meta.nequ || error("Sample Error : Sample should be full for 100% sampling")
       end
@@ -496,23 +485,34 @@ function SPLM(
         count_succ += 1
       end
 
-      if (!change_sample_rate) && (nls.sample_rate == 1.0)
+      if nls.sample_rate == 1.0
         Fk .= Fkn
-      else
-        Fk = residual(nls, xk)
+        fk = fkn
+        # update gradient & Hessian
+        Jk = jac_op_residual(nls, xk)
+        jtprod_residual!(nls, xk, Fk, ∇fk)
+  
+        μmax = opnorm(Jk)
       end
-      fk = dot(Fk, Fk) / 2
 
-      Jk = jac_op_residual(nls, xk)
-      jtprod_residual!(nls, xk, Fk, ∇fk)
-
-      μmax = opnorm(Jk)
-      νcpInv = (1 + θ) * (μmax^2 + μmin)
+      if (nls.sample_rate < 1.0) || (nls.sample_rate == 1.0 && change_sample_rate)
+        Fk = residual(nls, xk)
+        Fkn = similar(Fk)
+        JdFk = similar(Fk)
+        fk = dot(Fk, Fk) / 2
+  
+        # update jacobian info
+        Jk = jac_op_residual(nls, xk)
+        jtprod_residual!(nls, xk, Fk, ∇fk)
+        μmax = opnorm(Jk)
+      end
 
       Complex_hist[k] += 1
 
     else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
-      nls.sample .= sample_mem
+      if !change_sample_rate #if sample rate changed, sample changes whatever
+        nls.sample = sample_mem
+      end
       μk = max(λ * μk, μmin)
       count_big_succ = 0
       count_fail += 1

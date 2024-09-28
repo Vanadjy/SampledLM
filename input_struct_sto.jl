@@ -543,7 +543,6 @@ function NLPModels.residual!(
   NLPModels.@lencheck nls.meta.nvar x
   NLPModels.@lencheck length(nls.sample) Fx
   # increment the relative cost for a specified sample_rate
-  #nls.counters.:neval_residual += Int(floor(100 * nls.sample_rate))
   increment!(nls, :neval_residual)
   #returns the sampled function Fx whose indexes are stored in sample without computing the other lines
   nls.resid!(Fx, x; sample = nls.sample)
