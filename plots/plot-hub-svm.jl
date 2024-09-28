@@ -1,5 +1,5 @@
 n_exec = 10
-selected_probs = ["mnist"]
+selected_probs = ["ijcnn1"]
 MaxEpochs = 0
 MaxTime = 0.0
 
@@ -10,7 +10,7 @@ if selected_probs == ["ijcnn1"]
     versions = [2, 5, 7, 9]
     #version = versions[end]
     ϵ = 1e-8
-    selected_hs = ["smooth"]
+    selected_hs = ["l1", "lhalf"]
     if selected_hs == ["smooth"]
         smooth = true
     else
