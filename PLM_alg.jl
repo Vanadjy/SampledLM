@@ -315,13 +315,9 @@ function PLM(
     mks = mk(s)
     ξ = fk + hk - mks + max(1, abs(hk)) * 10 * eps()
 
-    (ξ < 0 && sqrt(ξ * νInv) > neg_tol) &&
+    (ξ < 0 && sqrt(-ξ * νInv) > neg_tol) &&
       error("PLM: prox-gradient step should produce a decrease but ξ = $(ξ)")
-    ξ = (ξ < 0 && sqrt(ξ * νInv) ≤ neg_tol) ? -ξ : ξ
-
-    #=if ξ ≤ 0
-      ξ = - ξ
-    end=#
+    ξ = (ξ < 0 && sqrt(-ξ * νInv) ≤ neg_tol) ? -ξ : ξ
 
     Δobj = fk + hk - (fkn + hkn) + max(1, abs(fk + hk)) * 10 * eps()
     #Δobj ≥ 0 || error("Δobj should be positive while Δobj = $Δobj, we should have a decreasing direction but fk + hk - (fkn + hkn) = $(fk + hk - (fkn + hkn))")
