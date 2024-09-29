@@ -349,6 +349,7 @@ function PLM(
       exact_μmax = opnorm(exact_Jk)
       exact_νcp = 1 / ((1 + θ) * (exact_μmax^2 + μmin))
       jtprod_residual!(nls, xk, exact_Fk, exact_∇fk)
+      exact_∇fk .*= -exact_νcp
       prox!(exact_scp, ψ, exact_∇fk, exact_νcp)
       exact_ξcp = exact_fk + hk - exact_φcp(exact_scp) - ψ(exact_scp) + max(1, abs(exact_fk + hk)) * 10 * eps()
       exact_metric = sqrt(abs(exact_ξcp / exact_νcp))

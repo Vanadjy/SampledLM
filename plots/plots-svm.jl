@@ -216,7 +216,7 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                             #x0[p[1:nz]] = sign.(randn(nz))  # initial guess with nz nonzeros (necessary for h = B0)
                             reset!(prob)
                             #try
-                            PLM_out = PLM(prob, h, sampled_options, 0; x0 = x0, subsolver_options = subsolver_options)
+                            PLM_out = PLM(prob, h, sampled_options, 0; x0 = x0, subsolver_options = subsolver_options, sample_rate0 = sample_rate)
                             push!(SLM_outs, PLM_out)
                             push!(slm_trains, residual(prob, PLM_out.solution))
                             push!(nslms, length(prob.epoch_counter)-1)
