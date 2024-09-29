@@ -10,7 +10,7 @@ if selected_probs == ["ijcnn1"]
     versions = [2, 5, 7, 9]
     #version = versions[end]
     ϵ = 1e-8
-    selected_hs = ["l1", "lhalf"]
+    selected_hs = ["lhalf"]
     if selected_hs == ["smooth"]
         smooth = true
     else
@@ -32,7 +32,7 @@ elseif selected_probs == ["mnist"]
         smooth = false
     end
     ϵ = 1e-4
-    MaxEpochs = 500
+    MaxEpochs = 20
     MaxTime = 3600.0
     compare = true
 end
