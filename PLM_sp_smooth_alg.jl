@@ -157,7 +157,7 @@ function SPLM(
     μk = max(1 / options.ν , μmin)
 
     # Reload ADNLSModel as sample changed
-    nls.adnls = ADNLSModel!(nls.adnls.F!, xk, 2*length(nls.sample), nls.ba.meta.lvar, nls.ba.meta.uvar, 
+    #=nls.adnls = ADNLSModel!(nls.adnls.F!, xk, 2*length(nls.sample), nls.ba.meta.lvar, nls.ba.meta.uvar, 
             jacobian_residual_backend = ADNLPModels.SparseADJacobian,
             jprod_residual_backend = ADNLPModels.ForwardDiffADJprod,
             jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod,
@@ -165,7 +165,10 @@ function SPLM(
             hessian_backend = ADNLPModels.EmptyADbackend,
             hessian_residual_backend = ADNLPModels.EmptyADbackend,
             matrix_free = true
-      )
+      )=#
+    
+    nls.adnls.adbackend.jacobian_residual_backend = SparseADJacobian(n, x -> zero(eltype(x)), nequ, F!)
+
 
     # adapting ADBackend with respect to sample rate
     #=if 2*length(nls.sample) < nls.meta.nvar # switch from default backends whenever sampled J underdetermined
