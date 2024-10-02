@@ -66,7 +66,8 @@ function SPLM(
     subsolver_options = RegularizedOptimization.ROSolverOptions(ϵa = options.ϵa),
     selected::AbstractVector{<:Integer} = 1:(nls.meta.nvar),
     sample_rate0::Float64 = .05,
-    Jac_lop::Bool = true
+    Jac_lop::Bool = true,
+    name::String = "problem-16-22106-pre"
   )
   
     # initializes epoch counting and progression
@@ -82,12 +83,34 @@ function SPLM(
     @assert length(sample_rates_collec) == length(epoch_limits)
     nls.sample_rate = sample_rate0
 
+    xk = copy(x0)
+    xkn = similar(xk)
+
     nobs = nls.nobs
     balance = 10^(ceil(log10(max(nls.nls_meta.nequ / nls.meta.nvar, 1.0)))) # ≥ 1
     threshold_relax = max((nls.nls_meta.nequ / (10^(floor(log10(nls.nls_meta.nequ / nls.meta.nvar))) * nls.meta.nvar)), 1.0) # ≥ 1
 
+    bam = BundleAdjustmentModel(name)
+    function ba_F!(Fx, x)
+      residual!(bam, x, Fx)
+    end
+    #generate 100% ADNLS once for all
+    exact_adnls = ADNLSModel!(ba_F!, xk, bam.nls_meta.nequ, bam.meta.lvar, bam.meta.uvar, 
+      jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+      jprod_residual_backend = ADNLPModels.ForwardDiffADJprod,
+      jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod,
+      jacobian_backend = ADNLPModels.EmptyADbackend,
+      hessian_backend = ADNLPModels.EmptyADbackend,
+      hessian_residual_backend = ADNLPModels.EmptyADbackend,
+      matrix_free = true
+    )
+
+    n = exact_adnls.meta.nvar
+    m = exact_adnls.nls_meta.nequ
+
     ζk = Int((balance))
     nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
+    @assert nls.sample == nls.ba.sample
     sample_mem = copy(nls.sample)
   
     sample_counter = 1
@@ -119,13 +142,6 @@ function SPLM(
     μmin = options.μmin
     metric = options.metric
   
-    n = nls.meta.nvar
-    m = nls.nls_meta.nequ
-  
-    # store initial values of the subsolver_options fields that will be modified
-    ν_subsolver = subsolver_options.ν
-    ϵa_subsolver = subsolver_options.ϵa
-  
     if verbose == 0
       ptf = Inf
     elseif verbose == 1
@@ -139,9 +155,22 @@ function SPLM(
     # initialize parameters
     σk = max(1 / options.ν, σmin)
     μk = max(1 / options.ν , μmin)
-    xk = copy(x0)
-  
-    xkn = similar(xk)
+
+    # Reload ADNLSModel as sample changed
+    nls.adnls = ADNLSModel!(nls.adnls.F!, xk, 2*length(nls.sample), nls.ba.meta.lvar, nls.ba.meta.uvar, 
+            jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+            jprod_residual_backend = ADNLPModels.ForwardDiffADJprod,
+            jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod,
+            jacobian_backend = ADNLPModels.EmptyADbackend,
+            hessian_backend = ADNLPModels.EmptyADbackend,
+            hessian_residual_backend = ADNLPModels.EmptyADbackend,
+            matrix_free = true
+      )
+
+    # adapting ADBackend with respect to sample rate
+    #=if 2*length(nls.sample) < nls.meta.nvar # switch from default backends whenever sampled J underdetermined
+      set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
+    end=#
   
     local ξ
     local ξ_mem
@@ -177,33 +206,33 @@ function SPLM(
     vals = similar(xk, nls.nls_meta.nnzj)
     exact_vals = copy(vals)
     jac_structure_residual!(nls.adnls, rows, cols)
-    jac_coord_residual!(nls.adnls, nls.meta.x0, vals)
+    jac_coord_residual!(nls.adnls, xk, vals)
 
-    #=rows_qrm = vcat(rows, (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
-    cols_qrm = vcat(cols, 1:n)
-    vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
-    spmat = qrm_spmat_init(m + n, n, rows_qrm, cols_qrm, vals_qrm)=#
     sparse_sample = sp_sample(rows, nls.sample)
+    sr = similar(rows[sparse_sample])
+    sampled_rows!(sr, rows[sparse_sample])
     row_sample_ba = row_sample_bam(nls.sample)
 
     #creating required objects
     Fk = residual(nls, xk)
     Fkn = similar(Fk)
     exact_Fk = zeros(1:m)
-    fk = dot(Fk[1:length(row_sample_ba)], Fk[1:length(row_sample_ba)]) / 2 #objective estimated without noise
+    fk = dot(Fk, Fk) / 2 #objective estimated without noise
 
     #sampled Jacobian
     ∇fk = similar(xk)
-    JdFk = similar(Fk[1:length(row_sample_ba)]) # temporary storage
+    JdFk = similar(Fk) # temporary storage
     Jt_Fk = similar(∇fk)
     exact_Jt_Fk = similar(∇fk)
-    jtprod_residual!(nls, xk, Fk[1:length(row_sample_ba)], ∇fk)
 
-    μmax = norm(vals, 2)
+    @assert nls.adnls.F!(similar(Fk), xk) ≈ Fk
+
+    #jtprod_residual!(nls, sr, cols[sparse_sample], vals[sparse_sample], Fk, ∇fk)
+    jtprod_residual!(nls, xk, Fk, ∇fk)
+    Jk = jac_residual(nls.adnls, xk)
     s = zero(xk)
 
     qrm_init()
-
     if Jac_lop
       Jk = jac_op_residual!(nls, xk, JdFk, Jt_Fk)
       # Setting preconditioner
@@ -216,13 +245,6 @@ function SPLM(
     optimal = false
     tired = epoch_count ≥ maxEpoch || elapsed_time > maxTime
     #tired = elapsed_time > maxTime
-
-    # adapting ADBackend with respect to sample rate
-    #adbackend_default = ADNLPModels.ADBackend(nls.nvar, adnls.F!, jprod_residual_backend = ADNLPModels.ForwardDiffADJprod, jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod)
-    #adbackend_under = ADNLPModels.ADBackend(nls.nvar, adnls.F!, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
-    if 2*length(nls.sample) < nls.meta.nvar # switch from default backends whenever sampled J underdetermined
-      set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
-    end
   
     while !(optimal || tired)
       k = k + 1
@@ -236,7 +258,7 @@ function SPLM(
       else
         push!(TimeHist, elapsed_time)
       end
-      
+
       metric = norm(∇fk)
       Metric_hist[k] = metric
 
@@ -247,13 +269,24 @@ function SPLM(
         μk = 1e-1 / metric
       end
       
-      if (metric < ϵ) && nls.sample_rate == 1.0 #checks if the optimal condition is satisfied and if all of the data have been visited
-        # the current xk is approximately first-order stationary
-        optimal = true
+      if version == 0 #including specific stopping criterion for constant sample rate strategies
+        if (metric < ϵ) 
+          push!(nls.opt_counter, k) #indicates the iteration where the tolerance has been reached by the metric
+          if nls.sample_rate == 1.0
+            optimal = true
+          else
+            if (length(nls.opt_counter) ≥ 5) && (nls.opt_counter[end-2:end] == range(k-2, k)) #if the last 3 iterations are successful
+              optimal = true
+            end
+          end
+        end
+      else
+        if (metric < ϵ) && nls.sample_rate == 1.0
+          optimal = true
+        end
       end
   
       subsolver_options.ϵa = min(1.0e-1, ϵ + ϵr*metric)
-  
       #update of σk
       σk = min(max(μk * metric, σmin), σmax)
   
@@ -261,15 +294,17 @@ function SPLM(
       # model for subsequent prox-gradient iterations
   
       mk_smooth(d) = begin
+        #jprod_residual!(nls, sr, cols[sparse_sample], vals[sparse_sample], d, JdFk)
         jprod_residual!(nls, xk, d, JdFk)
-        JdFk .+= Fk[1:length(row_sample_ba)]
+        @assert nls.sample == sample_mem
+        JdFk .+= Fk
         return dot(JdFk, JdFk) / 2 #+ σk * dot(d, d) / 2
       end
   
       if Jac_lop
         # LSMR strategy for LinearOperators #
         #s, stats = lsmr(Jk, -Fk; λ = sqrt(0.5*σk), atol = subsolver_options.ϵa, itmax = subsolver_options.maxIter, verbose = 1)#, atol = subsolver_options.ϵa, rtol = ϵr)
-        @time s_precond, stats = lsmr(Jk * P⁻¹, -Fk[1:length(row_sample_ba)]; λ = sqrt(σk), itmax = 0 * subsolver_options.maxIter, verbose = 1)#, atol = ϵa_subsolver, rtol = ϵr,
+        @time s_precond, stats = lsmr(Jk * P⁻¹, -Fk; λ = sqrt(σk), itmax = 0 * subsolver_options.maxIter, verbose = 1)#, atol = ϵa_subsolver, rtol = ϵr,
         # Recover solution of original subproblem
         s = P⁻¹ * s_precond
         #qr_op = qr(vcat(sparse(rows, cols, vals), sqrt(σk) * I))
@@ -301,21 +336,22 @@ function SPLM(
           #building sampled vals for QRMumps
           vals_qrm = vcat(vals[sparse_sample], sqrt(σk) .* ones(n))=#
 
-          #=rows_qrm = vcat(rows, (nls.nls_meta.nequ+1):(nls.nls_meta.nequ + n))
-          cols_qrm = vcat(cols, 1:n)
-          vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
-          spmat = qrm_spmat_init(m+n, n, rows_qrm, cols_qrm, vals_qrm)
-          qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)=#
+          spmat = qrm_spmat_init(vcat(Jk, sqrt(σk).*I))
+          #=sr_qrm = vcat(sr, collect(maximum(sr)+1:maximum(sr)+n))
+          cols_qrm = vcat(cols[sparse_sample], collect(1:n))
+          vals_qrm = vcat(vals[sparse_sample], sqrt(σk).*ones(n))
 
-          #spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
-          spmat = qrm_spmat_init(vcat(sparse(rows, cols, vals)[row_sample_ba, :], sqrt(σk).*I))
-          qrm_least_squares!(spmat, vcat(-Fk[1:length(row_sample_ba)], zeros(n)), s)
+          spmat = qrm_spmat_init(sparse(sr_qrm, cols_qrm, vals_qrm))=#
+          Fk .*= -1
+          qrm_least_squares!(spmat, vcat(Fk, zeros(eltype(Fk), n)), s)
+          Fk .*= -1
         end
       end
 
       xkn .= xk .+ s
-      Fkn = residual(nls, xkn)
-      fkn = dot(Fkn[1:length(row_sample_ba)], Fkn[1:length(row_sample_ba)]) / 2
+      @assert nls.sample == sample_mem
+      residual!(nls, xkn, Fkn)
+      fkn = dot(Fkn, Fkn) / 2
       mks = mk_smooth(s)
       @assert mk_smooth(zeros(nls.meta.nvar)) == fk
       Δobj = fk - fkn
@@ -324,7 +360,7 @@ function SPLM(
         @warn "$ξ"
       end
       (ξ < 0 && -ξ > neg_tol) &&
-        error("PLM: qrm step should produce a decrease but ξ = $(ξ)")
+      error("PLM: qrm step should produce a decrease but ξ = $(ξ)")
       ξ = (ξ < 0 && -ξ ≤ neg_tol) ? -ξ : ξ
       ρk = Δobj / ξ
   
@@ -340,11 +376,12 @@ function SPLM(
       
       #-- to compute exact quantities --#
       if nls.sample_rate < 1.0
-        nls.sample = collect(1:nobs)
-        residual!(nls, xk, exact_Fk)
+        residual!(exact_adnls, xk, exact_Fk)
         exact_fk = dot(exact_Fk, exact_Fk) / 2
         jac_coord_residual!(nls.adnls, xk, exact_vals)
-        jtprod_residual!(nls, xk, exact_Fk, exact_Jt_Fk)
+        #jtprod_residual!(nls, rows, cols, exact_vals, exact_Fk, exact_Jt_Fk)
+        jtprod_residual!(exact_adnls, xk, exact_Fk, exact_Jt_Fk)
+
         exact_Metric_hist[k] = norm(exact_Jt_Fk)
         exact_Fobj_hist[k] = exact_fk
       elseif nls.sample_rate == 1.0
@@ -534,15 +571,43 @@ function SPLM(
         nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
         sample_mem = copy(nls.sample)
         sparse_sample = sp_sample(rows, nls.sample)
+        sr = similar(rows[sparse_sample])
+        sampled_rows!(sr, rows[sparse_sample])
         row_sample_ba = row_sample_bam(nls.sample)
+
+        # Reload ADNLSModel as sample changed
+        nls.adnls = ADNLSModel!(nls.adnls.F!, xk, 2*length(nls.sample), nls.ba.meta.lvar, nls.ba.meta.uvar, 
+          jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+          jprod_residual_backend = ADNLPModels.ForwardDiffADJprod,
+          jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod,
+          jacobian_backend = ADNLPModels.EmptyADbackend,
+          hessian_backend = ADNLPModels.EmptyADbackend,
+          hessian_residual_backend = ADNLPModels.EmptyADbackend,
+          matrix_free = true
+        )
+
+        # adapting ADBackend with respect to sample rate
+        #=if 2*length(nls.sample) < nls.meta.nvar
+          set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
+        else
+          set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ForwardDiffADJprod, jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod)
+        end=#
 
         Fk = residual(nls, xk)
         Fkn = similar(Fk)
-        JdFk = similar(Fk, length(row_sample_ba))
-        fk = dot(Fk[1:length(row_sample_ba)], Fk[1:length(row_sample_ba)]) / 2
+        JdFk = similar(Fk)
+        fk = dot(Fk, Fk) / 2
 
-        jtprod_residual!(nls, xk, Fk[1:length(row_sample_ba)], ∇fk)
+        rows = Vector{Int}(undef, nls.nls_meta.nnzj)
+        cols = Vector{Int}(undef, nls.nls_meta.nnzj)
+        vals = similar(xk, nls.nls_meta.nnzj)
+        exact_vals = copy(vals)
+        jac_structure_residual!(nls.adnls, rows, cols)
         jac_coord_residual!(nls.adnls, xk, vals)
+
+        #jtprod_residual!(nls, sr, cols[sparse_sample], vals[sparse_sample], Fk, ∇fk)
+        jtprod_residual!(nls, xk, Fk, ∇fk)
+
         #Jk = jac_op_residual(nls, xk)
         if Jac_lop
           Jk = jac_op_residual!(nls, xk, JdFk, Jt_Fk)
@@ -554,14 +619,6 @@ function SPLM(
           #P = spdiagm(d_inv)
         end
         vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
-        μmax = norm(vals, 2)
-
-        # adapting ADBackend with respect to sample rate
-        if 2*length(nls.sample) < nls.meta.nvar
-          set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
-        else
-          set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ForwardDiffADJprod, jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod)
-        end
       end
   
       if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
@@ -570,6 +627,8 @@ function SPLM(
         nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
         sample_mem .= nls.sample
         sparse_sample = sp_sample(rows, nls.sample)
+        sr = similar(rows[sparse_sample])
+        sampled_rows!(sr, rows[sparse_sample])
         row_sample_ba = row_sample_bam(nls.sample)
         if nls.sample_rate == 1.0
           nls.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
@@ -592,14 +651,38 @@ function SPLM(
           count_succ += 1
         end
 
-        Fk = residual(nls, xk)
-        Fkn = similar(Fk)
-        JdFk = similar(Fk, length(row_sample_ba))
-        fk = dot(Fk[1:length(row_sample_ba)], Fk[1:length(row_sample_ba)]) / 2
-
-        jtprod_residual!(nls, xk, Fk[1:length(row_sample_ba)], ∇fk)
-        jac_coord_residual!(nls.adnls, xk, vals)
-        #Jk = jac_op_residual(nls, xk)
+        if nls.sample_rate == 1.0
+          Fk .= Fkn
+          fk = fkn
+          # update gradient & Hessian
+          #Jk = jac_op_residual!(nls, xk)
+          jac_coord_residual!(nls.adnls, xk, vals)
+          #jtprod_residual!(nls, rows, cols, vals, Fk, ∇fk)
+          jtprod_residual!(nls, xk, Fk, ∇fk)
+          vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
+        elseif (nls.sample_rate < 1.0) || (nls.sample_rate == 1.0 && change_sample_rate)
+          Fk = residual(nls, xk)
+          Fkn = similar(Fk)
+          JdFk = similar(Fk)
+          fk = dot(Fk, Fk) / 2
+          # Reload ADNLSModel as sample changed
+            nls.adnls = ADNLSModel!(nls.adnls.F!, xk, 2*length(nls.sample), nls.ba.meta.lvar, nls.ba.meta.uvar, 
+            jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+            jprod_residual_backend = ADNLPModels.ForwardDiffADJprod,
+            jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod,
+            jacobian_backend = ADNLPModels.EmptyADbackend,
+            hessian_backend = ADNLPModels.EmptyADbackend,
+            hessian_residual_backend = ADNLPModels.EmptyADbackend,
+            matrix_free = true
+          )
+          Jk = jac_residual(nls.adnls, xk)
+    
+          # update jacobian info
+          jac_coord_residual!(nls.adnls, xk, vals)
+          #jtprod_residual!(nls, sr, cols[sparse_sample], vals[sparse_sample], Fk, ∇fk)
+          jtprod_residual!(nls, xk, Fk, ∇fk)
+          vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
+        end
         if Jac_lop
           Jk = jac_op_residual!(nls, xk, JdFk, Jt_Fk)
           # Update preconditionner
@@ -609,10 +692,10 @@ function SPLM(
           P⁻¹ = spdiagm(d)
           #P = spdiagm(d_inv)
         end
-        vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
-        μmax = norm(vals, 2)
       else # (ρk < η1 || ρk == Inf) #|| (metric < η3 / μk) #unsuccessful step
-        nls.sample .= sample_mem
+        if !change_sample_rate #if sample rate changed, sample changes whatever
+          nls.sample = sample_mem
+        end
         μk = max(λ * μk, μmin)
         count_big_succ = 0
         count_fail += 1

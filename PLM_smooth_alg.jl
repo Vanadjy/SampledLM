@@ -151,7 +151,6 @@ function SPLM(
   Fk = residual(nls, xk)
   Fkn = similar(Fk)
   exact_Fk = zeros(1:m)
-  b_qrm = zeros(eltype(Fk), length(Fk) + nls.meta.nvar)
 
   fk = dot(Fk, Fk) / 2 #objective estimated without noise
   Jk = jac_op_residual(nls, xk)
@@ -183,6 +182,7 @@ function SPLM(
     end
 
     metric = norm(∇fk)
+    Metric_hist[k] = metric
 
     if k == 1
       ϵ_increment = (ξ0 ≤ 10 * eps(eltype(xk))) ? ϵr * metric : ϵr * ξ0
@@ -227,7 +227,6 @@ function SPLM(
     Complex_hist[k] = stats.niter
 
     xkn .= xk .+ s
-
     Fkn = residual(nls, xkn)
     fkn = dot(Fkn, Fkn) / 2
     mks = mk_smooth(s)

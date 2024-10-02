@@ -83,10 +83,25 @@ function sp_sample(rows::AbstractVector{T}, sample::AbstractVector{<:Integer}) w
 end
 
 function row_sample_bam(sample::AbstractVector{<:Integer})
-  aux = [vcat(2*i-1, 2*i) for i in eachindex(sample)]
+  aux = [vcat(2*i-1, 2*i) for i in sample]
   row_sample_ba = Int[]
   for elt in aux row_sample_ba = vcat(row_sample_ba, elt) end
   return row_sample_ba
+end
+
+function sampled_rows!(sr::Vector{<:Int}, rows::Vector{<:Int})
+  # rows must have been already sampled !
+  @assert length(sr) == length(rows)
+  mem = rows[1]
+  value = 1
+  for i in eachindex(rows)
+    if mem < rows[i]
+      value += 1
+      mem = rows[i]
+    end
+    sr[i] = value
+  end
+  return sr
 end
 
 function formatting_tickvals_10power(v)

@@ -555,9 +555,13 @@ function NLPModels.residual(nls::SampledNLSModel{T, S, R, J, Jt}, x::AbstractVec
   residual!(nls, x, Fx)
 end
 
-function NLPModels.residual(nls::SampledBAModel{T, S}, x::AbstractVector{T}) where {T, S}
+function NLPModels.residual!(nls::SampledADNLSModel_BA{T, S, Si}, x::AbstractVector{T}, Fx::AbstractVector{T}) where {T, S, Si}
+  nls.F!(Fx, x)
+end
+
+function NLPModels.residual(nls::SampledADNLSModel_BA{T, S, Si}, x::AbstractVector{T}) where {T, S, Si}
   @lencheck nls.meta.nvar x
-  Fx = S(undef, nls.nls_meta.nequ)
+  Fx = S(undef, 2*length(nls.sample))
   residual!(nls, x, Fx)
 end
 
@@ -750,7 +754,7 @@ function NLPModels.jprod_residual!(
 )
   @lencheck length(rows) rows cols vals
   @lencheck nls.meta.nvar v
-  @lencheck nls.nls_meta.nequ Jv
+  @lencheck 2*length(nls.sample) Jv
   increment!(nls.ba, :neval_jprod_residual)
   coo_prod!(rows, cols, vals, v, Jv)
 end
@@ -770,7 +774,7 @@ function NLPModels.jtprod_residual!(
   Jtv::AbstractVector,
 )
   @lencheck length(rows) rows cols vals
-  @lencheck nls.nls_meta.nequ v
+  @lencheck 2*length(nls.sample) v
   @lencheck nls.meta.nvar Jtv
   increment!(nls.ba, :neval_jtprod_residual)
   coo_prod!(cols, rows, vals, v, Jtv)
