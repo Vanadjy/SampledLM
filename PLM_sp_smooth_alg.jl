@@ -358,7 +358,7 @@ function SPLM(
       residual!(nls, xkn, Fkn)
       fkn = dot(Fkn, Fkn) / 2
       mks = mk_smooth(s)
-      @assert mk_smooth(zeros(nls.meta.nvar)) == fk
+      @assert norm(mk_smooth(zeros(nls.meta.nvar))-fk) ≤ 1e-14
       Δobj = fk - fkn
       ξ = fk - mks
       if ξ < 0
@@ -660,7 +660,7 @@ function SPLM(
           count_succ += 1
         end
 
-        if nls.sample_rate == 1.0
+        if (nls.sample_rate == 1.0 && !change_sample_rate)
           Fk .= Fkn
           fk = fkn
           # update gradient & Hessian
