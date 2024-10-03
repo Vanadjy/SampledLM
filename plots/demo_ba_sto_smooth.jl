@@ -32,13 +32,13 @@ function demo_ba_sto_smooth(name_list::Vector{String}; sample_rate0 = .05, n_run
         J = sparse(rows, cols, vals, meta_nls_ba.nequ, meta_nls_ba.nvar)=#
         
         #jac_back = ADNLPModels.SparseADJacobian(meta_nls_ba.nvar, F!, meta_nls_ba.nequ, nothing, J)
-        #cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\ba\jac_backs")
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\ba\jac_backs")
         #save_object("jac_back-ba-$(name).jld2", jac_back)
-        #jac_back = load_object("jac_back-ba-$(name).jld2")
-        #cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
+        jac_back = load_object("jac_back-ba-$(name).jld2")
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
         adnls = ADNLSModel!(F!, sampled_nls_ba.meta.x0, 2*length(sampled_nls_ba.sample), sampled_nls_ba.meta.lvar, sampled_nls_ba.meta.uvar, 
-            jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+            jacobian_residual_backend = jac_back,
             jprod_residual_backend = ADNLPModels.ForwardDiffADJprod,
             jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod,
             jacobian_backend = ADNLPModels.EmptyADbackend,
