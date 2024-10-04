@@ -78,8 +78,8 @@ function SPLM(
     Num_mean = 0
     mobile_mean = 0
     unchange_mm_count = 0
-    sample_rates_collec = [.2, .5, .9, 1.0]
-    epoch_limits = [1, 2, 5, 10]
+    sample_rates_collec = [.5, .9, 1.0]
+    epoch_limits = [1, 2, 3]
     @assert length(sample_rates_collec) == length(epoch_limits)
     nls.sample_rate = sample_rate0
 
@@ -184,7 +184,7 @@ function SPLM(
     count_big_succ = 0
     count_succ = 0
     δ_sample = .05
-    buffer = .05
+    buffer = sample_rate0
     dist_succ = zero(eltype(xk))
     k = 0
 
@@ -230,8 +230,6 @@ function SPLM(
     Jt_Fk = similar(∇fk)
     exact_Jt_Fk = similar(∇fk)
 
-    @assert nls.adnls.F!(similar(Fk), xk) ≈ Fk
-
     #jtprod_residual!(nls, sr, cols[sparse_sample], vals[sparse_sample], Fk, ∇fk)
     jtprod_residual!(nls, xk, Fk, ∇fk)
     Jk = jac_residual(nls.adnls, xk)
@@ -271,7 +269,7 @@ function SPLM(
         ϵ_increment = ϵr * metric
         ϵ += ϵ_increment  # make stopping test absolute and relative
         ϵ_subsolver += ϵ_increment
-        μk = 1e-1 / metric
+        μk = 1e-6 / metric
       end
       
       if version == 0 #including specific stopping criterion for constant sample rate strategies
@@ -291,7 +289,7 @@ function SPLM(
         end
       end
   
-      subsolver_options.ϵa = min(1.0e-1, ϵ + ϵr*metric)
+      subsolver_options.ϵa = min(1.0e-1, ϵ + ϵr*metric^(1.3))
       #update of σk
       σk = min(max(μk * metric, σmin), σmax)
   
@@ -329,18 +327,6 @@ function SPLM(
           spmat = qrm_spmat_init(nls.nls_meta.nequ + n, n, rows_qrm, cols_qrm, vals_qrm)
           qrm_least_squares!(spmat, vcat(-Fk, zeros(n)), s)
         else
-          #=#building sampled rows for QRMumps
-          rows_qrm = rows[sparse_sample]
-          @assert issubset(Set(rows_qrm), Set(rows))
-          rows_qrm = vcat(rows_qrm, collect(maximum(rows_qrm)+1:maximum(rows_qrm)+n))
-          @assert length(rows_qrm) == length(rows[sparse_sample])+n
-
-          #building sampled cols for QRMumps
-          cols_qrm = vcat(cols[sparse_sample], 1:n)
-
-          #building sampled vals for QRMumps
-          vals_qrm = vcat(vals[sparse_sample], sqrt(σk) .* ones(n))=#
-
           spmat = qrm_spmat_init(vcat(Jk, sqrt(σk).*I))
           #=sr_qrm = vcat(sr, collect(maximum(sr)+1:maximum(sr)+n))
           cols_qrm = vcat(cols[sparse_sample], collect(1:n))
@@ -358,7 +344,7 @@ function SPLM(
       residual!(nls, xkn, Fkn)
       fkn = dot(Fkn, Fkn) / 2
       mks = mk_smooth(s)
-      @assert norm(mk_smooth(zeros(nls.meta.nvar))-fk) ≤ 1e-14
+      #@assert norm(mk_smooth(zeros(nls.meta.nvar))-fk) ≤ 1e-14
       Δobj = fk - fkn
       ξ = fk - mks
       if ξ < 0

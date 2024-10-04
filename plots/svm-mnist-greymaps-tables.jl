@@ -51,7 +51,7 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
     local mnist_sto, mnist_nls_sto, mnist_sol = MNIST_train_model_sto(sample_rate0; digits = digits)
     local mnist_nlp_test_sto, mnist_nls_test_sto, mnist_sto_sol_test = MNIST_test_model_sto(sample_rate0; digits = digits)
 
-    temp = [R2_stats.solver_specific[:smooth_obj], h(R2_stats.solution), R2_stats.objective, acc(r2train), acc(r2test), R2_stats.iter, r2_numjac_hist[end], R2_stats.iter, R2_stats.elapsed_time]
+    temp = [R2_stats.solver_specific[:smooth_obj], h(R2_stats.solution), R2_stats.objective, acc(r2train), acc(r2test), R2_stats.iter, R2_stats.iter, r2_numjac_hist[end], R2_stats.iter, R2_stats.elapsed_time]
 
     for version in versions
         if selected_h != "smooth"
@@ -86,19 +86,18 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\MNIST_Graphs\1vs7\greymaps\tikz_and_dats")
         plmdec = plot_svm(Prob_LM_out, Prob_LM_out.solution, "PLM-$version-lhalf-$digits-Budget=$MaxEpochs")
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
+
+        SampleRateHist = Prob_LM_out.solver_specific[:SampleRateHist]
+        non_deterministic_counter = sum(filter!(x -> x < 1.0, SampleRateHist))
         
         if selected_h != "smooth"
+            nfplm = Prob_LM_out.solver_specific[:ResidHist][end] - Prob_LM_out.solver_specific[:ResidHist][1] - non_deterministic_counter
             temp = hcat(temp,
-                #[LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
-                #[LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
-                #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
-                [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, ngplm - 2 * Prob_LM_out.iter, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+                [Prob_LM_out.solver_specific[:Fhist][end], Prob_LM_out.solver_specific[:Hhist][end], Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, nfplm, ngplm - 2 * non_deterministic_counter, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
         else
+            nfplm = Prob_LM_out.solver_specific[:ResidHist][end] - Prob_LM_out.solver_specific[:ResidHist][1] - non_deterministic_counter
             temp = hcat(temp,
-            #[LM_out.solver_specific[:Fhist][end], LM_out.solver_specific[:Hhist][end], LM_out.objective, acc(lmtrain), acc(lmtest), nlm, nglm, sum(LM_out.solver_specific[:SubsolverCounter]), LM_out.elapsed_time],
-            #[LMTR_out.solver_specific[:Fhist][end], LMTR_out.solver_specific[:Hhist][end], LMTR_out.objective, acc(lmtrtrain), acc(lmtrtest), nlmtr, nglmtr, sum(LMTR_out.solver_specific[:SubsolverCounter]), LMTR_out.elapsed_time],
-            #[Sto_LM_out.solver_specific[:ExactFhist][end], Sto_LM_out.solver_specific[:Hhist][end], Sto_LM_out.solver_specific[:ExactFhist][end] + Sto_LM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm, sum(Sto_LM_out.solver_specific[:SubsolverCounter]), Sto_LM_out.elapsed_time],
-            [Prob_LM_out.solver_specific[:Fhist][end], h(Prob_LM_out.solution), Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, Prob_LM_out.solver_specific[:NLSGradHist][end] - Prob_LM_out.iter, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
+            [Prob_LM_out.solver_specific[:Fhist][end], h(Prob_LM_out.solution), Prob_LM_out.objective, acc(plmtrain), acc(plmtest), nplm, nfplm, Prob_LM_out.solver_specific[:NLSGradHist][end] - non_deterministic_counter, sum(Prob_LM_out.solver_specific[:SubsolverCounter]), Prob_LM_out.elapsed_time])
         end
     end
 
@@ -135,35 +134,40 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 
         if selected_h != "smooth"
+            ngslm = (sample_rate == 1.0) ? SLM_out.solver_specific[:NLSGradHist][end] - SLM_out.solver_specific[:NLSGradHist][1] : SLM_out.solver_specific[:NLSGradHist][end] - SLM_out.solver_specific[:NLSGradHist][1] - 2*SLM_out.iter*sample_rate
+            nfslm = (sample_rate == 1.0) ? SLM_out.solver_specific[:ResidHist][end] - SLM_out.solver_specific[:ResidHist][1] : SLM_out.solver_specific[:ResidHist][end] - SLM_out.solver_specific[:ResidHist][1] - SLM_out.iter*sample_rate
             temp = hcat(temp,
-            [SLM_out.solver_specific[:ExactFhist][end], SLM_out.solver_specific[:Hhist][end], SLM_out.solver_specific[:ExactFhist][end] + SLM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm - 2*SLM_out.iter, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
+            [SLM_out.solver_specific[:ExactFhist][end], SLM_out.solver_specific[:Hhist][end], SLM_out.solver_specific[:ExactFhist][end] + SLM_out.solver_specific[:Hhist][end], acc(slmtrain), acc(slmtest), nslm, nfslm, ngslm, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
             )
         else
+            ngslm = (sample_rate == 1.0) ? SLM_out.solver_specific[:NLSGradHist][end] - SLM_out.solver_specific[:NLSGradHist][1] : SLM_out.solver_specific[:NLSGradHist][end] - SLM_out.solver_specific[:NLSGradHist][1] - SLM_out.iter*sample_rate
+            nfslm = (sample_rate == 1.0) ? SLM_out.solver_specific[:ResidHist][end] - SLM_out.solver_specific[:ResidHist][1] : SLM_out.solver_specific[:ResidHist][end] - SLM_out.solver_specific[:ResidHist][1] - SLM_out.iter*sample_rate
             temp = hcat(temp,
-            [SLM_out.solver_specific[:ExactFhist][end], h(SLM_out.solution), SLM_out.solver_specific[:ExactFhist][end], acc(slmtrain), acc(slmtest), nslm, ngslm - SLM_out.iter, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
+            [SLM_out.solver_specific[:ExactFhist][end], h(SLM_out.solution), SLM_out.solver_specific[:ExactFhist][end], acc(slmtrain), acc(slmtest), nslm, nfslm, ngslm, sum(SLM_out.solver_specific[:SubsolverCounter]), SLM_out.elapsed_time]
             )
         end
     end
 
     temp = temp'
 
-    df = DataFrame(temp, [:f, :h, :fh, :x, :xt, :n, :g, :p, :s])
+    df = DataFrame(temp, [:f, :h, :fh, :x, :xt, :n, :nf, :g, :p, :s])
     T = []
     for i = 1:nrow(df)
     push!(T, Tuple(df[i, [:x, :xt]]))
     end
     select!(df, Not(:xt))
     df[!, :x] = T
-    df[!, :Alg] = vcat(["R2"], ["PLM-$(prob_versions_names[version])" for version in versions], ["PLM-$(sample_rate*100)" for sample_rate in sample_rates])
+    df[!, :Alg] = vcat(["R2"], ["PLM $(prob_versions_names[version])" for version in versions], ["PLM $(sample_rate*100)\\%" for sample_rate in sample_rates])
     select!(df, :Alg, Not(:Alg), :)
     fmt_override = Dict(:Alg => "%s",
         :f => "%10.2f",
         :h => "%10.2f",
         :fh => "%10.2f",
         :x => "%10.2f, %10.2f",
-        :n => "%10.2f",
+        :n => "%i",
+        :nf => "%10.2f",
         :g => "%10.2f",
-        :p => "%10.2f",
+        :p => "%i",
         :s => "%02.2f")
     hdr_override = Dict(:Alg => "Alg",
         :f => "\$ f \$",
@@ -171,6 +175,7 @@ function greymaps_tables_mnist(versions, sample_rates, sample_rate0; digits = (1
         :fh => "\$ f+h \$",
         :x => "(Train, Test)",
         :n => "\\# E",
+        :nf => "\\# \$ f \$",
         :g => "\\# \$ \\nabla f \$",
         :p => "\\# inner",
         :s => "\$t \$ (s)")

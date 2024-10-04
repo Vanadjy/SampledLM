@@ -7,10 +7,10 @@ if selected_probs == ["ijcnn1"]
     sample_rate0 = .05
     sample_rates = [1.0, .1, .05, .01]
     selected_digits = [(1, 7)] # let only one pair of random digits
-    versions = [2, 5, 7, 9]
+    versions = []
     #version = versions[end]
     ϵ = 1e-8
-    selected_hs = ["l1", "lhalf"]
+    selected_hs = ["smooth"]
     if selected_hs == ["smooth"]
         smooth = true
     else
@@ -25,19 +25,19 @@ elseif selected_probs == ["mnist"]
     selected_digits = [(1, 7)]
     versions = Int[2, 9]
     #version = versions[end]
-    selected_hs = ["smooth"]
+    selected_hs = ["lhalf"]
     if selected_hs == ["smooth"]
         smooth = true
     else
         smooth = false
     end
     ϵ = 1e-4
-    MaxEpochs = 20
+    MaxEpochs = 1000
     MaxTime = 3600.0
     compare = true
 end
 
-local_plots = false
+local_plots = true
 abscissas = ["epoch", "CPU time"]
 abscissa = abscissas[1]
 

@@ -41,7 +41,6 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         temp_ba = hcat(temp_ba,
         [fx0, SLM_out.objective, gx0, SLM_out.solver_specific[:ExactMetricHist][end], nslm, SLM_out.solver_specific[:NLSGradHist][end], SLM_out.elapsed_time]
         )
-
     end
     
     for version in versions
@@ -66,7 +65,7 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         end
         SPLM_out = SPLM_outs[origin_ind]
         SampleRateHist = SPLM_out.solver_specific[:SampleRateHist]
-        non_deterministic_counter = length(filter!(x -> x < 1.0, SampleRateHist))
+        non_deterministic_counter = sum(filter!(x -> x < 1.0, SampleRateHist))
         ngsplm = SPLM_out.solver_specific[:NLSGradHist][end] - SPLM_out.solver_specific[:NLSGradHist][1] - non_deterministic_counter
 
         temp_ba = hcat(temp_ba, 
@@ -83,7 +82,7 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         :fh => "%10.2e",
         :xi0 => "%10.2e",
         :xi => "%10.2e",
-        :n => "%10.2f",
+        :n => "%i",
         :g => "%10.2f",
         :s => "%02.2f")
     hdr_override = Dict(:Alg => "Alg",
@@ -91,7 +90,7 @@ function ba_tables(name, sample_rates, versions; suffix::String = "smooth", n_ru
         :fh => "\$ f(x) \$",
         :xi0 => "\$ \\| \\nabla f(x_0) \\| \$",
         :xi => "\$ \\| \\nabla f(x) \\| \$",
-        :n => "\\# epochs",
+        :n => "\\# E",
         :g => "\\# \$ \\nabla f \$",
         :s => "\$t \$ (s)")
     

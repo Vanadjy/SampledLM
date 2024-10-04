@@ -128,7 +128,7 @@ function ba_3d_scatter(name_list::Vector{String}, sample_rates::Vector{Float64},
             PlotlyJS.savefig(fig_ba, "ba-$name-3D-PLM-$(prob_versions_names[version])-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")
         end
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Graphes\BundleAdjustment_Graphs\dubrovnik\3d-scatter")
-        PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")
+        #PlotlyJS.savefig(fig_ba0, "ba-$name-3D-x0-$(n_runs)runs-$(MaxEpochs)epochs.pdf"; format = "pdf")
     end
     cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\Packages")
 end
