@@ -14,7 +14,7 @@ MaxTime = 2e4
 smooth = true
 Jac_lop = false
 
-local_plots = true
+local_plots = false
 
 #plot_Sto_LM_BA(sample_rates, versions, name_list, selected_hs; abscissa = abscissa, n_exec = n_exec, smooth = true, sample_rate0 = sample_rate0, compare = true, MaxEpochs = MaxEpochs, MaxTime = MaxTime)
 Random.seed!(seed)
