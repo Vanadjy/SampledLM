@@ -78,8 +78,8 @@ function SPLM(
     Num_mean = 0
     mobile_mean = 0
     unchange_mm_count = 0
-    sample_rates_collec = [.5, .9, 1.0]
-    epoch_limits = [1, 2, 3]
+    sample_rates_collec = [.8, 1.0]
+    epoch_limits = [1, 3]
     @assert length(sample_rates_collec) == length(epoch_limits)
     nls.sample_rate = sample_rate0
 
@@ -269,7 +269,7 @@ function SPLM(
         ϵ_increment = ϵr * metric
         ϵ += ϵ_increment  # make stopping test absolute and relative
         ϵ_subsolver += ϵ_increment
-        μk = 1e-6 / metric
+        μk = max(1e-3 / metric, μmin)
       end
       
       if version == 0 #including specific stopping criterion for constant sample rate strategies

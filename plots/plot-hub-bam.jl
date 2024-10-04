@@ -1,7 +1,7 @@
 Random.seed!(seed)
 
 n_exec = 1
-sample_rate0 = .2
+sample_rate0 = .5
 sample_rates = Float64[1.0]
 versions = Int[2, 9]
 

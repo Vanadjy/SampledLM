@@ -156,7 +156,7 @@ function LM_qrm(
     metric = norm(∇fk)
 
     # initialize regularization parameters
-    μk = 1e-1 / metric
+    μk = max(1e-3 / metric, μmin)
     σk = min(max(μk * metric, σmin), σmax)
 
     optimal = false
