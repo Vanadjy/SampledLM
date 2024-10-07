@@ -618,7 +618,7 @@ function SPLM(
         vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
       end
   
-      if false #(η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
+      if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
         xk .= xkn
         #changes sample only for successful iterations
         nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
