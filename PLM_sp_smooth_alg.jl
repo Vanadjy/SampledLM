@@ -566,6 +566,11 @@ function SPLM(
         sampled_rows!(sr, rows[sparse_sample])
         row_sample_ba = row_sample_bam(nls.sample)
 
+        Fk = residual(nls, xk)
+        Fkn = similar(Fk)
+        JdFk = similar(Fk)
+        fk = dot(Fk, Fk) / 2
+
         # Reload ADNLSModel as sample changed
         nls.adnls = ADNLSModel!(nls.adnls.F!, xk, 2*length(nls.sample), nls.ba.meta.lvar, nls.ba.meta.uvar, 
           jacobian_residual_backend = ADNLPModels.SparseADJacobian,
@@ -588,21 +593,18 @@ function SPLM(
           set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ForwardDiffADJprod, jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod)
         end=#
 
-        Fk = residual(nls, xk)
-        Fkn = similar(Fk)
-        JdFk = similar(Fk)
-        fk = dot(Fk, Fk) / 2
-
         rows = Vector{Int}(undef, nls.nls_meta.nnzj)
         cols = Vector{Int}(undef, nls.nls_meta.nnzj)
         vals = similar(xk, nls.nls_meta.nnzj)
         exact_vals = copy(vals)
+
+        Jk = jac_residual(nls.adnls, xk)
         jac_structure_residual!(nls.adnls, rows, cols)
         jac_coord_residual!(nls.adnls, xk, vals)
 
         #jtprod_residual!(nls, sr, cols[sparse_sample], vals[sparse_sample], Fk, ∇fk)
         jtprod_residual!(nls, xk, Fk, ∇fk)
-
+        vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
         #Jk = jac_op_residual(nls, xk)
         if Jac_lop
           Jk = jac_op_residual!(nls, xk, JdFk, Jt_Fk)
