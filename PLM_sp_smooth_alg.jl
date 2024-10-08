@@ -78,8 +78,8 @@ function SPLM(
     Num_mean = 0
     mobile_mean = 0
     unchange_mm_count = 0
-    sample_rates_collec = [.8, 1.0]
-    epoch_limits = [1, 3]
+    sample_rates_collec = [.7, .9, 1.0]
+    epoch_limits = [1, 2, 4]
     @assert length(sample_rates_collec) == length(epoch_limits)
     nls.sample_rate = sample_rate0
 
@@ -157,7 +157,8 @@ function SPLM(
     μk = max(1 / options.ν , μmin)
 
     # Reload ADNLSModel as sample changed
-    nls.adnls = ADNLSModel!(nls.adnls.F!, xk, 2*length(nls.sample), nls.ba.meta.lvar, nls.ba.meta.uvar, 
+    # Need to reload the backend whenever the sample changes as it involves changes in F!
+    #=nls.adnls = ADNLSModel!(nls.adnls.F!, xk, 2*length(nls.sample), nls.ba.meta.lvar, nls.ba.meta.uvar, 
             jacobian_residual_backend = ADNLPModels.SparseADJacobian,
             jprod_residual_backend = ADNLPModels.ForwardDiffADJprod,
             jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod,
@@ -165,17 +166,18 @@ function SPLM(
             hessian_backend = ADNLPModels.EmptyADbackend,
             hessian_residual_backend = ADNLPModels.EmptyADbackend,
             matrix_free = true
-      )
-    
-    #=nls.adnls.adbackend.jacobian_residual_backend = ADNLPModels.SparseADJacobian(n, x -> zero(eltype(x)), 2*length(nls.sample), nls.adnls.F!)
-    nls.adnls.adbackend.jprod_residual_backend = ADNLPModels.ForwardDiffADJprod(n, x -> zero(eltype(x)), 2*length(nls.sample), nls.adnls.F!)
-    nls.adnls.adbackend.jprod_residual_backend = ADNLPModels.ReverseDiffADJtprod(n, x -> zero(eltype(x)), 2*length(nls.sample), nls.adnls.F!)=#
-
-
-    # adapting ADBackend with respect to sample rate
-    #=if 2*length(nls.sample) < nls.meta.nvar # switch from default backends whenever sampled J underdetermined
-      set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
-    end=#
+    )=#
+    new_back = ADNLPModels.ADModelNLSBackend(n, F!, 2*length(nls.sample),
+      gradient_backend = ADNLPModels.EmptyADbackend(),
+      hprod_backend = ADNLPModels.EmptyADbackend(),
+      hessian_backend = ADNLPModels.EmptyADbackend(),
+      hprod_residual_backend = ADNLPModels.EmptyADbackend(),
+      jprod_residual_backend = ADNLPModels.ForwardDiffADJprod,
+      jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod,
+      jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+      hessian_residual_backend = ADNLPModels.EmptyADbackend(),
+    )
+    set_adbackend!(nls.adnls, new_back)
   
     local ξ
     local ξ_mem
@@ -572,7 +574,7 @@ function SPLM(
         fk = dot(Fk, Fk) / 2
 
         # Reload ADNLSModel as sample changed
-        nls.adnls = ADNLSModel!(nls.adnls.F!, xk, 2*length(nls.sample), nls.ba.meta.lvar, nls.ba.meta.uvar, 
+        #=nls.adnls = ADNLSModel!(nls.adnls.F!, xk, 2*length(nls.sample), nls.ba.meta.lvar, nls.ba.meta.uvar, 
           jacobian_residual_backend = ADNLPModels.SparseADJacobian,
           jprod_residual_backend = ADNLPModels.ForwardDiffADJprod,
           jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod,
@@ -580,18 +582,18 @@ function SPLM(
           hessian_backend = ADNLPModels.EmptyADbackend,
           hessian_residual_backend = ADNLPModels.EmptyADbackend,
           matrix_free = true
+        )=#
+        new_back = ADNLPModels.ADModelNLSBackend(n, F!, 2*length(nls.sample),
+          gradient_backend = ADNLPModels.EmptyADbackend(),
+          hprod_backend = ADNLPModels.EmptyADbackend(),
+          hessian_backend = ADNLPModels.EmptyADbackend(),
+          hprod_residual_backend = ADNLPModels.EmptyADbackend(),
+          jprod_residual_backend = ADNLPModels.ForwardDiffADJprod,
+          jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod,
+          jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+          hessian_residual_backend = ADNLPModels.EmptyADbackend(),
         )
-
-        #=nls.adnls.adbackend.jacobian_residual_backend = ADNLPModels.SparseADJacobian(n, x -> zero(eltype(x)), 2*length(nls.sample), nls.adnls.F!)
-        nls.adnls.adbackend.jprod_residual_backend = ADNLPModels.ForwardDiffADJprod(n, x -> zero(eltype(x)), 2*length(nls.sample), nls.adnls.F!)
-        nls.adnls.adbackend.jprod_residual_backend = ADNLPModels.ReverseDiffADJtprod(n, x -> zero(eltype(x)), 2*length(nls.sample), nls.adnls.F!)=#
-
-        # adapting ADBackend with respect to sample rate
-        #=if 2*length(nls.sample) < nls.meta.nvar
-          set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ReverseDiffADJprod, jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod)
-        else
-          set_adbackend!(nls.adnls, jprod_residual_backend = ADNLPModels.ForwardDiffADJprod, jtprod_residual_backend = ADNLPModels.ReverseDiffADJtprod)
-        end=#
+        set_adbackend!(nls.adnls, new_back)
 
         rows = Vector{Int}(undef, nls.nls_meta.nnzj)
         cols = Vector{Int}(undef, nls.nls_meta.nnzj)
@@ -673,9 +675,17 @@ function SPLM(
             matrix_free = true
           )
 
-          #=nls.adnls.adbackend.jacobian_residual_backend = ADNLPModels.SparseADJacobian(n, x -> zero(eltype(x)), 2*length(nls.sample), nls.adnls.F!)
-          nls.adnls.adbackend.jprod_residual_backend = ADNLPModels.ForwardDiffADJprod(n, x -> zero(eltype(x)), 2*length(nls.sample), nls.adnls.F!)
-          nls.adnls.adbackend.jprod_residual_backend = ADNLPModels.ReverseDiffADJtprod(n, x -> zero(eltype(x)), 2*length(nls.sample), nls.adnls.F!)=#
+          new_back = ADNLPModels.ADModelNLSBackend(n, F!, 2*length(nls.sample),
+            gradient_backend = ADNLPModels.EmptyADbackend(),
+            hprod_backend = ADNLPModels.EmptyADbackend(),
+            hessian_backend = ADNLPModels.EmptyADbackend(),
+            hprod_residual_backend = ADNLPModels.EmptyADbackend(),
+            jprod_residual_backend = ADNLPModels.ForwardDiffADJprod,
+            jtprod_residual_backend = ADNLPModels.ForwardDiffADJtprod,
+            jacobian_residual_backend = ADNLPModels.SparseADJacobian,
+            hessian_residual_backend = ADNLPModels.EmptyADbackend(),
+          )
+          set_adbackend!(nls.adnls, new_back)
           
           Jk = jac_residual(nls.adnls, xk)
     
