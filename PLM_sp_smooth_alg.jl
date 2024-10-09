@@ -190,14 +190,14 @@ function SPLM(
     dist_succ = zero(eltype(xk))
     k = 0
 
-    Fobj_hist = zeros(maxIter)
-    exact_Fobj_hist = zeros(maxIter)
-    Metric_hist = zeros(maxIter)
-    exact_Metric_hist = zeros(maxIter)
-    Complex_hist = zeros(maxIter)
-    Grad_hist = zeros(maxIter)
-    Resid_hist = zeros(maxIter)
-    Sample_hist = zeros(maxIter)
+    Fobj_hist = zeros(50*maxIter)
+    exact_Fobj_hist = zeros(50*maxIter)
+    Metric_hist = zeros(50*maxIter)
+    exact_Metric_hist = zeros(50*maxIter)
+    Complex_hist = zeros(50*maxIter)
+    Grad_hist = zeros(50*maxIter)
+    Resid_hist = zeros(50*maxIter)
+    Sample_hist = zeros(50*maxIter)
   
     #Historic of time
     TimeHist = []
