@@ -78,8 +78,8 @@ function SPLM(
     Num_mean = 0
     mobile_mean = 0
     unchange_mm_count = 0
-    sample_rates_collec = [.1, .3, .5, .75, 1.0]
-    epoch_limits = [0, 1, 2, 3, 4]
+    sample_rates_collec = [.4, .8, 1.0]
+    epoch_limits = [0, 1, 2]
     @assert length(sample_rates_collec) == length(epoch_limits)
     nls.sample_rate = sample_rate0
 
