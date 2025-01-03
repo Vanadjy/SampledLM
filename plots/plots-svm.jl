@@ -770,11 +770,11 @@ function svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractVector, 
                 plt_sr = PlotlyJS.plot(data_sr, layout_sr)
                 plt_sre = PlotlyJS.plot(data_sr_e, layout_sr)
 
-                display(plt_obj)
+                #=display(plt_obj)
                 display(plt_metr)
                 display(plt_mse)
                 display(plt_sr)
-                display(plt_sre)
+                display(plt_sre)=#
 
                 #=if selected_prob == "ijcnn1"
                     PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$(MaxEpochs)epochs-$selected_h-compare=$compare-smooth=$smooth.pdf"; format = "pdf")
