@@ -25,14 +25,14 @@ elseif selected_probs == ["mnist"]
     selected_digits = [(1, 7)]
     versions = Int[2, 7, 9]
     #version = versions[end]
-    selected_hs = ["lhalf"]
+    selected_hs = ["smooth"]
     if selected_hs == ["smooth"]
         smooth = true
     else
         smooth = false
     end
     ϵ = 1e-4
-    MaxEpochs = 20
+    MaxEpochs = 500
     MaxTime = 3600.0
     compare = true
 end
