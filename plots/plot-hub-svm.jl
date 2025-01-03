@@ -1,5 +1,5 @@
 n_exec = 10
-selected_probs = ["ijcnn1"]
+selected_probs = ["mnist"]
 MaxEpochs = 0
 MaxTime = 0.0
 
@@ -21,7 +21,7 @@ if selected_probs == ["ijcnn1"]
     compare = false
 elseif selected_probs == ["mnist"]
     sample_rate0 = .05
-    sample_rates = Float64[1.0]
+    sample_rates = Float64[1.0, .05]
     selected_digits = [(1, 7)]
     versions = Int[2, 7, 9]
     #version = versions[end]
@@ -32,7 +32,7 @@ elseif selected_probs == ["mnist"]
         smooth = false
     end
     ϵ = 1e-4
-    MaxEpochs = 20
+    MaxEpochs = 500
     MaxTime = 3600.0
     compare = true
 end
