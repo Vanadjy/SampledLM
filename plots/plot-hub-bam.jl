@@ -1,6 +1,6 @@
 Random.seed!(seed)
 
-n_exec = 2
+n_exec = 10
 sample_rate0 = .05
 sample_rates = Float64[1.0]
 versions = Int[2, 7, 9]
