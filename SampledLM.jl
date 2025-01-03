@@ -5,11 +5,11 @@ using LinearAlgebra, Logging, Printf, Plots, DataFrames
 using ProximalOperators, FastClosures
 
 # dependencies from us
-using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov, ADNLPModels, JSOSolvers, BasicLU
+using LinearOperators, NLPModels, NLPModelsModifiers, ShiftedProximalOperators, SolverCore, QRMumps, Krylov, ADNLPModels, JSOSolvers
 using RegularizedProblems, RegularizedOptimization, BundleAdjustmentModels
 
 # stochastic packages dependencies
-using Random, Test, Statistics, OnlineStats, Distributions, Noise
+using Random, Test, Statistics, OnlineStats#, Distributions, Noise
 using MLDatasets:MNIST
 using JSON, JLD2
 

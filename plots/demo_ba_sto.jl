@@ -93,7 +93,7 @@ function demo_ba_sto(name_list::Vector{String}; sample_rate = 1.0, sample_rate0 
         #options = RegularizedOptimization.ROSolverOptions(ν = 1.0, β = 1e16, γ = 10, ϵa = 1e-4, ϵr = 1e-4, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
         suboptions = RegularizedOptimization.ROSolverOptions(maxIter = 300)
 
-        sampled_options = ROSolverOptions(η3 = .4, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-8, ϵr = 1e-8, σmin = 1e-6, μmin = 1e-6, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
+        sampled_options = ROSolverOptions(η3 = 1e-9, ν = 1e0, νcp = 1e0, β = 1e16, σmax = 1e6, ϵa = 1e-8, ϵr = 1e-8, σmin = 1e-6, μmin = 1e-6, verbose = 10, maxIter = MaxEpochs, maxTime = MaxTime;)
 
         ## ---------------------------------------------------------------------------------------------------##
         ## ----------------------------------- DYNAMIC SAMPLE RATE -------------------------------------------##

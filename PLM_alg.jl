@@ -301,10 +301,10 @@ function PLM(
 
     Complex_hist[k] = iter
     # additionnal condition on step s
-    if norm(s) > β * norm(scp)
+    #=if norm(s) > β * norm(scp)
       @info "cauchy step used"
       s .= scp
-    end
+    end=#
     
     xkn .= xk .+ s
 
@@ -325,7 +325,7 @@ function PLM(
     ρk = Δobj / ξ
 
     #μ_stat = ((η1 ≤ ρk < Inf) && ((metric ≥ η3 / μk))) ? "↘" : "↗"
-    μ_stat = ρk < η1 ? "↘" : ((nls.sample_rate==1.0 && (metric > η2))||(nls.sample_rate<1.0 && (metric ≥ η3 / μk)) ? "↗" : "=")
+    μ_stat = ρk < η1 ? "↘" : ((nls.sample_rate==1.0 && (ρk > η2))||(nls.sample_rate<1.0 && (metric ≥ η3 / μk)) ? "↗" : "=")
     #μ_stat = (η2 ≤ ρk < Inf) ? "↘" : (ρk < η1 ? "↗" : "=")
 
     if (verbose > 0) && (k % ptf == 0)
@@ -468,17 +468,15 @@ function PLM(
 
     if version == 7
         if (count_fail == 2) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
-            sample_counter = max(0, sample_counter - 1) # sample_counter-1 < length(sample_rates_collec)
-            nls.sample_rate = (sample_counter == 0) ? sample_rate0 : sample_rates_collec[sample_counter]
-            change_sample_rate = true
-            count_fail = 0
-            count_big_succ = 0
+          nls.sample_rate = min(nls.smaple_rate / 2, sample_rate0)
+          change_sample_rate = true
+          count_fail = 0
+          count_big_succ = 0
         elseif (count_big_succ == 2) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
-            sample_counter = min(length(sample_rates_collec), sample_counter + 1) # sample_counter + 1 > 0
-            nls.sample_rate = sample_rates_collec[sample_counter]
-            change_sample_rate = true
-            count_fail = 0
-            count_big_succ = 0
+          nls.sample_rate = max(1.0, 2 * nls.sample_rate)  
+          change_sample_rate = true
+          count_fail = 0
+          count_big_succ = 0
         end
     end
 
@@ -497,36 +495,29 @@ function PLM(
     end
 
     if (version == 9)
-        if nls.sample_rate < 1.0
-            if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased twice in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
-            #=ζk *= λ^4
-            @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-            nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))=#
-            nls.sample_rate = min(1.0, max(nls.sample_rate * λ, buffer))
-            change_sample_rate = true
-            count_fail = 0
-            count_big_succ = 0
-            count_succ = 0
-            dist_succ = zero(eltype(xk))
-            elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased twice in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
-            #ζk *= λ^(-4)
-            #@info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-            nls.sample_rate = min(1.0, max(nls.sample_rate / λ, buffer))
-            change_sample_rate = true
-            count_fail = 0
-            count_big_succ = 0
-            count_succ = 0
-            dist_succ = zero(eltype(xk))
-            end
-            if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
-            @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
-            buffer = sample_rates_collec[sample_counter]
-            nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
-            sample_counter += 1
-            change_sample_rate = true
-            count_succ = 0
-            dist_succ = zero(eltype(xk))
-            end
+        if (count_big_succ == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased twice in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+          nls.sample_rate = min(1.0, max(nls.sample_rate * 2, buffer))
+          change_sample_rate = true
+          count_fail = 0
+          count_big_succ = 0
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
+        elseif (count_fail == 2) && nls.sample_rate != sample_rate0 # if μk decreased twice in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+          nls.sample_rate = min(1.0, max(nls.sample_rate / 2, buffer))
+          change_sample_rate = true
+          count_fail = 0
+          count_big_succ = 0
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
+        end
+        if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
+          @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
+          buffer = sample_rates_collec[sample_counter]
+          sample_counter += 1
+          nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
+          change_sample_rate = true
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
         end
     end
 
@@ -546,7 +537,7 @@ function PLM(
       νcpInv = (1 + θ) * (μmax^2 + μmin)
     end
 
-    if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
+    if (η1 ≤ ρk < Inf) && sqrt(dot(s,s)) <= β/μk && (metric ≥ η3 / μk) #successful step
       xk .= xkn
       ## change sample only for successful iterations ##
       nls.sample = sort(randperm(nls.nls_meta.nequ)[1:Int(ceil(nls.sample_rate * nls.nls_meta.nequ))])
@@ -555,22 +546,14 @@ function PLM(
         nls.sample == 1:nls.nls_meta.nequ || error("Sample Error : Sample should be full for 100% sampling")
       end
 
-      if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step
+      if (η2 ≤ ρk < Inf) #very successful step
         μk = max(μk / λ, μmin)
         count_big_succ += 1
         count_fail = 0
-        count_succ = 0
-        dist_succ = zero(eltype(xk))
-      elseif (nls.sample_rate == 1.0) && (η2 ≤ ρk < Inf)
-        μk = max(μk / λ, μmin)
-        count_big_succ += 1
-        count_fail = 0
-        count_succ = 0
-        dist_succ = zero(eltype(xk))
-      else
-        dist_succ += norm(s)
-        count_succ += 1
       end
+      count_succ += 1
+      dist_succ += sqrt(dot(s,s))
+
       if nls.sample_rate == 1.0
         Fk .= Fkn
         fk = fkn
@@ -606,7 +589,6 @@ function PLM(
       end
       count_big_succ = 0
       count_fail += 1
-      count_succ = 0
       dist_succ = zero(eltype(xk))
     end
 

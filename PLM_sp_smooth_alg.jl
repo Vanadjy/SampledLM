@@ -78,8 +78,8 @@ function SPLM(
     Num_mean = 0
     mobile_mean = 0
     unchange_mm_count = 0
-    sample_rates_collec = [.4, .8, 1.0]
-    epoch_limits = [0, 1, 2]
+    sample_rates_collec = [.2, .5, .9, 1.0]
+    epoch_limits = [1, 2, 5, 10]
     @assert length(sample_rates_collec) == length(epoch_limits)
     nls.sample_rate = sample_rate0
 
@@ -496,68 +496,59 @@ function SPLM(
       end
 
       if version == 7
-        if (count_fail == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
-          sample_counter = max(0, sample_counter - 1) # sample_counter-1 < length(sample_rates_collec)
-          nls.sample_rate = (sample_counter == 0) ? sample_rate0 : sample_rates_collec[sample_counter]
+        if (count_fail == 2) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+          nls.sample_rate = min(nls.sample_rate / 2, sample_rate0)
           change_sample_rate = true
           count_fail = 0
           count_big_succ = 0
-        elseif (count_big_succ == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
-          sample_counter = min(length(sample_rates_collec), sample_counter + 1) # sample_counter + 1 > 0
-          nls.sample_rate = sample_rates_collec[sample_counter]
-          change_sample_rate = true
-          count_fail = 0
-          count_big_succ = 0
-        end
-      end
-  
-      if version == 8
-        if (count_fail == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
-          nls.sample_rate -= δ_sample
-          change_sample_rate = true
-          count_fail = 0
-          count_big_succ = 0
-        elseif (count_big_succ == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
-          nls.sample_rate += δ_sample
+        elseif (count_big_succ == 2) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+          nls.sample_rate = max(1.0, 2 * nls.sample_rate)  
           change_sample_rate = true
           count_fail = 0
           count_big_succ = 0
         end
-      end
-  
-      if (version == 9)
-        if nls.sample_rate < 1.0
-          if (count_fail == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased twice in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
-            #=ζk *= λ^4
-            @info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-            nls.sample_rate = min(1.0, max((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1), buffer))=#
-            nls.sample_rate = min(1.0, max(nls.sample_rate * λ, buffer))
+    end
+
+    if version == 8
+        if (count_fail == 3) && nls.sample_rate != sample_rate0 # if μk increased 3 times in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+            nls.sample_rate -= δ_sample
             change_sample_rate = true
             count_fail = 0
             count_big_succ = 0
-            count_succ = 0
-            dist_succ = zero(eltype(xk))
-          elseif (count_big_succ == 2) && nls.sample_rate != sample_rate0 # if μk decreased twice in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
-            #ζk *= λ^(-4)
-            #@info "possible sample rate = $((ζk / nls.nls_meta.nequ) * (nls.meta.nvar + 1))"
-            nls.sample_rate = min(1.0, max(nls.sample_rate / λ, buffer))
+        elseif (count_big_succ == 3) && nls.sample_rate != sample_rates_collec[end] # if μk decreased 3 times in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+            nls.sample_rate += δ_sample
             change_sample_rate = true
             count_fail = 0
             count_big_succ = 0
-            count_succ = 0
-            dist_succ = zero(eltype(xk))
-          end
-          if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
-            @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
-            buffer = sample_rates_collec[sample_counter]
-            nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
-            sample_counter += 1
-            change_sample_rate = true
-            count_succ = 0
-            dist_succ = zero(eltype(xk))
-          end
         end
-      end
+    end
+
+    if (version == 9)
+        if (count_big_succ == 2) && nls.sample_rate != sample_rates_collec[end] # if μk increased twice in a row -> decrease the batch size AND useless to try to make nls.sample rate decrease if its already equal to sample_rate0
+          nls.sample_rate = min(1.0, max(nls.sample_rate * 2, buffer))
+          change_sample_rate = true
+          count_fail = 0
+          count_big_succ = 0
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
+        elseif (count_fail == 2) && nls.sample_rate != sample_rate0 # if μk decreased twice in a row -> increase the batch size AND useless to try to make nls.sample rate increase if its already equal to the highest available sample rate
+          nls.sample_rate = min(1.0, max(nls.sample_rate / 2, buffer))
+          change_sample_rate = true
+          count_fail = 0
+          count_big_succ = 0
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
+        end
+        if (nls.sample_rate < sample_rates_collec[end]) && ((dist_succ > (norm(ones(nls.meta.nvar)) / (threshold_relax * nls.sample_rate))) || (count_succ > 10)) # if μ did not change for too long, increase the buffer value
+          @info "sample rate buffered at $(sample_rates_collec[sample_counter] * 100)%"
+          buffer = sample_rates_collec[sample_counter]
+          sample_counter += 1
+          nls.sample_rate = min(1.0, max(nls.sample_rate, buffer))
+          change_sample_rate = true
+          count_succ = 0
+          dist_succ = zero(eltype(xk))
+        end
+    end
   
       if change_sample_rate
         # mandatory updates whenever the sample_rate chages #
@@ -620,7 +611,7 @@ function SPLM(
         vals_qrm = vcat(vals, sqrt(σk) .* ones(n))
       end
   
-      if (η1 ≤ ρk < Inf) #&& (metric ≥ η3 / μk) #successful step
+      if (η1 ≤ ρk < Inf) && sqrt(dot(s,s)) <= β/μk && (metric ≥ η3 / μk) #successful step
         xk .= xkn
         #changes sample only for successful iterations
         nls.sample = sort(randperm(nobs)[1:Int(ceil(nls.sample_rate * nobs))])
@@ -633,22 +624,13 @@ function SPLM(
           nls.sample == 1:nls.nobs || error("Sample Error : Sample should be full for 100% sampling")
         end
   
-        if (nls.sample_rate < 1.0) && metric ≥ η3 / μk #very successful step (stochastic)
+        if (η2 ≤ ρk < Inf) #very successful step
           μk = max(μk / λ, μmin)
           count_big_succ += 1
           count_fail = 0
-          count_succ = 0
-          dist_succ = zero(eltype(xk))
-        elseif (nls.sample_rate == 1.0) && (η2 ≤ ρk < Inf) #very successful step (deterministic)
-          μk = max(μk / λ, μmin)
-          count_big_succ += 1
-          count_fail = 0
-          count_succ = 0
-          dist_succ = zero(eltype(xk))
-        else
-          dist_succ += norm(s)
-          count_succ += 1
         end
+        count_succ += 1
+        dist_succ += sqrt(dot(s,s))
 
         if (nls.sample_rate == 1.0 && !change_sample_rate)
           Fk .= Fkn
