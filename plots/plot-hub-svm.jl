@@ -32,7 +32,7 @@ elseif selected_probs == ["mnist"]
         smooth = false
     end
     ϵ = 1e-4
-    MaxEpochs = 500
+    MaxEpochs = 20
     MaxTime = 3600.0
     compare = true
 end
