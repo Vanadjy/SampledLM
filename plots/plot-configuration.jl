@@ -24,4 +24,4 @@ conf = "95%"
 
 BA_3D_colors = Dict([(1.0, "black"), (2, "green"), (9, "blue")])
 legend_names_ijcnn1 = Dict([(1.0, "100"), (.1, "10"), (.05, "5"), (.01, "1"), (2, "Nondec-Batch (w/ Epoch)"), (5, "Nondec-Batch (w/ Stationarity)"), (7, "Nondec-Batch"), (9, "Adapt-Batch (w/ Buffer)")])
-legend_names_mnist = Dict([(1.0, "100"), (.1, "10"), (.05, "5"), (.01, "1"), (2, "Epoch"), (9, "Success")])
+legend_names_mnist = Dict([(1.0, "100"), (.1, "10"), (.05, "5"), (.01, "1"), (2, "Epoch"), (7, "Adapt"), (9, "Success")])

@@ -25,8 +25,8 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
             jac_structure_residual!(mnist_nls_full, rows, cols)
             J = sparse(rows, cols, vals, mnist_nls_full.nls_meta.nequ, mnist_nls_full.meta.nvar)
             display(J)=#
-            display(mnist_nls_full.nls_meta.nnzj)
-            display(mnist_nls_full.nls_meta.nequ * mnist_nls_full.meta.nvar)
+            #display(mnist_nls_full.nls_meta.nnzj)
+            #display(mnist_nls_full.nls_meta.nequ * mnist_nls_full.meta.nvar)
 
             if selected_prob == "ijcnn1"
                 prob = ijcnn1_full
@@ -661,9 +661,9 @@ function smooth_svm_plot_epoch(sample_rates::AbstractVector, versions::AbstractV
             plt_metr = PlotlyJS.plot(data_metr, layout_metr)
             plt_mse = PlotlyJS.plot(data_mse, layout_mse)
 
-            display(plt_obj)
+            #=display(plt_obj)
             display(plt_metr)
-            display(plt_mse)
+            display(plt_mse)=#
 
             #=if selected_prob == "ijcnn1"
                 PlotlyJS.savefig(plt_obj, "$selected_prob-exactobj-$(n_exec)runs-$(MaxEpochs)epochs-compare=$compare-smooth=$smooth.pdf"; format = "pdf")

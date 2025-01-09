@@ -45,7 +45,7 @@ function load_mnist_plm(version, selected_h; MaxEpochs::Int = 1000)
     if selected_h == "smooth"
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\smooth_jld2")
     else
-        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\nonsmooth_jld2")
     end
     if MaxEpochs == 1000
         suffix = "-Epoch=500"
@@ -78,7 +78,7 @@ function load_mnist_splm(version, selected_h; MaxEpochs::Int = 1000)
     if selected_h == "smooth"
         cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\smooth_jld2")
     else
-        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\smooth_jld2")
     end
 
     if MaxEpochs == 1000
@@ -128,7 +128,7 @@ function load_mnist_sto(sample_rate, selected_h; MaxEpochs::Int = 1000)
         nslm = load_object("nsslm-mnist-PLM-$(sample_rate*100)%$suffix.jld2")
         ngslm = load_object("ngsslm-mnist-PLM-$(sample_rate*100)%$suffix.jld2")
     else
-        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist")
+        cd(raw"C:\Users\valen\Desktop\Polytechnique_Montreal\_maitrise\JLD2saves\mnist\nonsmooth_jld2")
         med_obj_sto_mnist = load_object("med_obj_sto-$(sample_rate*100)-mnist-train-ls-$selected_h$suffix.jld2")
         med_metr_sto_mnist = load_object("med_metr_sto-$(sample_rate*100)-mnist-$selected_h$suffix.jld2")
         med_mse_sto_mnist = load_object("med_mse_sto-$(sample_rate*100)-mnist-$selected_h$suffix.jld2")
